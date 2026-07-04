@@ -42,6 +42,13 @@ body:
     validations:
       required: true
   - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should mochad-redux have done?
+    validations:
+      required: true
+  - type: textarea
     id: steps
     attributes:
       label: Reproduction steps
@@ -52,6 +59,19 @@ body:
         3. Press ...
     validations:
       required: true
+  - type: checkboxes
+    id: affected_area
+    attributes:
+      label: Affected area
+      options:
+        - label: Startup
+        - label: USB controller detection
+        - label: TCP connection on port 1099
+        - label: RF receive output
+        - label: Command input
+        - label: Shutdown or restart
+        - label: Docker USB passthrough
+        - label: Native systemd service
   - type: textarea
     id: logs
     attributes:
@@ -59,4 +79,4 @@ body:
       description: Paste startup, shutdown, USB, or TCP logs. Remove private information first.
       render: text
     validations:
-      required: false
+      required: true

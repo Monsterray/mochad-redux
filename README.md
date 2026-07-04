@@ -149,6 +149,8 @@ sh tools/compile_without_libusb.sh --strict
 ```
 
 Optional analyzer modes are documented in [MAINTAINING.md](MAINTAINING.md).
+Real controller testing is documented in
+[docs/hardware-validation.md](docs/hardware-validation.md).
 
 ## Troubleshooting
 

@@ -49,6 +49,7 @@
 
 /* Multiple On-line Controllers Home Automation Daemon */
 #define DAEMON_NAME "mochad"
+#define REDUX_VERSION "mochad-redux v0.3.0"
 
 #define LEVEL LOG_INFO // was originally LOG_EMERG
 
@@ -1171,11 +1172,13 @@ int main(int argc, char *argv[])
         else if (strcmp(argv[i], "--raw-data") == 0)
             raw_data = 1;
         else if (strcmp(argv[i], "--version") == 0) {
-            printf("%s\n", PACKAGE_STRING);
+            printf("%s\n", REDUX_VERSION);
+            printf("upstream base: %s\n", PACKAGE_STRING);
             printcopy();
             exit(0);
         } else if((strcmp(argv[i], "-h") == 0) || (strcmp(argv[i], "--help") == 0)) {
-            printf("%s\n", PACKAGE_STRING);
+            printf("%s\n", REDUX_VERSION);
+            printf("upstream base: %s\n", PACKAGE_STRING);
 	    help();
             exit(0);
         }
@@ -1189,8 +1192,9 @@ int main(int argc, char *argv[])
      * friendly lifecycle messages to stderr for containers and manual tests.
      */
     openlog(DAEMON_NAME, LOG_PID | (foreground ? LOG_PERROR : 0), LOG_LOCAL5);
-    syslog(LOG_NOTICE, "%s starting (foreground=%s, raw_data=%s)",
-            PACKAGE_STRING, foreground ? "yes" : "no",
+    syslog(LOG_NOTICE,
+            "%s starting (upstream_base=\"%s\", foreground=%s, raw_data=%s)",
+            REDUX_VERSION, PACKAGE_STRING, foreground ? "yes" : "no",
             raw_data ? "yes" : "no");
 
     /* Daemonize */

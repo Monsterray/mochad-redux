@@ -51,6 +51,7 @@ Secondary:
 * Keep protocol parsing/encoding testable without hardware.
 * Use clear logs and meaningful exit errors.
 * Do not require libusb for every test.
+* Keep hardware validation repeatable with documented manual checks.
 
 ## Release Branches
 

@@ -55,6 +55,17 @@ body:
         - label: RF remote events appeared in nc output
         - label: Shutdown completed cleanly
         - label: Restart completed cleanly
+        - label: Docker USB passthrough tested
+        - label: Native foreground mode tested
+        - label: Native systemd service tested
+  - type: textarea
+    id: commands
+    attributes:
+      label: Commands used
+      description: Paste the exact Docker, systemd, foreground, and nc commands used.
+      render: sh
+    validations:
+      required: true
   - type: textarea
     id: logs
     attributes:
@@ -62,7 +73,7 @@ body:
       description: Paste the relevant startup, RF receive, and shutdown logs.
       render: text
     validations:
-      required: false
+      required: true
   - type: textarea
     id: notes
     attributes:
