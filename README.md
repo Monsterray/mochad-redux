@@ -37,6 +37,7 @@ The first maintenance milestone is intentionally conservative:
 - Keep future rebases from upstream manageable.
 
 Broader protocol, USB, TCP, and state separation work is future work.
+Engineering principles are documented in [DESIGN.md](DESIGN.md).
 
 ## Source Notes
 

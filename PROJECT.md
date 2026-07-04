@@ -10,6 +10,9 @@ The goal is to preserve mochad compatibility while improving build reliability, 
 focused on hardware validation, issue templates, runtime diagnostics, and small
 testable seams.
 
+The engineering principles for this maintained line are documented in
+[DESIGN.md](DESIGN.md).
+
 ## Project Goals
 
 * Keep existing mochad behavior compatible.

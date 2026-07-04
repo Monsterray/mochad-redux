@@ -27,6 +27,9 @@ clients such as nc, scripts, MQTT bridge, Home Assistant bridge
 
 ## Design Principles
 
+See [DESIGN.md](DESIGN.md) for the project-level engineering principles. The
+architecture guidance below applies those principles to the current codebase.
+
 * USB access should be isolated from protocol logic.
 * Protocol logic should be testable without libusb.
 * TCP client handling should not know USB implementation details.
