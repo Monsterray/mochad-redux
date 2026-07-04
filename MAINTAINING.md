@@ -44,10 +44,14 @@ For each release:
 
 1. Finish integration work on `develop`.
 2. Run CI and the local checks documented below.
-3. Open a pull request from `develop` into `master`.
-4. Review the release diff for scope, documentation, and compatibility.
-5. Merge into `master`.
-6. Tag the release from `master`.
+3. Fill out release evidence from
+   [validation/release-evidence-template.md](validation/release-evidence-template.md).
+4. Complete [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+5. Open a pull request from `develop` into `master`.
+6. Review the release diff for scope, documentation, compatibility, generated
+   artifacts, and validation evidence.
+7. Merge into `master`.
+8. Tag the release from `master`.
 
 Do not tag releases from `develop`.
 
@@ -65,6 +69,12 @@ git rebase master
 
 If `develop` has fork-specific commits, resolve conflicts during the rebase and
 keep the conflict resolutions scoped to the upstream change being replayed.
+
+## Source Tree Hygiene
+
+Generated autotools files and local build outputs should not obscure source
+review. Follow [docs/generated-artifacts.md](docs/generated-artifacts.md) when
+deciding whether generated files belong in a change.
 
 ## Local build check
 
@@ -136,6 +146,9 @@ The CI workflow covers:
 - Ubuntu Latest
 - Debian Stable
 - Raspberry Pi ARM cross compile for the libusb-free source files
+
+Supported platform expectations are documented in
+[docs/supported-platforms.md](docs/supported-platforms.md).
 
 ## v0.4.x Quality Focus
 

@@ -7,9 +7,14 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		cgi/x10.pl cgi/netcat.pl cgi/getsensors.pl cgi/cgi-lib.pl \
 		apps/mochamon.pl apps/simplemon.pl apps/bash.sh \
 		apps/rfsectopl3.pl apps/x10-tk.py apps/mochad.scr \
-		docs/hardware-validation.md docs/milestone-1.md docs/support-files.md \
-		ARCHITECTURE.md DESIGN.md MAINTAINING.md PROJECT.md README.md \
-		ROADMAP.md LICENSE.md
+		docs/generated-artifacts.md docs/hardware-validation.md \
+		docs/milestone-1.md docs/support-files.md docs/supported-platforms.md \
+		validation/README.md validation/compiler.md validation/hardware.md \
+		validation/regression.md validation/release-evidence-template.md \
+		validation/releases/README.md \
+		ARCHITECTURE.md CHANGELOG.md CONTRIBUTING.md DESIGN.md \
+		MAINTAINING.md PROJECT.md README.md RELEASE_CHECKLIST.md \
+		ROADMAP.md SECURITY.md LICENSE.md
 
 install-exec-hook:
 	if test -d /lib/systemd/system -a -x /bin/systemctl ; then \
