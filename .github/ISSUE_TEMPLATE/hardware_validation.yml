@@ -1,0 +1,72 @@
+name: Hardware validation
+description: Report results from real CM15A or CM19A hardware.
+title: "[Hardware]: "
+labels:
+  - hardware-validation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hardware reports help define what v0.4.0 can confidently claim to support.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag, commit SHA, or Docker image tag.
+      placeholder: v0.4.0, develop, or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: controller
+    attributes:
+      label: X10 controller tested
+      options:
+        - CM19A
+        - CM15A
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host system
+      description: Hardware, OS, architecture, and kernel version if known.
+      placeholder: Raspberry Pi 4, Raspberry Pi OS 64-bit, Linux 6.x
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - Docker
+        - Native systemd service
+        - Native foreground command
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: validation
+    attributes:
+      label: Validation performed
+      options:
+        - label: Controller detected at startup
+        - label: TCP port 1099 accepted a client connection
+        - label: RF remote events appeared in nc output
+        - label: Shutdown completed cleanly
+        - label: Restart completed cleanly
+  - type: textarea
+    id: logs
+    attributes:
+      label: Startup and test logs
+      description: Paste the relevant startup, RF receive, and shutdown logs.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Include hardware quirks, USB passthrough details, or anything surprising.
+    validations:
+      required: false

@@ -19,13 +19,31 @@ git remote set-url --push upstream DISABLED
 
 ## Branches
 
-- `master` should stay close to the public release baseline and upstream sync
-  points.
+- `master` is the stable release branch.
 - `develop` is the integration branch for ongoing work.
 - Feature branches should branch from `develop` and merge back through review.
+- Future releases should be prepared by opening a pull request from `develop`
+  into `master`.
+- Release tags should be created from `master` after the release pull request
+  has been reviewed and merged.
 
 Avoid mixing upstream synchronization with feature work in the same commit.
 Small, single-purpose commits will make future rebases and reviews easier.
+
+## Release Flow
+
+`v0.3.0` is the current baseline release. The next milestone is `v0.4.0`.
+
+For each release:
+
+1. Finish integration work on `develop`.
+2. Run CI and the local checks documented below.
+3. Open a pull request from `develop` into `master`.
+4. Review the release diff for scope, documentation, and compatibility.
+5. Merge into `master`.
+6. Tag the release from `master`.
+
+Do not tag releases from `develop`.
 
 ## Syncing upstream
 

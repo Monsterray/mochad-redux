@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Compile libusb-free sources
         run: sh tools/compile_without_libusb.sh --strict --asan --ubsan
@@ -57,7 +57,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build in Debian stable container
         run: |
@@ -87,7 +87,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install ARM cross compiler
         run: |

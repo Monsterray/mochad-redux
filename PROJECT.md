@@ -6,6 +6,10 @@
 
 The goal is to preserve mochad compatibility while improving build reliability, diagnostics, Docker usability, and long-term maintainability.
 
+`v0.3.0` is the current baseline. Active integration work targets `v0.4.0`,
+focused on hardware validation, issue templates, runtime diagnostics, and small
+testable seams.
+
 ## Project Goals
 
 * Keep existing mochad behavior compatible.
@@ -47,3 +51,10 @@ Secondary:
 * Keep protocol parsing/encoding testable without hardware.
 * Use clear logs and meaningful exit errors.
 * Do not require libusb for every test.
+
+## Release Branches
+
+* `master` is the stable release branch.
+* `develop` is the integration branch.
+* Release pull requests flow from `develop` into `master`.
+* Release tags are created from `master`.

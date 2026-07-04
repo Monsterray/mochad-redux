@@ -237,7 +237,8 @@ void mh_sockhexdump(int fd, void *p, size_t len)
 }
 
 
-static int Do_exit = 0;
+static volatile sig_atomic_t Do_exit = 0;
+static volatile sig_atomic_t Exit_signal = 0;
 static int Reattach = 0;
 
 static void init_client(void)
@@ -646,7 +647,22 @@ int write_usb(unsigned char *buf, size_t len)
 
 static void sighandler(int signum)
 {
+    Exit_signal = signum;
     Do_exit = 1;	
+}
+
+static const char *signal_name(int signum)
+{
+    switch (signum) {
+        case SIGINT:
+            return "SIGINT";
+        case SIGTERM:
+            return "SIGTERM";
+        case SIGQUIT:
+            return "SIGQUIT";
+        default:
+            return "unknown signal";
+    }
 }
 
 static int mydaemon(void)
@@ -673,12 +689,14 @@ static int mydaemon(void)
 
     hua_sec_init();
 
+    syslog(LOG_NOTICE, "Initializing USB subsystem");
     r = libusb_init(NULL);
     if (r < 0) {
         syslog(LEVEL, "failed to initialise libusb %d", r);
         dbprintf("failed to initialise libusb %d\n", r);
         exit(1);
     }
+    syslog(LOG_NOTICE, "USB subsystem initialized");
     libusb_set_debug(NULL, 3);
 
 #if 0
@@ -689,6 +707,7 @@ static int mydaemon(void)
         goto out;
     }
 #endif
+    syslog(LOG_NOTICE, "Looking for CM15A/CM19A controller");
     r = find_cm15a(&Devh);
     if (r < 0) {
         syslog(LEVEL, "Could not find/open CM15A/CM19A %d", r);
@@ -708,6 +727,7 @@ static int mydaemon(void)
     r = do_init();
     if (r < 0)
         goto out_deinit;
+    syslog(LOG_NOTICE, "Controller initialized");
 
     r = alloc_transfers();
     if (r < 0)
@@ -716,6 +736,7 @@ static int mydaemon(void)
     r = start_transfers();
     if (r < 0)
         goto out_deinit;
+    syslog(LOG_NOTICE, "USB transfers started");
 
     sigact.sa_handler = sighandler;
     sigemptyset(&sigact.sa_mask);
@@ -973,6 +994,10 @@ static int mydaemon(void)
     Clients[2].events = POLLIN;
 
     PollTimeOut = -1;
+    syslog(LOG_NOTICE,
+            "Listening for clients on TCP ports %d, %d, and %d",
+            SERVER_PORT, SERVER_PORT + 1, SERVER_PORT + 2);
+    syslog(LOG_NOTICE, "mochad is running");
 
     while (!Do_exit) {
         int nsockclients;
@@ -1085,12 +1110,18 @@ static int mydaemon(void)
         if (libusb_handle_events(NULL) < 0)
             break;
 
-    if (Do_exit == 1)
+    if (Do_exit == 1) {
+        syslog(LOG_NOTICE, "Shutdown requested by %s (%d)",
+                signal_name(Exit_signal), Exit_signal);
         r = 0;
-    else
+    }
+    else {
+        syslog(LOG_NOTICE, "Stopping after USB or poll error");
         r = 1;
+    }
 
 out_deinit:
+    syslog(LOG_NOTICE, "Releasing USB resources");
     libusb_free_transfer(IntrIn_transfer);
     libusb_free_transfer(IntrOut_transfer);
 /* out_release: */
@@ -1099,6 +1130,7 @@ out:
     libusb_close(Devh);
     if (Reattach) libusb_attach_kernel_driver(Devh, 0);
     libusb_exit(NULL);
+    syslog(LOG_NOTICE, "Shutdown complete");
     return r >= 0 ? r : -r;
 }
 
@@ -1132,10 +1164,6 @@ int main(int argc, char *argv[])
     int rc, i;
     int foreground=0;
 
-    /* Initialize logging */
-    openlog(DAEMON_NAME, LOG_PID, LOG_LOCAL5);
-    syslog(LOG_NOTICE, "starting");
-
     /* Process command line args */
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-d") == 0)
@@ -1157,10 +1185,22 @@ int main(int argc, char *argv[])
         }
     }
 
+    /* Initialize logging after argument parsing so foreground mode can mirror
+     * friendly lifecycle messages to stderr for containers and manual tests.
+     */
+    openlog(DAEMON_NAME, LOG_PID | (foreground ? LOG_PERROR : 0), LOG_LOCAL5);
+    syslog(LOG_NOTICE, "%s starting (foreground=%s, raw_data=%s)",
+            PACKAGE_STRING, foreground ? "yes" : "no",
+            raw_data ? "yes" : "no");
+
     /* Daemonize */
     if (!foreground) {
         rc = daemon(0, 0);
         dbprintf("daemon() => %d\n", rc);
+        syslog(LOG_NOTICE, "Running in background");
+    }
+    else {
+        syslog(LOG_NOTICE, "Running in foreground");
     }
 
     /* Do real work */
