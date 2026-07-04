@@ -664,8 +664,11 @@ static void IntrIn_cb(struct libusb_transfer *transfer)
 #else
     cm15a_decode(-1, transfer->buffer, transfer->actual_length);
 #endif
-    if (libusb_submit_transfer(IntrIn_transfer) < 0)
+    if (libusb_submit_transfer(IntrIn_transfer) < 0) {
+        syslog(LEVEL,
+                "[USB] interrupt input transfer resubmit failed; shutting down");
         Do_exit = 2;
+    }
 }
 
 static int start_transfers(void)
@@ -673,8 +676,12 @@ static int start_transfers(void)
     int r;
 
     r = libusb_submit_transfer(IntrIn_transfer);
-    if (r < 0)
+    if (r < 0) {
+        syslog(LEVEL,
+                "[USB] interrupt input transfer submit failed rc=%d; controller is not ready",
+                r);
         return r;
+    }
     return 0;
 }
 
@@ -688,14 +695,20 @@ static int do_init(void)
 static int alloc_transfers(void)
 {
     IntrIn_transfer = libusb_alloc_transfer(0);
-    if (!IntrIn_transfer)
+    if (!IntrIn_transfer) {
+        syslog(LEVEL, "[USB] interrupt input transfer allocation failed");
         return -ENOMEM;
+    }
     libusb_fill_interrupt_transfer(IntrIn_transfer, Devh, InEndpoint, 
             IntrInBuf, sizeof(IntrInBuf), IntrIn_cb, NULL, 0);
 
     IntrOut_transfer = libusb_alloc_transfer(0);
-    if (!IntrOut_transfer)
+    if (!IntrOut_transfer) {
+        syslog(LEVEL, "[USB] interrupt output transfer allocation failed");
+        libusb_free_transfer(IntrIn_transfer);
+        IntrIn_transfer = NULL;
         return -ENOMEM;
+    }
     return 0;
 }
 
@@ -910,13 +923,26 @@ static int create_listener(const char *name, int port)
     return fd;
 }
 
+static void close_listener(const char *name, int *fd)
+{
+    if (*fd < 0)
+        return;
+
+    syslog(LOG_NOTICE, "[TCP] closing listener name=%s fd=%d", name, *fd);
+    close(*fd);
+    *fd = -1;
+}
+
 static int mydaemon(void)
 {
     int nready, i;
 
     /**** sockets ****/
     socklen_t clilen; 
-    int clifd, listenfd, flashxmlfd, or20fd;
+    int clifd;
+    int listenfd = -1;
+    int flashxmlfd = -1;
+    int or20fd = -1;
     struct sockaddr_storage cliaddr;
     unsigned char buf[1024];
     int bytesIn;
@@ -939,7 +965,7 @@ static int mydaemon(void)
                 "[USB] libusb initialization failed rc=%d; check USB permissions and container passthrough",
                 r);
         dbprintf("failed to initialise libusb %d\n", r);
-        exit(1);
+        return 1;
     }
     syslog(LOG_NOTICE, "[USB] libusb initialized");
     libusb_set_debug(NULL, 3);
@@ -994,8 +1020,15 @@ static int mydaemon(void)
     sigaction(SIGINT,  &sigact, NULL);
     sigaction(SIGTERM, &sigact, NULL);
     sigaction(SIGQUIT, &sigact, NULL);
+    syslog(LOG_NOTICE,
+            "[STARTUP] signal handlers installed signals=SIGINT,SIGTERM,SIGQUIT");
 
     usbfds = libusb_get_pollfds(NULL);
+    if (!usbfds) {
+        syslog(LEVEL, "[USB] libusb poll descriptor lookup failed");
+        r = 1;
+        goto out_deinit;
+    }
     dbprintf("usbfds %p %p %p %p %p\n", usbfds, 
             usbfds[0], usbfds[1], usbfds[2], usbfds[3]);
     nusbfds = 3;        /* Skip over listen fd at [0,1,2] */
@@ -1009,6 +1042,8 @@ static int mydaemon(void)
     }
     nusbfds -= 3;  /* Adjust for skipping 0,1,2 */
     dbprintf("nusbfds %lu\n", nusbfds);
+    syslog(LOG_NOTICE, "[USB] poll descriptors ready count=%lu",
+            (unsigned long)nusbfds);
     memset(&timeout, 0, sizeof(timeout));
 
     if (Cm19a)
@@ -1020,8 +1055,11 @@ static int mydaemon(void)
     listenfd = create_listener("main", ServerPort);
     flashxmlfd = create_listener("xml", XmlPort);
     or20fd = create_listener("openremote", OpenRemotePort);
-    if (listenfd < 0 || flashxmlfd < 0 || or20fd < 0)
+    if (listenfd < 0 || flashxmlfd < 0 || or20fd < 0) {
+        syslog(LEVEL,
+                "[TCP] listener startup failed; closing any listeners that were already opened");
         goto out_deinit;
+    }
 
     init_client();
 
@@ -1050,9 +1088,18 @@ static int mydaemon(void)
         nsockclients = copy_clients(&Clients[3+nusbfds]);
         /* 1 for listen socket, 1 for flashxml listen socket, 1 for or20 listen
          * socket, nusbfds for libusb, nsockclients for socket clients
-         */
+        */
         npollfds = 3 + nusbfds + nsockclients;
         nready = poll(Clients, npollfds, PollTimeOut);
+        if (nready < 0) {
+            if (errno == EINTR) {
+                syslog(LOG_DEBUG, "[SHUTDOWN] poll interrupted by signal");
+                continue;
+            }
+            syslog(LEVEL, "[TCP] poll failed errno=%d; shutting down", errno);
+            Do_exit = 2;
+            break;
+        }
 #if 0
         dbprintf("poll() %d\n", nready);
         for (i = 0; i < npollfds; i++) {
@@ -1140,14 +1187,20 @@ static int mydaemon(void)
 
     if (IntrOut_transfer) {
         r = libusb_cancel_transfer(IntrOut_transfer);
-        if (r < 0)
+        if (r < 0) {
+            syslog(LEVEL, "[SHUTDOWN] interrupt output transfer cancel failed rc=%d",
+                    r);
             goto out_deinit;
+        }
     }
 
     if (IntrIn_transfer) {
         r = libusb_cancel_transfer(IntrIn_transfer);
-        if (r < 0)
+        if (r < 0) {
+            syslog(LEVEL, "[SHUTDOWN] interrupt input transfer cancel failed rc=%d",
+                    r);
             goto out_deinit;
+        }
     }
 
     i = 100;
@@ -1166,14 +1219,32 @@ static int mydaemon(void)
     }
 
 out_deinit:
+    close_listener("main", &listenfd);
+    close_listener("xml", &flashxmlfd);
+    close_listener("openremote", &or20fd);
     syslog(LOG_NOTICE, "[SHUTDOWN] releasing USB resources");
     libusb_free_transfer(IntrIn_transfer);
     libusb_free_transfer(IntrOut_transfer);
 /* out_release: */
-    libusb_release_interface(Devh, 0);
+    if (Devh) {
+        r = libusb_release_interface(Devh, 0);
+        if (r < 0) {
+            syslog(LEVEL, "[SHUTDOWN] release interface failed rc=%d", r);
+        }
+        if (Reattach) {
+            r = libusb_attach_kernel_driver(Devh, 0);
+            if (r < 0) {
+                syslog(LEVEL, "[SHUTDOWN] kernel driver reattach failed rc=%d",
+                        r);
+            }
+            else {
+                syslog(LOG_NOTICE, "[SHUTDOWN] kernel driver reattached");
+            }
+        }
+    }
 out:
-    libusb_close(Devh);
-    if (Reattach) libusb_attach_kernel_driver(Devh, 0);
+    if (Devh)
+        libusb_close(Devh);
     libusb_exit(NULL);
     syslog(LOG_NOTICE, "[SHUTDOWN] complete");
     return r >= 0 ? r : -r;

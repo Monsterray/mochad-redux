@@ -39,6 +39,11 @@ Riskier changes:
 - Change runtime defaults without a compatibility reason.
 - Introduce large abstractions around code that is not yet covered by tests.
 
+For the `v0.4.x` line, runtime observability is the primary feature. Startup,
+shutdown, listener, USB, and client lifecycle logs should become clear enough
+that a user can diagnose most deployment failures from logs alone. New protocol
+features should wait until that visibility is in place.
+
 ## Linux-First Runtime
 
 Linux is the primary runtime platform. The reference behavior is Linux with
@@ -93,6 +98,10 @@ The project should maintain two validation paths:
 Manual hardware validation is also part of the test strategy. Repeatable CM19A
 and CM15A test reports are more valuable than speculative refactors.
 
+After runtime logging is stable, sanitizer builds, static analysis, and
+compatibility documentation should be improved before starting larger
+modernization work.
+
 ## Upstream Posture
 
 `mochad-redux` should stay aware of upstream work without being defined by it.
@@ -112,8 +121,7 @@ long-term maintenance.
 
 Use semantic versioning for `mochad-redux` releases:
 
-- `v0.4.0`: new milestone or significant maintained improvement.
-- `v0.4.1`: bug fixes for the `v0.4.0` line.
+- `v0.4.x`: runtime hardening and observability releases.
 - `v0.5.0`: next milestone.
 - `v1.0.0`: mature stable release with documented hardware support.
 
@@ -130,6 +138,8 @@ Before accepting a change, ask:
 - Can any part of this be tested without hardware?
 - If hardware is required, is the validation path documented?
 - Does this make Docker deployment clearer or at least avoid making it worse?
+- Does this make runtime logs clearer when startup, USB, TCP, client, or
+  shutdown behavior fails?
 - Does this improve maintainability without chasing abstraction for its own sake?
 
 If a change fails one of these checks, it may still be correct, but the reason

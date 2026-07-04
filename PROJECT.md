@@ -6,9 +6,13 @@
 
 The goal is to preserve mochad compatibility while improving build reliability, diagnostics, Docker usability, and long-term maintainability.
 
-`v0.3.0` is the current baseline. Active integration work targets `v0.4.0`,
-focused on hardware validation, issue templates, runtime diagnostics, and small
-testable seams.
+`v0.3.0` is the current baseline. Active integration work targets the `v0.4.x`
+line, focused on runtime hardening, observability, hardware validation,
+sanitizer/static-analysis coverage, and compatibility documentation.
+
+Protocol features are intentionally deferred until startup, shutdown, listener,
+USB, and client lifecycle diagnostics are clear enough for real deployments to
+explain themselves from logs.
 
 The engineering principles for this maintained line are documented in
 [DESIGN.md](DESIGN.md).
@@ -22,6 +26,8 @@ The engineering principles for this maintained line are documented in
 * Keep the codebase small and understandable.
 * Add tests before behavior changes.
 * Prefer safe maintenance over rewrites.
+* Make runtime failures self-explanatory through clear logs before adding
+  protocol features.
 
 ## Supported Targets
 
@@ -55,6 +61,7 @@ Secondary:
 * Use clear logs and meaningful exit errors.
 * Do not require libusb for every test.
 * Keep hardware validation repeatable with documented manual checks.
+* Complete logging and diagnostics before larger modernization work.
 
 ## Release Branches
 

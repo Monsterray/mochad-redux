@@ -34,6 +34,9 @@ The first maintenance milestone is intentionally conservative:
 - Improve compiler warning coverage and static analysis.
 - Fix concrete safety and ownership issues in small reviewable changes.
 - Improve diagnostics without changing the TCP protocol layout.
+- Treat the `v0.4.x` line as runtime hardening and observability work:
+  startup, shutdown, listener, USB, and client lifecycle logs come before new
+  protocol features.
 - Keep future rebases from upstream manageable.
 
 Broader protocol, USB, TCP, and state separation work is future work.

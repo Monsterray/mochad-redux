@@ -6,29 +6,36 @@
 
 Goal: preserve working mochad behavior while making the project buildable, documented, and testable.
 
-* [ ] Confirm upstream baseline
+Status: complete except hardware validation.
+
+The Docker image and compose packaging are completed in the companion
+`mochad-docker` project.
+
+* [x] Confirm upstream baseline
 * [ ] Verify CM19A works
 * [ ] Verify CM15A if hardware is available
-* [ ] Add Docker image
-* [ ] Add README
-* [ ] Add license
-* [ ] Add GitHub Actions
-* [ ] Add libusb-free compile check
-* [ ] Add full libusb build check
-* [ ] Document safety boundaries for USB writes, command parsing, endpoint
+* [x] Add Docker image
+* [x] Add README
+* [x] Add license
+* [x] Add GitHub Actions
+* [x] Add libusb-free compile check
+* [x] Add full libusb build check
+* [x] Document safety boundaries for USB writes, command parsing, endpoint
   discovery, socket ownership, and debug logs
 
 ## v0.2.0 - Build and Code Hygiene
 
 Goal: modernize safely without behavior changes.
 
-* [ ] Fix compiler warnings
-* [ ] Keep concrete safety fixes reviewable and behavior-preserving
-* [ ] Separate USB-specific and non-USB code where practical
-* [ ] Improve Makefile/autotools reliability
-* [ ] Add basic unit/compile tests
-* [ ] Add CI matrix for supported Linux targets
-* [ ] Document supported platforms
+Status: complete.
+
+* [x] Fix compiler warnings
+* [x] Keep concrete safety fixes reviewable and behavior-preserving
+* [x] Separate USB-specific and non-USB code where practical
+* [x] Improve Makefile/autotools reliability
+* [x] Add basic unit/compile tests
+* [x] Add CI matrix for supported Linux targets
+* [x] Document supported platforms
 
 ## v0.3.0 - Docker and Runtime Configuration
 
@@ -36,31 +43,55 @@ Goal: make Docker deployment easy and predictable.
 
 Status: baseline release.
 
-* [ ] Environment-variable based entrypoint
-* [ ] Document USB passthrough
-* [ ] Configurable foreground/raw mode
-* [ ] Investigate configurable bind address
-* [ ] Investigate configurable TCP port
-* [ ] Improve container logs
+The Docker packaging work is completed in the companion `mochad-docker`
+project. The daemon-side runtime flags are completed in `mochad-redux`.
 
-## v0.4.0 - Hardware Validation and Diagnostics
+* [x] Environment-variable based entrypoint
+* [x] Document USB passthrough
+* [x] Configurable foreground/raw mode
+* [x] Investigate configurable bind address
+* [x] Investigate configurable TCP port
+* [x] Improve container logs
 
-Goal: make troubleshooting easier while keeping changes small, testable, and
-compatible with existing clients.
+## v0.4.x - Runtime Hardening and Observability
 
-* [ ] Validate startup and RF receive behavior with real CM19A hardware
-* [ ] Validate CM15A behavior if hardware is available
-* [ ] Add GitHub issue templates for bug reports and hardware validation
-* [ ] Better startup logs
-* [ ] Better shutdown logs
-* [ ] Better USB error messages
-* [ ] Better client connection logs
-* [ ] Add small testable seams around protocol parsing and diagnostics
-* [ ] Optional `hello` command
-* [ ] Optional `features` command
-* [ ] Optional `health` command
+Goal: make the daemon self-explanatory through clear, consistent logging and
+diagnostics while keeping changes small, testable, and compatible with existing
+clients.
 
-Avoid broad USB, TCP, protocol, or state refactors in this milestone.
+Runtime visibility:
+
+* [x] Make startup logs show version, foreground/background mode, raw mode,
+  bind address, ports, listener family, and dual-stack status.
+* [x] Make USB initialization logs explain device discovery, permissions,
+  kernel-driver conflicts, Docker passthrough issues, endpoints, and transfer
+  startup.
+* [x] Make TCP listener logs show each listener name, address family, bind
+  address, port, and bind/listen failures.
+* [x] Make client lifecycle logs show accepted, rejected, disconnected, and
+  command-received events with client IDs where practical.
+* [x] Make shutdown logs explain signal-driven exits, USB cleanup, and abnormal
+  exits clearly.
+
+Validation:
+
+* [ ] Validate startup and RF receive behavior with real CM19A hardware.
+* [ ] Validate CM15A behavior if hardware is available.
+* [x] Add or refine GitHub issue templates for bug reports and hardware
+  validation.
+* [ ] Add small testable seams around diagnostics where they reduce risk.
+
+Quality gates:
+
+* [x] Keep sanitizer compile checks passing.
+* [x] Keep cppcheck and clang-tidy guidance current.
+* [x] Document sanitizer/static-analysis expectations for maintainers.
+* [x] Document Linux, Docker, Raspberry Pi, IPv4, and explicit IPv6
+  compatibility expectations.
+
+Avoid broad USB, TCP, protocol, or state refactors in this milestone. Defer new
+protocol commands such as `hello`, `features`, or `health` until runtime
+logging and diagnostics are excellent.
 
 ## v1.0.0 - Stable Maintained Release
 

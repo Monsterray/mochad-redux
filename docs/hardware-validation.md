@@ -8,7 +8,7 @@ USB passthrough, startup, TCP, RF receive, or shutdown behavior.
 
 Run the checks that match the hardware you have:
 
-| Controller | Runtime | Required for v0.4.0 |
+| Controller | Runtime | Required for v0.4.x |
 | --- | --- | --- |
 | CM19A | Docker | Yes |
 | CM19A | Native foreground | Yes |
@@ -61,8 +61,11 @@ Expected startup milestones:
 [USB] libusb initialized
 [USB] looking for CM15A/CM19A controller
 [USB] controller found model=CM19A
+[USB] endpoints ready in=0x81 out=0x02
 [USB] controller initialized
 [USB] transfers started
+[STARTUP] signal handlers installed signals=SIGINT,SIGTERM,SIGQUIT
+[USB] poll descriptors ready count=...
 [TCP] listener ready name=main address=0.0.0.0 port=1099 family=ipv4 dual_stack=not_applicable
 [TCP] listener ready name=xml address=0.0.0.0 port=1100 family=ipv4 dual_stack=not_applicable
 [TCP] listener ready name=openremote address=0.0.0.0 port=1101 family=ipv4 dual_stack=not_applicable
@@ -126,8 +129,11 @@ Stop the foreground process with `Ctrl+C`.
 Expected shutdown milestones:
 
 ```text
-[SHUTDOWN] requested by SIGINT
 [SHUTDOWN] detaching controller model=CM19A
+[SHUTDOWN] requested by SIGINT (2)
+[TCP] closing listener name=main fd=...
+[TCP] closing listener name=xml fd=...
+[TCP] closing listener name=openremote fd=...
 [SHUTDOWN] releasing USB resources
 [SHUTDOWN] complete
 [SHUTDOWN] terminated

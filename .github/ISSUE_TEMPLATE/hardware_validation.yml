@@ -7,13 +7,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        Hardware reports help define what v0.4.0 can confidently claim to support.
+        Hardware reports help define what the v0.4.x line can confidently support.
   - type: input
     id: version
     attributes:
       label: Version
       description: Release tag, commit SHA, or Docker image tag.
-      placeholder: v0.4.0, develop, or commit SHA
+      placeholder: v0.4.x release, develop, or commit SHA
     validations:
       required: true
   - type: dropdown

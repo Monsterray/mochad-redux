@@ -32,7 +32,13 @@ Small, single-purpose commits will make future rebases and reviews easier.
 
 ## Release Flow
 
-`v0.3.0` is the current baseline release. The next milestone is `v0.4.0`.
+`v0.3.0` is the current baseline release. The active milestone is the `v0.4.x`
+runtime-hardening and observability line.
+
+For `v0.4.x`, prioritize clear startup, shutdown, listener, USB, and client
+lifecycle diagnostics before adding protocol features. New commands and larger
+modernization work should wait until runtime logs are strong enough for users
+to diagnose common deployment failures from the daemon output.
 
 For each release:
 
@@ -130,6 +136,19 @@ The CI workflow covers:
 - Ubuntu Latest
 - Debian Stable
 - Raspberry Pi ARM cross compile for the libusb-free source files
+
+## v0.4.x Quality Focus
+
+After logging and diagnostics are in good shape, focus on:
+
+- Sanitizer compile coverage through `--asan` and `--ubsan`.
+- Static analysis coverage through cppcheck and clang-tidy.
+- Compatibility documentation for Linux, Docker, Raspberry Pi, IPv4 defaults,
+  and explicit IPv6 opt-in.
+- Repeatable hardware validation notes for CM19A and CM15A.
+
+Do not add new protocol features merely to expose diagnostics until the current
+daemon lifecycle logs are clear and consistent.
 
 ## Safety Fix Verification
 
