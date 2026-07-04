@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+    branches:
+      - master
+      - develop
+
+jobs:
+  ubuntu:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu LTS
+            runner: ubuntu-24.04
+          - name: Ubuntu Latest
+            runner: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Compile libusb-free sources
+        run: sh tools/compile_without_libusb.sh --strict --asan --ubsan
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            build-essential \
+            libtool \
+            libusb-1.0-0-dev \
+            pkg-config
+
+      - name: Generate autotools files
+        run: ./autogen.sh
+
+      - name: Configure
+        run: ./configure
+
+      - name: Compile
+        run: make
+
+  debian-stable:
+    name: Debian Stable
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build in Debian stable container
+        run: |
+          docker run --rm \
+            -v "$PWD":/work \
+            -w /work \
+            debian:stable \
+            sh -c '
+              set -eux
+              apt-get update
+              apt-get install -y \
+                autoconf \
+                automake \
+                build-essential \
+                libtool \
+                libusb-1.0-0-dev \
+                pkg-config
+              sh tools/compile_without_libusb.sh --strict --asan --ubsan
+              ./autogen.sh
+              ./configure
+              make
+            '
+
+  raspberry-pi-cross:
+    name: Raspberry Pi Cross Compile
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install ARM cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf
+
+      - name: Cross compile libusb-free sources
+        run: |
+          sh tools/compile_without_libusb.sh \
+            --strict \
+            --cc arm-linux-gnueabihf-gcc

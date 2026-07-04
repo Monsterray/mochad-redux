@@ -58,6 +58,7 @@
 #include <netinet/in.h>
 
 #include "global.h"
+#include "encode.h"
 
 #define SERVER_PORT     (1099)
 #define MAXCLISOCKETS   (32)
@@ -71,6 +72,9 @@ static struct pollfd Clients[(3*MAXSOCKETS)+USB_FDS];
 static struct pollfd Clientsocks[MAXCLISOCKETS];
 static struct pollfd Clientxmlsocks[MAXCLISOCKETS];
 static struct pollfd Clientor20socks[MAXCLISOCKETS];
+static cm15a_encode_state_t Clientstates[MAXCLISOCKETS];
+static cm15a_encode_state_t Clientxmlstates[MAXCLISOCKETS];
+static cm15a_encode_state_t Clientor20states[MAXCLISOCKETS];
 
 static size_t NClients;     /* # of valid entries in Clientsocks     */
 static size_t NxmlClients;  /* # of valid entries in Clientxmlsocks  */
@@ -142,13 +146,14 @@ int sockprintf(int fd, const char *fmt, ...)
     char buf[1024];
     char *aLine;
     int len, buflen;
-    time_t tm;
+    time_t now;
+    struct tm local_tm;
     int i;
     int bytesOut;
 
     aLine = buf;
-    tm = time(NULL);
-    len = strftime(aLine, sizeof(buf), "%m/%d %T ", localtime(&tm));
+    now = time(NULL);
+    len = strftime(aLine, sizeof(buf), "%m/%d %T ", localtime_r(&now, &local_tm));
     va_start(args,fmt);
     buflen = vsnprintf(aLine+len, sizeof(buf)-len, fmt, args);
     va_end(args);
@@ -193,16 +198,16 @@ int sockprintf(int fd, const char *fmt, ...)
 static void _hexdump(void *p, size_t len, char *outbuf, size_t outlen)
 {
     unsigned char *ptr = (unsigned char*) p;
-    size_t l;
+    size_t l, used = 0;
 
-    if (len == 0) return;
-    if (len > (outlen / 3))
-        l = outlen / 3;
+    if ((len == 0) || (outlen == 0)) return;
+    if (len > ((outlen - 1) / 3))
+        l = (outlen - 1) / 3;
     else
         l = len;
     while (l--) {
-        sprintf(outbuf, "%02X ", *ptr++);
-        outbuf += 3;
+        snprintf(outbuf + used, outlen - used, "%02X ", *ptr++);
+        used += 3;
     }
 }
 
@@ -241,6 +246,9 @@ static void init_client(void)
 
     for (i = 0; i < MAXCLISOCKETS; i++) {
         Clientsocks[i].fd = Clientxmlsocks[i].fd = Clientor20socks[i].fd = -1;
+        cm15a_encode_state_init(&Clientstates[i]);
+        cm15a_encode_state_init(&Clientxmlstates[i]);
+        cm15a_encode_state_init(&Clientor20states[i]);
     }
     NClients = NxmlClients = Nor20Clients = 0;
 }
@@ -256,6 +264,7 @@ static int add_client(int fd)
             Clientsocks[i].fd = fd;
             Clientsocks[i].events = POLLIN;
             Clientsocks[i].revents = 0;
+            cm15a_encode_state_init(&Clientstates[i]);
             NClients++;
             dbprintf("add_client: i %d NClients %d\n", i, NClients);
             return 0;
@@ -276,6 +285,7 @@ static int add_xmlclient(int fd)
             Clientxmlsocks[i].fd = fd;
             Clientxmlsocks[i].events = POLLIN;
             Clientxmlsocks[i].revents = 0;
+            cm15a_encode_state_init(&Clientxmlstates[i]);
             NxmlClients++;
             dbprintf("add_xmlclient: i %d NxmlClients %d\n", i, NxmlClients);
             return 0;
@@ -296,6 +306,7 @@ static int add_or20client(int fd)
             Clientor20socks[i].fd = fd;
             Clientor20socks[i].events = POLLIN;
             Clientor20socks[i].revents = 0;
+            cm15a_encode_state_init(&Clientor20states[i]);
             Nor20Clients++;
             dbprintf("add_or20client: i %d Nor20Clients %d\n", i, Nor20Clients);
             return 0;
@@ -303,6 +314,29 @@ static int add_or20client(int fd)
     }
     dbprintf("max OR20 clients exceeded %d\n", i);
     return -1;
+}
+
+static cm15a_encode_state_t *client_encode_state(int fd)
+{
+    int i;
+
+    for (i = 0; i < MAXCLISOCKETS; i++) {
+        if (Clientsocks[i].fd == fd) return &Clientstates[i];
+        if (Clientxmlsocks[i].fd == fd) return &Clientxmlstates[i];
+        if (Clientor20socks[i].fd == fd) return &Clientor20states[i];
+    }
+    return NULL;
+}
+
+static void log_accept_result(const char *name, int fd)
+{
+    /* errno is meaningful only when accept() fails. Logging it after a
+     * successful accept shows stale values from earlier syscalls.
+     */
+    if (fd < 0)
+        dbprintf("%s accept failed errno %d\n", name, errno);
+    else
+        dbprintf("%s accept fd %d\n", name, fd);
 }
 
 /* Delete socket client */
@@ -313,13 +347,19 @@ int del_client(int fd)
     dbprintf("del_client(%d)\n", fd);
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if (Clientsocks[i].fd == fd) {
+            shutdown(fd, SHUT_RDWR);
+            close(fd);
             Clientsocks[i].fd = -1;
+            cm15a_encode_state_init(&Clientstates[i]);
             NClients--;
             dbprintf("del_client: i %d NClients %d\n", i, NClients);
             return 0;
         }
         if (Clientxmlsocks[i].fd == fd) {
+            shutdown(fd, SHUT_RDWR);
+            close(fd);
             Clientxmlsocks[i].fd = -1;
+            cm15a_encode_state_init(&Clientxmlstates[i]);
             NxmlClients--;
             dbprintf("del_client: i %d NxmlClients %d\n", i, NxmlClients);
             return 0;
@@ -328,6 +368,7 @@ int del_client(int fd)
             shutdown(fd, SHUT_RDWR);
             close(fd);
             Clientor20socks[i].fd = -1;
+            cm15a_encode_state_init(&Clientor20states[i]);
             Nor20Clients--;
             dbprintf("del_client: i %d Nor20Clients %d\n", i, Nor20Clients);
             return 0;
@@ -361,7 +402,6 @@ static int copy_clients(struct pollfd *Clients)
 
 #include "x10state.h"
 #include "x10_write.h"
-#include "encode.h"
 #include "decode.h"
 
 /*
@@ -463,7 +503,7 @@ static int find_cm15a(struct libusb_device_handle **devhptr)
 static int get_endpoint_address(libusb_device_handle *devh, uint8_t *inendpt, uint8_t *outendpt)
 {
     int r;
-    struct libusb_config_descriptor *config;
+    struct libusb_config_descriptor *config = NULL;
     const struct libusb_interface *interfaces;
     const struct libusb_interface_descriptor *interface_desc;
     const struct libusb_endpoint_descriptor *endpoint_desc;
@@ -471,14 +511,17 @@ static int get_endpoint_address(libusb_device_handle *devh, uint8_t *inendpt, ui
     struct libusb_device_descriptor desc;
     int i, j, k;
 
-    uDevice = libusb_get_device(devh);
-    if (r < 0) return r;
+    *inendpt = 0;
+    *outendpt = 0;
 
+    uDevice = libusb_get_device(devh);
+    if (!uDevice) return -ENODEV;
     r = libusb_get_device_descriptor(uDevice, &desc);
     if (r < 0) return r;
 
     r = libusb_get_active_config_descriptor(uDevice, &config);
-    if (!uDevice) return (-1);
+    if (r < 0) return r;
+    if (!config) return -ENODEV;
     interfaces = config->interface;
     for (i = 0; i < config->bNumInterfaces; i++) {
         interface_desc = interfaces->altsetting;
@@ -499,7 +542,8 @@ static int get_endpoint_address(libusb_device_handle *devh, uint8_t *inendpt, ui
     }
     libusb_free_config_descriptor(config);
 
-    return(0);
+    if (!*inendpt || !*outendpt) return -ENODEV;
+    return 0;
 }
 
 static void IntrOut_cb(struct libusb_transfer *transfer)
@@ -580,6 +624,11 @@ int write_usb(unsigned char *buf, size_t len)
 
     dbprintf("usb len %lu ", (unsigned long)len);
     hexdump(buf, len);
+    if (len > sizeof(IntrOutBuf)) {
+        dbprintf("usb write too long %lu/%lu\n", (unsigned long)len,
+                (unsigned long)sizeof(IntrOutBuf));
+        return -EINVAL;
+    }
     memcpy(IntrOutBuf, buf, len);
     libusb_fill_interrupt_transfer(IntrOut_transfer, Devh, OutEndpoint, 
             IntrOutBuf, len, IntrOut_cb, NULL, 0);
@@ -958,16 +1007,22 @@ static int mydaemon(void)
                 /* new client connection */
                 clilen = sizeof(cliaddr);
                 clifd  = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
-                dbprintf("accept() %d/%d\n", clifd, errno);
-                r = add_client(clifd);
+                log_accept_result("client", clifd);
+                if (clifd >= 0) {
+                    r = add_client(clifd);
+                    if (r < 0) close(clifd);
+                }
                 if (--nready <= 0) continue;
             }
             if (Clients[1].revents & POLLIN) {
                 /* new flashxml client connection */
                 clilen = sizeof(cliaddr);
                 clifd  = accept(flashxmlfd, (struct sockaddr *)&cliaddr, &clilen);
-                dbprintf("flashxml accept() %d/%d\n", clifd, errno);
-                r = add_xmlclient(clifd);
+                log_accept_result("flashxml", clifd);
+                if (clifd >= 0) {
+                    r = add_xmlclient(clifd);
+                    if (r < 0) close(clifd);
+                }
                 if (--nready <= 0) continue;
             }
 
@@ -975,8 +1030,11 @@ static int mydaemon(void)
                 /* new OR2.0 client connection */
                 clilen = sizeof(cliaddr);
                 clifd  = accept(or20fd, (struct sockaddr *)&cliaddr, &clilen);
-                dbprintf("or20 accept() %d/%d\n", clifd, errno);
-                r = add_or20client(clifd);
+                log_accept_result("or20", clifd);
+                if (clifd >= 0) {
+                    r = add_or20client(clifd);
+                    if (r < 0) close(clifd);
+                }
                 if (--nready <= 0) continue;
             }
 
@@ -989,17 +1047,18 @@ static int mydaemon(void)
                             if (errno != ECONNRESET) {
                                 dbprintf("serious error %d\n", errno);
                             }
-                            close(clifd);
                             del_client(clifd);
                         }
                         else if (bytesIn == 0) {
                             dbprintf("read EOF %d\n", bytesIn);
-                            close(clifd);
                             del_client(clifd);
                         }
                         else {
-			    dbprintf("Input: %s", buf);
-                            cm15a_encode(clifd, buf, (size_t)bytesIn);
+                            cm15a_encode_state_t *state;
+			    dbprintf("Input: %.*s", bytesIn, (char *)buf);
+                            state = client_encode_state(clifd);
+                            if (state)
+                                cm15a_encode_with_state(clifd, state, buf, (size_t)bytesIn);
                         }
                         if (--nready <= 0) break;
                     }

@@ -194,7 +194,7 @@ static const unsigned char x10housecoderf[] = {
 static int getfunc(void)
 {
     char *command;
-    int i;
+    size_t i;
 
     command = strtok(NULL, " ");
     if (!command) return -1;
@@ -392,6 +392,8 @@ static int pl_tx_houseunit(int fd, int house, int unit)
 {
     char unsigned buf[4];
 
+    (void)fd;
+
     /* Make buffer as if received so decoder prints */
     buf[0] = 0x00;
     buf[1] = 0x02;
@@ -519,6 +521,8 @@ static int rfsec_tx(int fd, int rf8bitaddr, unsigned long rfaddr, int func)
     unsigned char *p = buf;
     unsigned char addr1;
 
+    (void)fd;
+
     *p++ = 0xEB;
     if (rf8bitaddr) {
         *p++ = 0x20;
@@ -559,6 +563,8 @@ static int rf_tx_houseunitfunc(int fd, int house, int unit, int func)
 {
     unsigned char buf[6];
     unsigned char unit8, unit4, unit2, unit1;
+
+    (void)fd;
 
     if (house < 0) return -1;
     unit8 = unit & 0x08;
@@ -667,14 +673,14 @@ int processcommandline(int fd, char *aLine)
                     pl_tx_housefunc(fd, house, func, param);
                 }
                 else if (func == FUNC_EXTENDED_CODE_1) {
-                    int command, subcmd, data;
-                    command = getparam();
-                    if (command == -1) command = 0;
+                    int extcommand, subcmd, data;
+                    extcommand = getparam();
+                    if (extcommand == -1) extcommand = 0;
                     subcmd = getparam();
                     if (subcmd == -1) subcmd = 0;
                     data = getparam();
                     if (data == -1) data = 0;
-                    pl_tx_extended_code_1(fd, house, unit, command, subcmd, data);
+                    pl_tx_extended_code_1(fd, house, unit, extcommand, subcmd, data);
                 }
                 else {
                     pl_tx_houseunit(fd, house, unit);
@@ -842,35 +848,69 @@ int processcommandline(int fd, char *aLine)
  * Parse human readable commands and convert to binary X10 protocol.
  * Send to CM15A.
  */
-void cm15a_encode(int fd, unsigned char * buf, size_t buflen)
+void cm15a_encode_state_init(cm15a_encode_state_t *state)
 {
-    static char remainder[80];      // Any leftover, not seen \n yet.
-    static size_t remlen=0;
+    state->remainder[0] = '\0';
+    state->remlen = 0;
+    state->discarding = 0;
+}
+
+void cm15a_encode_with_state(int fd, cm15a_encode_state_t *state,
+        unsigned char *buf, size_t buflen)
+{
     char *remptr;
 
     dbprintf("buflen %lu\n\r", (unsigned long)buflen);
     hexdump(buf, buflen);
-    dbprintf("remlen %lu\n\r", (unsigned long)remlen);
-    hexdump(remainder, remlen);
+    dbprintf("remlen %lu\n\r", (unsigned long)state->remlen);
+    hexdump(state->remainder, state->remlen);
 
     /* Break the input stream into \n or \r terminated lines. The stream is not
      * guaranteed to end on a line boundary so there may be left over input
      * which must be processed the next time around.
      */
-    remptr = remainder + remlen;
+    remptr = state->remainder + state->remlen;
     while (buflen--) {
+        if (state->discarding) {
+            if ((*buf == '\n') || (*buf == '\r') || (*buf == '\0')) {
+                state->discarding = 0;
+            }
+            buf++;
+            continue;
+        }
+        if (remptr >= state->remainder + sizeof(state->remainder) - 1) {
+            dbprintf("command line too long; dropping partial input\n\r");
+            state->remainder[0] = '\0';
+            state->remlen = 0;
+            state->discarding = 1;
+            remptr = state->remainder;
+            buf++;
+            continue;
+        }
         *remptr = *buf;
         if ((*remptr == '\n') || (*remptr == '\r') || (*remptr == '\0')) {
             *remptr = '\0';
-            if (strlen(remainder)) {
-                processcommandline(fd, remainder);
+            if (strlen(state->remainder)) {
+                processcommandline(fd, state->remainder);
                 if (or20client(fd)) del_client(fd);
             }
-            remptr = remainder;
+            remptr = state->remainder;
         }
         else
             remptr++;
         buf++;
     }
-    remlen = remptr - remainder;
+    state->remlen = remptr - state->remainder;
+}
+
+void cm15a_encode(int fd, unsigned char *buf, size_t buflen)
+{
+    static cm15a_encode_state_t default_state;
+    static int initialized = 0;
+
+    if (!initialized) {
+        cm15a_encode_state_init(&default_state);
+        initialized = 1;
+    }
+    cm15a_encode_with_state(fd, &default_state, buf, buflen);
 }

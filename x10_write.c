@@ -53,6 +53,11 @@ static int add_x10out(unsigned char *buf, size_t buflen)
     x10out_t *nxtrec;
 
     dbprintf("len %lu\n", buflen);
+    if (buflen > sizeof(Outrecs[0].outdata)) {
+        dbprintf("x10 output too long %lu/%lu\n", (unsigned long)buflen,
+                (unsigned long)sizeof(Outrecs[0].outdata));
+        return -1;
+    }
     if ((nxt = next_index(Outtail)) == Outhead) {
         dbprintf("Outptrs full Outhead/tail %d/%d\n", Outhead, Outtail);
         return -1;
@@ -88,8 +93,13 @@ int send_next_x10out(void)
 int x10_write(unsigned char *buf, size_t buflen)
 {
     dbprintf("Outbusy=%d\n", Outbusy);
+    if (buflen > sizeof(Outrecs[0].outdata)) {
+        dbprintf("x10 write too long %lu/%lu\n", (unsigned long)buflen,
+                (unsigned long)sizeof(Outrecs[0].outdata));
+        return -1;
+    }
     if (Outbusy) {
-        add_x10out(buf, buflen);
+        return add_x10out(buf, buflen);
     }
     else {
         Outbusy = 1;

@@ -23,7 +23,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <sys/timeb.h>
 #include <time.h>
 
 #include "global.h"
@@ -216,7 +215,10 @@ void cm15a_decode_plc(int fd, unsigned char *buf, size_t len)
     int codelen;
     int dims;
 
-    dbprintf("%s(%d,%u) ", __func__, fd, len);
+    /* End this log line before hexdump output so later daemon logs do not
+     * appear glued to decode traces.
+     */
+    dbprintf("%s(%d,%u)\n", __func__, fd, len);
     hexdump(buf, len);
     // new event
     // ev->evint = EV_RX_PLC;
@@ -471,7 +473,7 @@ static const char *findCamRemoteName(const unsigned char *camcommand, size_t com
     static char remotekeyname[32];
     int keycode, housecode, checksum;
     unsigned char mychecksum;
-    int keyindex;
+    size_t keyindex;
 
     if (camcommand == NULL || commandlen < 4 || *camcommand++ != 0x14)
         return NULL;
@@ -483,8 +485,10 @@ static const char *findCamRemoteName(const unsigned char *camcommand, size_t com
     mychecksum = ((housecode << 4) + (keycode - 0x2B)) & 0xFF;
     if (checksum != mychecksum) return NULL;
     
-    keyindex = keycode - 0x54;
-    if ( (keyindex < 0) || (keyindex >= RFCAMENTRIES) )
+    if (keycode < 0x54)
+        return NULL;
+    keyindex = (size_t)(keycode - 0x54);
+    if (keyindex >= RFCAMENTRIES)
         return NULL;
     if (RFCAMKeyCodes[keyindex] == NULL) return NULL;
     snprintf(remotekeyname, sizeof(remotekeyname), "%c %s",
@@ -498,12 +502,12 @@ static const char *findCamRemoteName(const unsigned char *camcommand, size_t com
 int findCamRemoteCommand(const char *keyname)
 {
     const char *p;
-    int keyindex;
+    size_t keyindex;
 
     if (keyname == NULL) return -1;
     for (keyindex = 0; keyindex < RFCAMENTRIES; keyindex++) {
         p = RFCAMKeyCodes[keyindex];
-        if (p && strcmp(keyname, p) == 0) return keyindex + 0x54;
+        if (p && strcmp(keyname, p) == 0) return (int)keyindex + 0x54;
     }
     return -1;
 }
@@ -585,13 +589,13 @@ static int repeatRF(int fd, unsigned char *buf, size_t len)
 
 typedef uint64_t timems_t;
 
-/* Get system time in milliseconds */
+/* Get monotonic time in milliseconds */
 static timems_t get_timems(void)
 {
-    struct timeb tp;
+    struct timespec ts;
 
-    ftime(&tp);
-    return (timems_t) (tp.time * 1000) + tp.millitm;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (timems_t) (ts.tv_sec * 1000) + (ts.tv_nsec / 1000000);
 }
 
 #define DUP_TIME (650)
@@ -610,7 +614,8 @@ static int dup_filter(const unsigned char *buf, int len)
         int             rf_cmd_len;         /* 0=unused */
     };
     static struct dup_entry dups[16];
-    int i, firstunused=-1, add_index, inuse=0;
+    size_t i, add_index = 0;
+    int firstunused = -1, inuse = 0;
     struct dup_entry *p;
     timems_t timems;
 
@@ -639,24 +644,24 @@ static int dup_filter(const unsigned char *buf, int len)
                 if (timems > p->timems) {
                     /* Entry has expired so mark it unused */
                     p->rf_cmd_len = 0;
-                    if (firstunused == -1) firstunused = i;
+                    if (firstunused == -1) firstunused = (int)i;
                 }
                 else
                     inuse++;
             }
         }
         else {
-            if (firstunused == -1) firstunused = i;
+            if (firstunused == -1) firstunused = (int)i;
         }
     }
 
     if (len == -1) return (inuse != 0);
 
     /* Did not find in dups so add it */
-    add_index = firstunused;
+    add_index = (size_t)firstunused;
     if (firstunused == -1) {
         /* Use the entry closest to expiring */
-        int min=dups[0].timems;
+        timems_t min=dups[0].timems;
         add_index = 0;
         for (i = 1; i < DUP_MAX; i++) {
             if (dups[i].timems < min) {
@@ -673,14 +678,15 @@ static int dup_filter(const unsigned char *buf, int len)
     return 0;
 }
 
-void setClock(void) {
+static void setClock(void) {
     unsigned char sendbuff[9];
+    struct tm local_tm;
     struct tm *tm;
     time_t t;
     int size = 0;
 
     time(&t);
-    tm = localtime(&t);
+    tm = localtime_r(&t, &local_tm);
 
     sendbuff[size++]= 0x9b;			//function code
     sendbuff[size++]= tm->tm_sec;		//seconds
@@ -738,10 +744,18 @@ void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len)
     char cmdbuf[80];
     const char *commandp;
 
-    dbprintf("%s(%d,%u) ", __func__, fd, len);
+    /* End this log line before hexdump output so later daemon logs do not
+     * appear glued to decode traces.
+     */
+    dbprintf("%s(%d,%u)\n", __func__, fd, len);
     hexdump(buf, len);
-    /* Skip over extra 0x5Ds */
-    while ((buf[1] == 0x5D) && len) {
+    /* CM19A packets are normalized by prepending 0x5D before this decoder.
+     * Some RF packets already contain that prefix, so only trim duplicate
+     * markers while the packet is still longer than the largest RF frame this
+     * decoder supports. This keeps valid 8-byte security frames intact and
+     * prevents short malformed frames from reading past the buffer.
+     */
+    while ((len > 8) && (buf[1] == 0x5D)) {
         dbprintf("Skipping extra 0x5D\n");
         buf++;
         len--;
@@ -910,6 +924,11 @@ void cm15a_decode(int fd, unsigned char *buf, unsigned int len)
          * a USB packet from the CM15A. Call the same decode function.
          * The CM19A does RF but not PL.
          */
+        if (len > sizeof(bufcm19a) - 1) {
+            dbprintf("CM19A packet too long %u/%lu\n", len,
+                    (unsigned long)(sizeof(bufcm19a) - 1));
+            return;
+        }
         p = bufcm19a;
         *p = 0x5d;
         memcpy(p+1, buf, len);
@@ -923,23 +942,23 @@ void cm15a_decode(int fd, unsigned char *buf, unsigned int len)
     /*
     ** From Dan Suther's CM11A document:
     **
-    ** #define ACK             0x00    //* 0x00 Checksum ACK
-    ** #define READY           0x55    //* 0x55 Interface Ready
+    ** #define ACK             0x00    0x00 Checksum ACK
+    ** #define READY           0x55    0x55 Interface Ready
     ** 
-    ** #define POLL            0x5A    //* 0x5A Interface Poll Signal
-    ** #define POLL_ACK        0xC3    //* 0xC3 PC response to the Poll
-    ** #define MACRO_RESP      0xFB    //* PC response to Macro poll
-    ** #define FastMacro       0xA5    //* Fast Macro Download
-    ** #define PFail           0xA5    //* Power Fail
-    ** #define STAT_REQST      0x8B    //* Status Request
-    ** #define EEPROM_EVENT    0x5B    //* EEPROM address
-    ** #define TIME_DL         0x9B    //* Response to a POLL
+    ** #define POLL            0x5A    0x5A Interface Poll Signal
+    ** #define POLL_ACK        0xC3    0xC3 PC response to the Poll
+    ** #define MACRO_RESP      0xFB    PC response to Macro poll
+    ** #define FastMacro       0xA5    Fast Macro Download
+    ** #define PFail           0xA5    Power Fail
+    ** #define STAT_REQST      0x8B    Status Request
+    ** #define EEPROM_EVENT    0x5B    EEPROM address
+    ** #define TIME_DL         0x9B    Response to a POLL
     ** 
-    ** #define EnableRI        0xEB    //* Enable Ring Indicator
-    ** #define DisablRI        0xDB    //* Disable Ring Indicator
+    ** #define EnableRI        0xEB    Enable Ring Indicator
+    ** #define DisablRI        0xDB    Disable Ring Indicator
     ** 
-    ** #define FFail           0xF3    //* Filter fail
-    ** #define CPPFail         0xA6    //* CP10 Power Fail
+    ** #define FFail           0xF3    Filter fail
+    ** #define CPPFail         0xA6    CP10 Power Fail
     **
     */
 
