@@ -239,7 +239,7 @@ enough if the device is already claimed.
 
 ## License
 
-GNU General Public License version 3.0 (GPLv3), according to the
+GNU General Public License version 3.0 or later (GPL-3.0-or-later), according
+to the source file headers and the
 [original project page on SourceForge](https://sourceforge.net/projects/mochad/).
-The license text is available in both [LICENSE.md](LICENSE.md) for GitHub
-conventions and [COPYING](COPYING) for GNU/autotools conventions.
+See [LICENSE.md](LICENSE.md).

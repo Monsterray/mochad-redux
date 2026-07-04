@@ -1186,7 +1186,7 @@ static void printcopy(void)
     printf("This program comes with NO WARRANTY.\n");
     printf("You may redistribute copies of this program\n");
     printf("under the terms of the GNU General Public License.\n");
-    printf("For more information about these matters, see the file named COPYING.\n");
+    printf("For more information about these matters, see the file named LICENSE.md.\n");
     fflush(NULL);
 }
 
