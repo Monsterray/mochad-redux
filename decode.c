@@ -215,7 +215,10 @@ void cm15a_decode_plc(int fd, unsigned char *buf, size_t len)
     int codelen;
     int dims;
 
-    dbprintf("%s(%d,%u) ", __func__, fd, len);
+    /* End this log line before hexdump output so later daemon logs do not
+     * appear glued to decode traces.
+     */
+    dbprintf("%s(%d,%u)\n", __func__, fd, len);
     hexdump(buf, len);
     // new event
     // ev->evint = EV_RX_PLC;
@@ -741,7 +744,10 @@ void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len)
     char cmdbuf[80];
     const char *commandp;
 
-    dbprintf("%s(%d,%u) ", __func__, fd, len);
+    /* End this log line before hexdump output so later daemon logs do not
+     * appear glued to decode traces.
+     */
+    dbprintf("%s(%d,%u)\n", __func__, fd, len);
     hexdump(buf, len);
     /* Skip over extra 0x5Ds */
     while ((buf[1] == 0x5D) && len) {

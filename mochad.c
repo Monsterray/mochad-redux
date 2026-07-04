@@ -328,6 +328,17 @@ static cm15a_encode_state_t *client_encode_state(int fd)
     return NULL;
 }
 
+static void log_accept_result(const char *name, int fd)
+{
+    /* errno is meaningful only when accept() fails. Logging it after a
+     * successful accept shows stale values from earlier syscalls.
+     */
+    if (fd < 0)
+        dbprintf("%s accept failed errno %d\n", name, errno);
+    else
+        dbprintf("%s accept fd %d\n", name, fd);
+}
+
 /* Delete socket client */
 int del_client(int fd)
 {
@@ -996,7 +1007,7 @@ static int mydaemon(void)
                 /* new client connection */
                 clilen = sizeof(cliaddr);
                 clifd  = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
-                dbprintf("accept() %d/%d\n", clifd, errno);
+                log_accept_result("client", clifd);
                 if (clifd >= 0) {
                     r = add_client(clifd);
                     if (r < 0) close(clifd);
@@ -1007,7 +1018,7 @@ static int mydaemon(void)
                 /* new flashxml client connection */
                 clilen = sizeof(cliaddr);
                 clifd  = accept(flashxmlfd, (struct sockaddr *)&cliaddr, &clilen);
-                dbprintf("flashxml accept() %d/%d\n", clifd, errno);
+                log_accept_result("flashxml", clifd);
                 if (clifd >= 0) {
                     r = add_xmlclient(clifd);
                     if (r < 0) close(clifd);
@@ -1019,7 +1030,7 @@ static int mydaemon(void)
                 /* new OR2.0 client connection */
                 clilen = sizeof(cliaddr);
                 clifd  = accept(or20fd, (struct sockaddr *)&cliaddr, &clilen);
-                dbprintf("or20 accept() %d/%d\n", clifd, errno);
+                log_accept_result("or20", clifd);
                 if (clifd >= 0) {
                     r = add_or20client(clifd);
                     if (r < 0) close(clifd);
