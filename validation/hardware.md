@@ -6,6 +6,14 @@ as a real X10 daemon. It complements CI; it does not replace CI.
 Use [docs/hardware-validation.md](../docs/hardware-validation.md) as the
 step-by-step checklist.
 
+For interactive CM19A evidence collection, use:
+
+```sh
+scripts/validate/cm19a-hardware-validation.sh
+```
+
+Set `MOCHAD_BIN`, `MOCHAD_PORT`, or `LOG_FILE` to override the defaults.
+
 ## Minimum Release Evidence
 
 Before a release is described as production-ready, collect:

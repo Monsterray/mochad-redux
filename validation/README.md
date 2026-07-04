@@ -36,6 +36,23 @@ validation/releases/vX.Y.Z.md
 Committed release evidence should not include private hostnames, private paths,
 MQTT credentials, USB serial details, or unrelated logs.
 
+## Validation Scripts
+
+Release-oriented helper scripts live under `scripts/validate/`:
+
+```sh
+scripts/validate/strict-libusb-free-compile.sh
+scripts/validate/full-libusb-build.sh
+scripts/validate/docker-build.sh
+scripts/validate/native-smoke-test.sh
+scripts/validate/docker-smoke-test.sh
+scripts/validate/cm19a-hardware-validation.sh
+```
+
+The scripts print clear console output suitable for pasting into release
+evidence. Docker scripts default to the sibling `../mochad-docker` project and
+can be pointed elsewhere with `MOCHAD_DOCKER_DIR`.
+
 ## Hardware Evidence
 
 Hardware validation should follow [hardware.md](hardware.md) and

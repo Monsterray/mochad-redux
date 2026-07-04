@@ -7,6 +7,12 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		cgi/x10.pl cgi/netcat.pl cgi/getsensors.pl cgi/cgi-lib.pl \
 		apps/mochamon.pl apps/simplemon.pl apps/bash.sh \
 		apps/rfsectopl3.pl apps/x10-tk.py apps/mochad.scr \
+		scripts/validate/cm19a-hardware-validation.sh \
+		scripts/validate/docker-build.sh \
+		scripts/validate/docker-smoke-test.sh \
+		scripts/validate/full-libusb-build.sh \
+		scripts/validate/native-smoke-test.sh \
+		scripts/validate/strict-libusb-free-compile.sh \
 		docs/generated-artifacts.md docs/hardware-validation.md \
 		docs/milestone-1.md docs/support-files.md docs/supported-platforms.md \
 		validation/README.md validation/compiler.md validation/hardware.md \

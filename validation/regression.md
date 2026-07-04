@@ -20,6 +20,20 @@ Validate these areas when preparing a release or changing nearby code:
 
 ## Manual Smoke Checks
 
+For command-line smoke validation after a native build:
+
+```sh
+scripts/validate/native-smoke-test.sh
+```
+
+For Docker packaging smoke validation:
+
+```sh
+scripts/validate/docker-smoke-test.sh
+```
+
+Manual TCP checks can also be run directly:
+
 ```sh
 ./mochad -d
 nc localhost 1099

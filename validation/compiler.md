@@ -9,7 +9,7 @@ before hardware testing.
 Run these before release candidates and before broad maintenance merges:
 
 ```sh
-sh tools/compile_without_libusb.sh --strict --asan --ubsan
+scripts/validate/strict-libusb-free-compile.sh
 sh tools/compile_without_libusb.sh --cppcheck
 git diff --check
 ```
@@ -19,9 +19,7 @@ git diff --check
 On a Linux host with libusb development headers installed:
 
 ```sh
-./autogen.sh
-./configure
-make
+scripts/validate/full-libusb-build.sh
 ```
 
 Record:

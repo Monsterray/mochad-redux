@@ -24,12 +24,10 @@ ship releases with evidence, not just a changelog.
 
 ## Build and Analysis
 
-- [ ] `sh tools/compile_without_libusb.sh --strict --asan --ubsan`
+- [ ] `scripts/validate/strict-libusb-free-compile.sh`
 - [ ] `sh tools/compile_without_libusb.sh --cppcheck`
 - [ ] `git diff --check`
-- [ ] `./autogen.sh`
-- [ ] `./configure`
-- [ ] `make`
+- [ ] `scripts/validate/full-libusb-build.sh`
 - [ ] Optional: `sh tools/compile_without_libusb.sh --clang-tidy`
 - [ ] Optional: `sh tools/compile_without_libusb.sh --clang-format-check`
 
@@ -43,6 +41,10 @@ ship releases with evidence, not just a changelog.
 
 ## Runtime and Hardware
 
+- [ ] `scripts/validate/native-smoke-test.sh`
+- [ ] `scripts/validate/docker-build.sh`
+- [ ] `scripts/validate/docker-smoke-test.sh`
+- [ ] `scripts/validate/cm19a-hardware-validation.sh`, when CM19A hardware is available
 - [ ] Native foreground startup logs recorded.
 - [ ] Native foreground TCP connection test recorded.
 - [ ] Native foreground shutdown logs recorded.
