@@ -19,6 +19,9 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Compile libusb-free sources
+        run: sh tools/compile_without_libusb.sh --strict
+
       - name: Install build dependencies
         run: |
           sudo apt-get update

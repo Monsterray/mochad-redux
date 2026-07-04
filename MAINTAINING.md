@@ -44,6 +44,22 @@ keep the conflict resolutions scoped to the upstream change being replayed.
 
 ## Local build check
 
+To compile the non-USB source files without installing libusb, run:
+
+```sh
+sh tools/compile_without_libusb.sh
+```
+
+For a warning-as-error pass, run:
+
+```sh
+sh tools/compile_without_libusb.sh --strict
+```
+
+This compiles `decode.c`, `encode.c`, `global.c`, `x10state.c`, and
+`x10_write.c` as object files in a temporary directory. It intentionally skips
+`mochad.c`, which owns the libusb dependency and the daemon socket/USB loop.
+
 Install the build dependencies first. On Debian or Ubuntu:
 
 ```sh

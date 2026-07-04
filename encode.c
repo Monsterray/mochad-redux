@@ -194,7 +194,7 @@ static const unsigned char x10housecoderf[] = {
 static int getfunc(void)
 {
     char *command;
-    int i;
+    size_t i;
 
     command = strtok(NULL, " ");
     if (!command) return -1;
@@ -392,6 +392,8 @@ static int pl_tx_houseunit(int fd, int house, int unit)
 {
     char unsigned buf[4];
 
+    (void)fd;
+
     /* Make buffer as if received so decoder prints */
     buf[0] = 0x00;
     buf[1] = 0x02;
@@ -519,6 +521,8 @@ static int rfsec_tx(int fd, int rf8bitaddr, unsigned long rfaddr, int func)
     unsigned char *p = buf;
     unsigned char addr1;
 
+    (void)fd;
+
     *p++ = 0xEB;
     if (rf8bitaddr) {
         *p++ = 0x20;
@@ -559,6 +563,8 @@ static int rf_tx_houseunitfunc(int fd, int house, int unit, int func)
 {
     unsigned char buf[6];
     unsigned char unit8, unit4, unit2, unit1;
+
+    (void)fd;
 
     if (house < 0) return -1;
     unit8 = unit & 0x08;
@@ -667,14 +673,14 @@ int processcommandline(int fd, char *aLine)
                     pl_tx_housefunc(fd, house, func, param);
                 }
                 else if (func == FUNC_EXTENDED_CODE_1) {
-                    int command, subcmd, data;
-                    command = getparam();
-                    if (command == -1) command = 0;
+                    int extcommand, subcmd, data;
+                    extcommand = getparam();
+                    if (extcommand == -1) extcommand = 0;
                     subcmd = getparam();
                     if (subcmd == -1) subcmd = 0;
                     data = getparam();
                     if (data == -1) data = 0;
-                    pl_tx_extended_code_1(fd, house, unit, command, subcmd, data);
+                    pl_tx_extended_code_1(fd, house, unit, extcommand, subcmd, data);
                 }
                 else {
                     pl_tx_houseunit(fd, house, unit);

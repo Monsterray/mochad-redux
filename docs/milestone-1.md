@@ -8,6 +8,7 @@ before protocol or behavioral changes are introduced.
 - Confirm the upstream relationship and keep history rebase-friendly.
 - Keep `develop` as the ongoing integration branch.
 - Add CI that verifies the autotools build on a clean Linux runner.
+- Add a libusb-free compile check for protocol/state/encoding source files.
 - Document the local build path and required dependencies.
 - Improve diagnostics and configuration only where behavior remains compatible.
 
@@ -22,6 +23,7 @@ before protocol or behavioral changes are introduced.
 
 - `git fetch upstream --tags` succeeds.
 - `develop` can be compared directly with `upstream/master`.
+- `sh tools/compile_without_libusb.sh --strict` passes without libusb installed.
 - `./autogen.sh`, `./configure`, and `make` pass in CI.
 - Local build failures clearly identify missing host dependencies.
 - Any diagnostics or configuration changes are documented before release.

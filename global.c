@@ -37,14 +37,17 @@ unsigned short RfToRf16 = 0;
 int _dbprintf(const char *fmt, ...)
 {
     va_list args;
-    char buf[1024];
-    char fmtbig[1024];
-    int buflen;
+    const char *file;
+    int line;
+    int prefixlen, msglen;
 
     va_start(args,fmt);
-    strcpy(fmtbig, "%s:%d:");
-    strcat(fmtbig, fmt);
-    buflen = vsprintf(buf, fmtbig, args);
+    file = va_arg(args, const char *);
+    line = va_arg(args, int);
+    prefixlen = fprintf(stderr, "%s:%d:", file, line);
+    msglen = vfprintf(stderr, fmt, args);
     va_end(args);
-    return fprintf(stderr, "%s", buf);
+    if (prefixlen < 0 || msglen < 0)
+        return -1;
+    return prefixlen + msglen;
 }

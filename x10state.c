@@ -78,7 +78,7 @@ void hua_sec_init(void)
 void hua_sec_event(unsigned char *secaddr, unsigned int funcint, 
         unsigned int secaddr8)
 {
-    int i;
+    unsigned int i;
     unsigned long secaddr32;
     x10secsensor_t *sen;
 
@@ -108,33 +108,6 @@ void hua_sec_event(unsigned char *secaddr, unsigned int funcint,
         sen->lastupdate = time(NULL);
         X10sensorcount++;
 //    }
-}
-
-static void hua_dbprint(void)
-{
-    int h, u;
-    char buf[4096];
-
-    strcpy(buf, "Selected:");
-    for (h = 0; h < 16; h++) {
-        for (u = 0; u < 16; u++) {
-            if (HouseUnitSelected[h][u])
-                snprintf(buf+strlen(buf), sizeof(buf)-strlen(buf), "%c%d,", h+'A', u+1);
-        }
-    }
-    strcat(buf, "\n\r");
-    dbprintf(buf);
-
-    strcpy(buf, "State: ");
-    for (h = 0; h < 16; h++) {
-        for (u = 0; u < 16; u++) {
-            if (HouseUnitState[h][u])
-                snprintf(buf+strlen(buf), sizeof(buf)-strlen(buf), "%c%d %c,", h+'A', u+1, 
-                        HouseUnitState[h][u]);
-        }
-    }
-    strcat(buf, "\n\r");
-    dbprintf(buf);
 }
 
 static void hua_init(int house)
@@ -222,7 +195,6 @@ static void hua_func(int house, unsigned char func)
                 HouseUnitDim[house][u] = 0;
         }
     }
-    // hua_dbprint();
     /* dbprintf("%s exit\n\r", __func__); */
 }
 
@@ -239,7 +211,7 @@ void hua_func_off(int house)
 int hua_getstatus_sec(int rf8bitaddr, unsigned long rfaddr)
 {
     x10secsensor_t *sen;
-    int sensor;
+    unsigned int sensor;
 
     dbprintf("hua_getstatus_sec(%d,%X)\n\r", rf8bitaddr, rfaddr);
     for (sensor = 0; sensor < X10sensorcount; sensor++) {
@@ -287,7 +259,7 @@ void hua_show(int fd)
     int h, u;
     char buf[2048];
     int labeldone;
-    int sensor;
+    unsigned int sensor;
     x10secsensor_t *sen;
 
     sockprintf(fd, "Device selected\n\r");
@@ -307,8 +279,8 @@ void hua_show(int fd)
             }
         }
         if (labeldone) {
-            strcat(buf, "\n\r");
-            sockprintf(fd, buf, strlen(buf));
+            snprintf(buf+strlen(buf), sizeof(buf)-strlen(buf), "\n\r");
+            sockprintf(fd, "%s", buf);
         }
     }
     
@@ -329,8 +301,8 @@ void hua_show(int fd)
             }
         }
         if (labeldone) {
-            strcat(buf, "\n\r");
-            sockprintf(fd, buf, strlen(buf));
+            snprintf(buf+strlen(buf), sizeof(buf)-strlen(buf), "\n\r");
+            sockprintf(fd, "%s", buf);
         }
     }
     sockprintf(fd, "Security sensor status\n\r");

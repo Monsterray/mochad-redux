@@ -142,13 +142,14 @@ int sockprintf(int fd, const char *fmt, ...)
     char buf[1024];
     char *aLine;
     int len, buflen;
-    time_t tm;
+    time_t now;
+    struct tm local_tm;
     int i;
     int bytesOut;
 
     aLine = buf;
-    tm = time(NULL);
-    len = strftime(aLine, sizeof(buf), "%m/%d %T ", localtime(&tm));
+    now = time(NULL);
+    len = strftime(aLine, sizeof(buf), "%m/%d %T ", localtime_r(&now, &local_tm));
     va_start(args,fmt);
     buflen = vsnprintf(aLine+len, sizeof(buf)-len, fmt, args);
     va_end(args);
@@ -193,16 +194,16 @@ int sockprintf(int fd, const char *fmt, ...)
 static void _hexdump(void *p, size_t len, char *outbuf, size_t outlen)
 {
     unsigned char *ptr = (unsigned char*) p;
-    size_t l;
+    size_t l, used = 0;
 
-    if (len == 0) return;
-    if (len > (outlen / 3))
-        l = outlen / 3;
+    if ((len == 0) || (outlen == 0)) return;
+    if (len > ((outlen - 1) / 3))
+        l = (outlen - 1) / 3;
     else
         l = len;
     while (l--) {
-        sprintf(outbuf, "%02X ", *ptr++);
-        outbuf += 3;
+        snprintf(outbuf + used, outlen - used, "%02X ", *ptr++);
+        used += 3;
     }
 }
 

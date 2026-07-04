@@ -13,6 +13,7 @@ AC_PROG_MAKE_SET
 
 # Checks for libraries.
 AC_SEARCH_LIBS([libusb_init],[usb-1.0])
+AC_SEARCH_LIBS([clock_gettime],[rt])
 
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h netinet/in.h stdlib.h string.h sys/socket.h syslog.h unistd.h])
