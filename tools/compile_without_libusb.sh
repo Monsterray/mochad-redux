@@ -5,6 +5,10 @@ CC=${CC:-cc}
 CFLAGS=${CFLAGS:-}
 BUILD_DIR=${BUILD_DIR:-}
 STRICT=0
+RUN_CLANG_TIDY=0
+RUN_CPPCHECK=0
+ASAN=0
+UBSAN=0
 
 usage() {
     cat <<EOF
@@ -14,6 +18,10 @@ Compile the non-libusb mochad source files as standalone object files.
 
 Options:
   --strict              Add stricter warning flags and treat warnings as errors.
+  --clang-tidy          Run clang-tidy on the libusb-free source files.
+  --cppcheck            Run cppcheck on the libusb-free source files.
+  --asan                Add AddressSanitizer compile flags.
+  --ubsan               Add UndefinedBehaviorSanitizer compile flags.
   --cc COMMAND          Compiler command to use. Defaults to CC or cc.
   --cflags FLAGS        Replace CFLAGS for this run.
   --extra-cflags FLAGS  Append additional compiler flags.
@@ -36,6 +44,22 @@ while [ "$#" -gt 0 ]; do
     case "$1" in
         --strict)
             STRICT=1
+            shift
+            ;;
+        --clang-tidy)
+            RUN_CLANG_TIDY=1
+            shift
+            ;;
+        --cppcheck)
+            RUN_CPPCHECK=1
+            shift
+            ;;
+        --asan)
+            ASAN=1
+            shift
+            ;;
+        --ubsan)
+            UBSAN=1
             shift
             ;;
         --cc)
@@ -74,6 +98,14 @@ if [ "$STRICT" -eq 1 ]; then
     CFLAGS="$CFLAGS -Wall -Wextra -Werror -Wformat -Wformat-security -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wmissing-prototypes -Wstrict-prototypes"
 fi
 
+if [ "$ASAN" -eq 1 ]; then
+    CFLAGS="$CFLAGS -fsanitize=address -fno-omit-frame-pointer"
+fi
+
+if [ "$UBSAN" -eq 1 ]; then
+    CFLAGS="$CFLAGS -fsanitize=undefined -fno-omit-frame-pointer"
+fi
+
 if [ -z "$BUILD_DIR" ]; then
     BUILD_DIR=$(mktemp -d "${TMPDIR:-/tmp}/mochad-no-libusb.XXXXXX")
     CLEAN_BUILD_DIR=1
@@ -96,6 +128,28 @@ global.c
 x10state.c
 x10_write.c
 "
+
+if [ "$RUN_CLANG_TIDY" -eq 1 ]; then
+    if ! command -v clang-tidy >/dev/null 2>&1; then
+        echo "clang-tidy requested but not found" >&2
+        exit 127
+    fi
+    for source in $SOURCES; do
+        echo "clang-tidy $source"
+        # shellcheck disable=SC2086
+        clang-tidy "$source" -- -I. $CFLAGS
+    done
+fi
+
+if [ "$RUN_CPPCHECK" -eq 1 ]; then
+    if ! command -v cppcheck >/dev/null 2>&1; then
+        echo "cppcheck requested but not found" >&2
+        exit 127
+    fi
+    # shellcheck disable=SC2086
+    cppcheck --enable=warning,style,performance,portability \
+        --error-exitcode=1 --inline-suppr --quiet -I. $SOURCES
+fi
 
 for source in $SOURCES; do
     object="$BUILD_DIR/${source%.c}.o"

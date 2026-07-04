@@ -32,6 +32,7 @@ clients such as nc, scripts, MQTT bridge, Home Assistant bridge
 * TCP client handling should not know USB implementation details.
 * Docker runtime behavior should be configurable without recompiling.
 * Existing mochad command syntax should remain compatible.
+* Safety fixes take priority over style changes or broad refactors.
 
 ## Build Architecture
 
@@ -41,6 +42,37 @@ The project supports two validation paths:
 2. libusb-free compile check for non-USB translation units.
 
 The libusb-free check exists so protocol, encoding, state, and queue code can be validated in CI or on machines without USB development libraries.
+
+## Safety Boundaries
+
+The current codebase is still close to upstream mochad, so safety fixes should
+be small, reviewable, and behavior-preserving.
+
+Recent safety hardening established these boundaries:
+
+* USB writes must fit the fixed 8-byte interrupt transfer buffer before being
+  copied into the libusb output buffer.
+* X10 queued writes must fit the queue record buffer before being copied into
+  the pending output queue.
+* TCP command remainders are bounded. Overlong partial commands are discarded
+  until the next line delimiter instead of being truncated into a new command.
+* Partial command buffers are tracked per TCP client so interleaved clients do
+  not share parser state.
+* Endpoint discovery initializes output endpoint values and fails clearly if
+  libusb cannot provide both input and output endpoints.
+* Socket close ownership belongs to `del_client()` for all client types.
+
+These changes should remain in place while future USB, TCP, protocol, and state
+separation happens incrementally.
+
+## Logging Safety
+
+Debug logs should not create misleading traces. In particular:
+
+* Decode trace lines should end before hexdump output so unrelated daemon logs
+  do not appear on the same line.
+* `errno` should only be logged for failed syscalls. Successful `accept()` calls
+  must not print stale `errno` values left by earlier operations.
 
 ## Compatibility
 

@@ -15,12 +15,15 @@ Goal: preserve working mochad behavior while making the project buildable, docum
 * [ ] Add GitHub Actions
 * [ ] Add libusb-free compile check
 * [ ] Add full libusb build check
+* [ ] Document safety boundaries for USB writes, command parsing, endpoint
+  discovery, socket ownership, and debug logs
 
 ## v0.2.0 - Build and Code Hygiene
 
 Goal: modernize safely without behavior changes.
 
 * [ ] Fix compiler warnings
+* [ ] Keep concrete safety fixes reviewable and behavior-preserving
 * [ ] Separate USB-specific and non-USB code where practical
 * [ ] Improve Makefile/autotools reliability
 * [ ] Add basic unit/compile tests

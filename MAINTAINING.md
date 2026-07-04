@@ -56,6 +56,19 @@ For a warning-as-error pass, run:
 sh tools/compile_without_libusb.sh --strict
 ```
 
+Optional compile/analyzer modes:
+
+```sh
+sh tools/compile_without_libusb.sh --strict --asan --ubsan
+sh tools/compile_without_libusb.sh --clang-tidy
+sh tools/compile_without_libusb.sh --cppcheck
+```
+
+`--asan` and `--ubsan` add sanitizer compile flags. The helper compiles object
+files only, so these flags validate compiler compatibility for the non-USB
+source files; runtime sanitizer coverage should be added later with executable
+tests. `--clang-tidy` and `--cppcheck` require those tools to be installed.
+
 This compiles `decode.c`, `encode.c`, `global.c`, `x10state.c`, and
 `x10_write.c` as object files in a temporary directory. It intentionally skips
 `mochad.c`, which owns the libusb dependency and the daemon socket/USB loop.
@@ -75,3 +88,44 @@ make
 ```
 
 The CI workflow performs the same build on Ubuntu.
+
+## CI Targets
+
+The CI workflow covers:
+
+- Ubuntu LTS
+- Ubuntu Latest
+- Debian Stable
+- Raspberry Pi ARM cross compile for the libusb-free source files
+
+## Safety Fix Verification
+
+The current safety baseline covers:
+
+- USB write bounds before copying to the libusb interrupt buffer.
+- X10 queue write bounds before copying to queue records.
+- Bounded TCP command remainders with discard-until-delimiter behavior for
+  overlong commands.
+- Per-client command parser state for normal, XML, and OR20 sockets.
+- Endpoint discovery initialization and failure checks.
+- Centralized socket close ownership through `del_client()`.
+- Clearer decode and accept debug logs.
+
+After changing any of these areas, run:
+
+```sh
+sh tools/compile_without_libusb.sh --strict --asan --ubsan
+git diff --check
+```
+
+If libusb development headers are available, also run the full build:
+
+```sh
+./autogen.sh
+./configure
+make
+```
+
+Keep future safety fixes small and individually reviewable. Do not start broad
+USB/TCP/protocol/state separation until the concrete safety issue being fixed is
+covered by a focused check or documented manual verification.
