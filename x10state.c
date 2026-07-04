@@ -90,9 +90,7 @@ void hua_sec_event(unsigned char *secaddr, unsigned int funcint,
         sen = &X10sensors[i];
         if (secaddr32 == sen->secaddr) {
             sen->sensorstatus = funcint;
-            //if ((funcint & (1<<7)) == 0) {
-                sen->lastupdate = time(NULL);
-            //}
+            sen->lastupdate = time(NULL);
             return;
         }
     }
@@ -100,14 +98,12 @@ void hua_sec_event(unsigned char *secaddr, unsigned int funcint,
     /* Add new device */
     if ((X10sensorcount + 1) >= (sizeof(X10sensors)/sizeof(x10secsensor_t)))
         return;
-//    if (issecfunc(funcint)) {
-        sen = &X10sensors[X10sensorcount];
-        sen->secaddr = secaddr32;
-        sen->secaddr8 = secaddr8;
-        sen->sensorstatus = funcint;
-        sen->lastupdate = time(NULL);
-        X10sensorcount++;
-//    }
+    sen = &X10sensors[X10sensorcount];
+    sen->secaddr = secaddr32;
+    sen->secaddr8 = secaddr8;
+    sen->sensorstatus = funcint;
+    sen->lastupdate = time(NULL);
+    X10sensorcount++;
 }
 
 static void hua_init(int house)

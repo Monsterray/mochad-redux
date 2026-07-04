@@ -61,13 +61,28 @@ Optional compile/analyzer modes:
 ```sh
 sh tools/compile_without_libusb.sh --strict --asan --ubsan
 sh tools/compile_without_libusb.sh --clang-tidy
+sh tools/compile_without_libusb.sh --clang-format-check
 sh tools/compile_without_libusb.sh --cppcheck
+sh tools/compile_without_libusb.sh --cppcheck-style
 ```
 
 `--asan` and `--ubsan` add sanitizer compile flags. The helper compiles object
 files only, so these flags validate compiler compatibility for the non-USB
 source files; runtime sanitizer coverage should be added later with executable
-tests. `--clang-tidy` and `--cppcheck` require those tools to be installed.
+tests. `--clang-tidy`, `--clang-format-check`, and `--cppcheck` require those
+tools to be installed.
+
+The helper searches `PATH`, `/usr/local/opt/llvm/bin`, and
+`/opt/homebrew/opt/llvm/bin` for Homebrew LLVM tools.
+
+The default clang-tidy gate disables the Annex K insecure API recommendation
+checker because functions such as `snprintf_s`, `memcpy_s`, and `memset_s` are
+optional in C11 and are not portable across the supported Linux targets. Keep
+using bounded standard C/POSIX APIs with explicit size checks.
+
+The default cppcheck gate focuses on warnings, performance, and portability.
+Style suggestions are opt-in through `--cppcheck-style` so they do not block
+safety-focused maintenance work.
 
 This compiles `decode.c`, `encode.c`, `global.c`, `x10state.c`, and
 `x10_write.c` as object files in a temporary directory. It intentionally skips

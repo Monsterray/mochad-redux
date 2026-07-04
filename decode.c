@@ -749,8 +749,13 @@ void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len)
      */
     dbprintf("%s(%d,%u)\n", __func__, fd, len);
     hexdump(buf, len);
-    /* Skip over extra 0x5Ds */
-    while ((buf[1] == 0x5D) && len) {
+    /* CM19A packets are normalized by prepending 0x5D before this decoder.
+     * Some RF packets already contain that prefix, so only trim duplicate
+     * markers while the packet is still longer than the largest RF frame this
+     * decoder supports. This keeps valid 8-byte security frames intact and
+     * prevents short malformed frames from reading past the buffer.
+     */
+    while ((len > 8) && (buf[1] == 0x5D)) {
         dbprintf("Skipping extra 0x5D\n");
         buf++;
         len--;
@@ -919,6 +924,11 @@ void cm15a_decode(int fd, unsigned char *buf, unsigned int len)
          * a USB packet from the CM15A. Call the same decode function.
          * The CM19A does RF but not PL.
          */
+        if (len > sizeof(bufcm19a) - 1) {
+            dbprintf("CM19A packet too long %u/%lu\n", len,
+                    (unsigned long)(sizeof(bufcm19a) - 1));
+            return;
+        }
         p = bufcm19a;
         *p = 0x5d;
         memcpy(p+1, buf, len);
