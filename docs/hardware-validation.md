@@ -55,15 +55,16 @@ Run in the foreground so startup logs are visible:
 Expected startup milestones:
 
 ```text
-mochad-redux v0.3.0 starting
-Initializing USB subsystem
-USB subsystem initialized
-Looking for CM15A/CM19A controller
-Found CM19A
-Controller initialized
-USB transfers started
-Listening for clients on TCP ports 1099, 1100, and 1101
-mochad is running
+[STARTUP] mochad-redux v0.3.0 starting
+[STARTUP] TCP configuration bind=0.0.0.0 ports=1099,1100,1101
+[USB] initializing libusb
+[USB] libusb initialized
+[USB] looking for CM15A/CM19A controller
+[USB] controller found model=CM19A
+[USB] controller initialized
+[USB] transfers started
+[TCP] listening address=0.0.0.0 ports=1099,1100,1101
+[STARTUP] mochad is running
 ```
 
 `Found CM15A` is expected when testing a CM15A.
@@ -104,11 +105,11 @@ Stop the foreground process with `Ctrl+C`.
 Expected shutdown milestones:
 
 ```text
-Shutdown requested by SIGINT
-detaching CM19A
-Releasing USB resources
-Shutdown complete
-terminated
+[SHUTDOWN] requested by SIGINT
+[SHUTDOWN] detaching controller model=CM19A
+[SHUTDOWN] releasing USB resources
+[SHUTDOWN] complete
+[SHUTDOWN] terminated
 ```
 
 `detaching CM15A` is expected when testing a CM15A.

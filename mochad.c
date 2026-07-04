@@ -57,11 +57,15 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "global.h"
 #include "encode.h"
 
-#define SERVER_PORT     (1099)
+#define DEFAULT_BIND_ADDRESS "0.0.0.0"
+#define DEFAULT_SERVER_PORT (1099)
+#define DEFAULT_XML_PORT (1100)
+#define DEFAULT_OPENREMOTE_PORT (1101)
 #define MAXCLISOCKETS   (32)
 #define MAXSOCKETS      (1+MAXCLISOCKETS)
 				/* first socket=listen socket, 32 client sockets */
@@ -76,10 +80,18 @@ static struct pollfd Clientor20socks[MAXCLISOCKETS];
 static cm15a_encode_state_t Clientstates[MAXCLISOCKETS];
 static cm15a_encode_state_t Clientxmlstates[MAXCLISOCKETS];
 static cm15a_encode_state_t Clientor20states[MAXCLISOCKETS];
+static unsigned int Clientids[MAXCLISOCKETS];
+static unsigned int Clientxmlids[MAXCLISOCKETS];
+static unsigned int Clientor20ids[MAXCLISOCKETS];
 
 static size_t NClients;     /* # of valid entries in Clientsocks     */
 static size_t NxmlClients;  /* # of valid entries in Clientxmlsocks  */
 static size_t Nor20Clients; /* # of valid entries in Clientor20socks */
+static unsigned int NextClientId = 1;
+static const char *BindAddress = DEFAULT_BIND_ADDRESS;
+static int ServerPort = DEFAULT_SERVER_PORT;
+static int XmlPort = DEFAULT_XML_PORT;
+static int OpenRemotePort = DEFAULT_OPENREMOTE_PORT;
 
 /**** USB usblib 1.0 ****/
 
@@ -119,7 +131,7 @@ static int xmlclient(int fd)
 }
 
 /* Return 0 if the socket fd is not an OpenRemote 2.0 client.
- * Else return 1. OR clients connect to SERVER_PORT+2 (1101)  so that is
+ * Else return 1. OR clients connect to OpenRemotePort, default 1101, so that is
  * used.
  *
  */
@@ -134,7 +146,7 @@ int or20client(int fd)
         return 0;
     }
     dbprintf("locl port %d\n", ntohs(locl.sin_port));
-    return (ntohs(locl.sin_port) == (SERVER_PORT + 2));
+    return (ntohs(locl.sin_port) == OpenRemotePort);
 }
 
 /*
@@ -242,12 +254,20 @@ static volatile sig_atomic_t Do_exit = 0;
 static volatile sig_atomic_t Exit_signal = 0;
 static int Reattach = 0;
 
+static unsigned int next_client_id(void)
+{
+    if (NextClientId == 0)
+        NextClientId = 1;
+    return NextClientId++;
+}
+
 static void init_client(void)
 {
     int i;
 
     for (i = 0; i < MAXCLISOCKETS; i++) {
         Clientsocks[i].fd = Clientxmlsocks[i].fd = Clientor20socks[i].fd = -1;
+        Clientids[i] = Clientxmlids[i] = Clientor20ids[i] = 0;
         cm15a_encode_state_init(&Clientstates[i]);
         cm15a_encode_state_init(&Clientxmlstates[i]);
         cm15a_encode_state_init(&Clientor20states[i]);
@@ -266,13 +286,18 @@ static int add_client(int fd)
             Clientsocks[i].fd = fd;
             Clientsocks[i].events = POLLIN;
             Clientsocks[i].revents = 0;
+            Clientids[i] = next_client_id();
             cm15a_encode_state_init(&Clientstates[i]);
             NClients++;
             dbprintf("add_client: i %d NClients %d\n", i, NClients);
+            syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=main fd=%d",
+                    Clientids[i], fd);
             return 0;
         }
     }
     dbprintf("max clients exceeded %d\n", i);
+    syslog(LOG_INFO, "[CLIENT] rejected main client fd=%d: maximum clients reached",
+            fd);
     return -1;
 }
 
@@ -287,13 +312,18 @@ static int add_xmlclient(int fd)
             Clientxmlsocks[i].fd = fd;
             Clientxmlsocks[i].events = POLLIN;
             Clientxmlsocks[i].revents = 0;
+            Clientxmlids[i] = next_client_id();
             cm15a_encode_state_init(&Clientxmlstates[i]);
             NxmlClients++;
             dbprintf("add_xmlclient: i %d NxmlClients %d\n", i, NxmlClients);
+            syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=xml fd=%d",
+                    Clientxmlids[i], fd);
             return 0;
         }
     }
     dbprintf("max XML clients exceeded %d\n", i);
+    syslog(LOG_INFO, "[CLIENT] rejected XML client fd=%d: maximum clients reached",
+            fd);
     return -1;
 }
 
@@ -308,13 +338,20 @@ static int add_or20client(int fd)
             Clientor20socks[i].fd = fd;
             Clientor20socks[i].events = POLLIN;
             Clientor20socks[i].revents = 0;
+            Clientor20ids[i] = next_client_id();
             cm15a_encode_state_init(&Clientor20states[i]);
             Nor20Clients++;
             dbprintf("add_or20client: i %d Nor20Clients %d\n", i, Nor20Clients);
+            syslog(LOG_NOTICE,
+                    "[CLIENT] client id=%u connected type=openremote fd=%d",
+                    Clientor20ids[i], fd);
             return 0;
         }
     }
     dbprintf("max OR20 clients exceeded %d\n", i);
+    syslog(LOG_INFO,
+            "[CLIENT] rejected OpenRemote client fd=%d: maximum clients reached",
+            fd);
     return -1;
 }
 
@@ -330,15 +367,30 @@ static cm15a_encode_state_t *client_encode_state(int fd)
     return NULL;
 }
 
+static unsigned int client_id_for_fd(int fd)
+{
+    int i;
+
+    for (i = 0; i < MAXCLISOCKETS; i++) {
+        if (Clientsocks[i].fd == fd) return Clientids[i];
+        if (Clientxmlsocks[i].fd == fd) return Clientxmlids[i];
+        if (Clientor20socks[i].fd == fd) return Clientor20ids[i];
+    }
+    return 0;
+}
+
 static void log_accept_result(const char *name, int fd)
 {
     /* errno is meaningful only when accept() fails. Logging it after a
      * successful accept shows stale values from earlier syscalls.
      */
-    if (fd < 0)
+    if (fd < 0) {
         dbprintf("%s accept failed errno %d\n", name, errno);
-    else
+        syslog(LOG_INFO, "[CLIENT] accept failed type=%s errno=%d", name, errno);
+    }
+    else {
         dbprintf("%s accept fd %d\n", name, fd);
+    }
 }
 
 /* Delete socket client */
@@ -349,27 +401,37 @@ int del_client(int fd)
     dbprintf("del_client(%d)\n", fd);
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if (Clientsocks[i].fd == fd) {
+            syslog(LOG_NOTICE, "[CLIENT] client id=%u disconnected type=main fd=%d",
+                    Clientids[i], fd);
             shutdown(fd, SHUT_RDWR);
             close(fd);
             Clientsocks[i].fd = -1;
+            Clientids[i] = 0;
             cm15a_encode_state_init(&Clientstates[i]);
             NClients--;
             dbprintf("del_client: i %d NClients %d\n", i, NClients);
             return 0;
         }
         if (Clientxmlsocks[i].fd == fd) {
+            syslog(LOG_NOTICE, "[CLIENT] client id=%u disconnected type=xml fd=%d",
+                    Clientxmlids[i], fd);
             shutdown(fd, SHUT_RDWR);
             close(fd);
             Clientxmlsocks[i].fd = -1;
+            Clientxmlids[i] = 0;
             cm15a_encode_state_init(&Clientxmlstates[i]);
             NxmlClients--;
             dbprintf("del_client: i %d NxmlClients %d\n", i, NxmlClients);
             return 0;
         }
         if (Clientor20socks[i].fd == fd) {
+            syslog(LOG_NOTICE,
+                    "[CLIENT] client id=%u disconnected type=openremote fd=%d",
+                    Clientor20ids[i], fd);
             shutdown(fd, SHUT_RDWR);
             close(fd);
             Clientor20socks[i].fd = -1;
+            Clientor20ids[i] = 0;
             cm15a_encode_state_init(&Clientor20states[i]);
             Nor20Clients--;
             dbprintf("del_client: i %d Nor20Clients %d\n", i, Nor20Clients);
@@ -467,35 +529,42 @@ static int find_cm15a(struct libusb_device_handle **devhptr)
     if (!*devhptr) {
         *devhptr = libusb_open_device_with_vid_pid(NULL,  0x0bc7, 0x0002);
         if (!*devhptr) {
-            syslog(LEVEL, "libusb_open_device_with_vid_pid failed");
+            syslog(LEVEL,
+                    "[USB] CM15A/CM19A not found; in Docker, verify /dev/bus/usb is mapped and the container has USB permissions");
             return -EIO;
         }
         Cm19a = 1;
     }
     r = libusb_claim_interface(*devhptr, 0);
     if (r == 0) {
-        syslog(LOG_NOTICE, (Cm19a) ? "Found CM19A" : "Found CM15A");
+        syslog(LOG_NOTICE, "[USB] controller found model=%s",
+                (Cm19a) ? "CM19A" : "CM15A");
         return 0;
     }
-    syslog(LEVEL, "usb_claim_interface failed %d", r);
+    syslog(LEVEL,
+            "[USB] claim interface failed rc=%d; check permissions, Docker USB passthrough, or kernel drivers",
+            r);
     r = libusb_kernel_driver_active(*devhptr, 0);
     if (r < 0) {
-        syslog(LEVEL, "Kernel driver check failed %d", r);
+        syslog(LEVEL, "[USB] kernel driver check failed rc=%d", r);
         return -EIO;
     }
-    syslog(LOG_NOTICE, "Found kernel driver %d, trying detach", r);
+    syslog(LOG_NOTICE, "[USB] kernel driver active=%d; trying detach", r);
     r = libusb_detach_kernel_driver(*devhptr, 0);
     if (r < 0) {
-        syslog(LEVEL, "Kernel driver detach failed %d", r);
+        syslog(LEVEL,
+                "[USB] kernel driver detach failed rc=%d; check drivers such as ati_remote",
+                r);
         return -EIO;
     }
     Reattach = 1;
     r = libusb_claim_interface(*devhptr, 0);
     if (r < 0) {
-        syslog(LEVEL, "claim interface failed again %d", r);
+        syslog(LEVEL, "[USB] claim interface failed after detach rc=%d", r);
         return -EIO;
     }
-    syslog(LOG_NOTICE, (Cm19a) ? "Found CM19A" : "Found CM15A");
+    syslog(LOG_NOTICE, "[USB] controller found model=%s",
+            (Cm19a) ? "CM19A" : "CM15A");
     return 0;
 }
 
@@ -666,6 +735,49 @@ static const char *signal_name(int signum)
     }
 }
 
+static int parse_port_option(const char *name, const char *value, int *port)
+{
+    char *endptr = NULL;
+    long parsed;
+
+    errno = 0;
+    parsed = strtol(value, &endptr, 10);
+    if (errno || endptr == value || *endptr != '\0' ||
+            parsed < 1 || parsed > 65535) {
+        fprintf(stderr, "%s must be a TCP port from 1 to 65535: %s\n",
+                name, value);
+        return -1;
+    }
+    *port = (int)parsed;
+    return 0;
+}
+
+static int validate_runtime_config(void)
+{
+    struct in_addr addr;
+
+    if (inet_pton(AF_INET, BindAddress, &addr) != 1) {
+        fprintf(stderr, "--bind must be an IPv4 address: %s\n", BindAddress);
+        return -1;
+    }
+    if (ServerPort == XmlPort || ServerPort == OpenRemotePort ||
+            XmlPort == OpenRemotePort) {
+        fprintf(stderr,
+                "--port, --xml-port, and --openremote-port must be distinct\n");
+        return -1;
+    }
+    return 0;
+}
+
+static void configure_ipv4_address(struct sockaddr_in *addr, int port)
+{
+    memset(addr, 0, sizeof(*addr));
+    addr->sin_family = AF_INET;
+    if (inet_pton(AF_INET, BindAddress, &addr->sin_addr) != 1)
+        addr->sin_addr.s_addr = htonl(INADDR_ANY);
+    addr->sin_port = htons(port);
+}
+
 static int mydaemon(void)
 {
     int nready, i;
@@ -679,7 +791,7 @@ static int mydaemon(void)
 //   struct sockaddr_in cliaddr, servaddr;
 
     int rc;
-    static const int optval=1;
+    int on = 1;
 
     /**** USB ****/
     struct sigaction sigact;
@@ -690,14 +802,16 @@ static int mydaemon(void)
 
     hua_sec_init();
 
-    syslog(LOG_NOTICE, "Initializing USB subsystem");
+    syslog(LOG_NOTICE, "[USB] initializing libusb");
     r = libusb_init(NULL);
     if (r < 0) {
-        syslog(LEVEL, "failed to initialise libusb %d", r);
+        syslog(LEVEL,
+                "[USB] libusb initialization failed rc=%d; check USB permissions and container passthrough",
+                r);
         dbprintf("failed to initialise libusb %d\n", r);
         exit(1);
     }
-    syslog(LOG_NOTICE, "USB subsystem initialized");
+    syslog(LOG_NOTICE, "[USB] libusb initialized");
     libusb_set_debug(NULL, 3);
 
 #if 0
@@ -708,27 +822,31 @@ static int mydaemon(void)
         goto out;
     }
 #endif
-    syslog(LOG_NOTICE, "Looking for CM15A/CM19A controller");
+    syslog(LOG_NOTICE, "[USB] looking for CM15A/CM19A controller");
     r = find_cm15a(&Devh);
     if (r < 0) {
-        syslog(LEVEL, "Could not find/open CM15A/CM19A %d", r);
+        syslog(LEVEL,
+                "[USB] could not open CM15A/CM19A rc=%d; check USB passthrough, permissions, and kernel drivers such as ati_remote",
+                r);
         dbprintf("Could not find/open CM15A/CM19A %d\n", r);
         goto out;
     }
 
     r = get_endpoint_address(Devh, &InEndpoint, &OutEndpoint);
     if (r < 0) {
-        syslog(LEVEL, "Could not find endpoints %d", r);
+        syslog(LEVEL,
+                "[USB] could not find interrupt endpoints rc=%d; unsupported or unavailable controller descriptor",
+                r);
         dbprintf("Could not find endpoints %d\n", r);
         goto out_deinit;
     }
-    syslog(LOG_NOTICE, "In endpoint 0x%02X, Out endpoint 0x%02X",
+    syslog(LOG_NOTICE, "[USB] endpoints ready in=0x%02X out=0x%02X",
             InEndpoint, OutEndpoint);
 
     r = do_init();
     if (r < 0)
         goto out_deinit;
-    syslog(LOG_NOTICE, "Controller initialized");
+    syslog(LOG_NOTICE, "[USB] controller initialized");
 
     r = alloc_transfers();
     if (r < 0)
@@ -737,7 +855,7 @@ static int mydaemon(void)
     r = start_transfers();
     if (r < 0)
         goto out_deinit;
-    syslog(LOG_NOTICE, "USB transfers started");
+    syslog(LOG_NOTICE, "[USB] transfers started");
 
     sigact.sa_handler = sighandler;
     sigemptyset(&sigact.sa_mask);
@@ -773,7 +891,7 @@ static int mydaemon(void)
     */
 
     /**** sockets ****/
-#if defined(IPV6)
+#if IPV6
     /* -------------------------------------------------------------------- */
     /* Listen socket for IPv4 clients*/
 
@@ -787,8 +905,6 @@ static int mydaemon(void)
     */
     struct sockaddr_in6 servaddr, cliaddr;
 
-    int on = 1;
-
     listenfd = socket(AF_INET6, SOCK_STREAM, 0);
     dbprintf("listenfd %d\n", listenfd);
 
@@ -796,9 +912,8 @@ static int mydaemon(void)
     /* After the socket descriptor is created, a bind() function gets a  */
     /* unique name for the socket.  In this example, the user sets the   */
     /* address to in6addr_any, which (by default) allows connections to  */
-    /* be established from any IPv4 or IPv6 client that specifies port   */
-    /* SERVER_PORT. (that is, the bind is done to both the IPv4 and IPv6 */
-    /* TCP/IP stacks).  This behavior can be modified using the          */
+    /* be established from any IPv4 or IPv6 client that specifies the    */
+    /* configured main TCP port. This behavior can be modified using the */
     /* IPPROTO_IPV6 level socket option IPV6_V6ONLY if required.         */
     /*********************************************************************/
 
@@ -809,7 +924,7 @@ static int mydaemon(void)
 
     servaddr.sin6_family = AF_INET6;
     servaddr.sin6_addr   = in6addr_any;
-    servaddr.sin6_port   = htons(SERVER_PORT); // Same server port as IPv4
+    servaddr.sin6_port   = htons(ServerPort); // Same server port as IPv4
 
     /* -------------------------------------------------------------------- */
     /* Listen socket for IPv6 Flash XML clients */
@@ -825,11 +940,7 @@ static int mydaemon(void)
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
     dbprintf("listenfd %d\n", listenfd);
 
-    memset(&servaddr, 0, sizeof(servaddr));
-
-    servaddr.sin_family      = AF_INET;
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port        = htons(SERVER_PORT);
+    configure_ipv4_address(&servaddr, ServerPort);
 #endif
 
     /********************************************************************/
@@ -847,13 +958,23 @@ static int mydaemon(void)
 
     rc = bind(listenfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
     dbprintf("bind() %d/%d\n", rc, errno);
+    if (rc < 0) {
+        syslog(LEVEL, "[TCP] bind failed address=%s port=%d errno=%d",
+                BindAddress, ServerPort, errno);
+        exit(errno);
+    }
 
     rc = listen(listenfd, 128);
     // Why am I doing this ???
     ioctl(listenfd, FIONBIO, &on);
     dbprintf("listen() %d/%d\n", rc, errno);
+    if (rc < 0) {
+        syslog(LEVEL, "[TCP] listen failed address=%s port=%d errno=%d",
+                BindAddress, ServerPort, errno);
+        exit(errno);
+    }
 
-#ifdef IPV6
+#if IPV6
     /* -------------------------------------------------------------------- */
     /* Listen spcket for IPv4 clients*/
 
@@ -864,10 +985,9 @@ static int mydaemon(void)
     /* After the socket descriptor is created, a bind() function gets a  */
     /* unique name for the socket.  In this example, the user sets the   */
     /* address to in6addr_any, which (by default) allows connections to  */
-    /* be established from any IPv4 or IPv6 client that specifies port   */
-    /* SERVER_PORT. (that is, the bind is done to both the IPv4 and IPv6 */
-    /* TCP/IP stacks).  This behavior can be modified using the          */
-    /* IPPROTO_IPV6 level socket option IPV6_V6ONLY if required.         */
+    /* be established from any IPv4 or IPv6 client that specifies the    */
+    /* configured XMLSocket TCP port. This behavior can be modified      */
+    /* using the IPPROTO_IPV6 level socket option IPV6_V6ONLY if needed. */
     /*********************************************************************/
 
     // As per:
@@ -877,7 +997,7 @@ static int mydaemon(void)
 
     servaddr.sin6_family = AF_INET6;
     servaddr.sin6_addr   = in6addr_any;
-    servaddr.sin6_port   = htons(SERVER_PORT+1); // Same server port as IPv4
+    servaddr.sin6_port   = htons(XmlPort); // Same server port as IPv4
 
     /* -------------------------------------------------------------------- */
     /* Listen socket for IPv6 Flash XML clients */
@@ -891,11 +1011,7 @@ static int mydaemon(void)
     flashxmlfd = socket(AF_INET, SOCK_STREAM, 0);
     dbprintf("flashxmlfd %d\n", flashxmlfd);
 
-    memset(&servaddr, 0, sizeof(servaddr));
-
-    servaddr.sin_family      = AF_INET;
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port        = htons(SERVER_PORT+1);
+    configure_ipv4_address(&servaddr, XmlPort);
 #endif
     /********************************************************************/
     /* The setsockopt() function is used to allow the local address to  */
@@ -912,9 +1028,19 @@ static int mydaemon(void)
 
     rc = bind(flashxmlfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
     dbprintf("bind() %d/%d\n", rc, errno);
+    if (rc < 0) {
+        syslog(LEVEL, "[TCP] bind failed address=%s port=%d errno=%d",
+                BindAddress, XmlPort, errno);
+        exit(errno);
+    }
 
     rc = listen(flashxmlfd, 128);
     dbprintf("listen() %d/%d\n", rc, errno);
+    if (rc < 0) {
+        syslog(LEVEL, "[TCP] listen failed address=%s port=%d errno=%d",
+                BindAddress, XmlPort, errno);
+        exit(errno);
+    }
 
     /* -------------------------------------------------------------------- */
     /* Listen socket for IPv6 Flash XML clients */
@@ -922,7 +1048,7 @@ static int mydaemon(void)
 
     /* -------------------------------------------------------------------- */
 
-#if defined(IPV6)
+#if IPV6
     /* -------------------------------------------------------------------- */
     /* Listen socket for IPv4 clients*/
 
@@ -933,10 +1059,9 @@ static int mydaemon(void)
     /* After the socket descriptor is created, a bind() function gets a  */
     /* unique name for the socket.  In this example, the user sets the   */
     /* address to in6addr_any, which (by default) allows connections to  */
-    /* be established from any IPv4 or IPv6 client that specifies port   */
-    /* SERVER_PORT. (that is, the bind is done to both the IPv4 and IPv6 */
-    /* TCP/IP stacks).  This behavior can be modified using the          */
-    /* IPPROTO_IPV6 level socket option IPV6_V6ONLY if required.         */
+    /* be established from any IPv4 or IPv6 client that specifies the    */
+    /* configured OpenRemote TCP port. This behavior can be modified     */
+    /* using the IPPROTO_IPV6 level socket option IPV6_V6ONLY if needed. */
     /*********************************************************************/
 
     // As per:
@@ -946,7 +1071,7 @@ static int mydaemon(void)
 
     servaddr.sin6_family = AF_INET6;
     servaddr.sin6_addr   = in6addr_any;
-    servaddr.sin6_port   = htons(SERVER_PORT+2); // Same server port as IPv4
+    servaddr.sin6_port   = htons(OpenRemotePort); // Same server port as IPv4
 #else
     /* -------------------------------------------------------------------- */
     /* Listen socket for Flash XML clients */
@@ -955,11 +1080,7 @@ static int mydaemon(void)
     or20fd = socket(AF_INET, SOCK_STREAM, 0);
     dbprintf("or20fd %d\n", or20fd);
 
-    memset(&servaddr, 0, sizeof(servaddr));
-
-    servaddr.sin_family      = AF_INET;
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port        = htons(SERVER_PORT+2);
+    configure_ipv4_address(&servaddr, OpenRemotePort);
 #endif
 
     /********************************************************************/
@@ -977,9 +1098,19 @@ static int mydaemon(void)
 
     rc = bind(or20fd, (struct sockaddr*) &servaddr, sizeof(servaddr));
     dbprintf("bind() %d/%d\n", rc, errno);
+    if (rc < 0) {
+        syslog(LEVEL, "[TCP] bind failed address=%s port=%d errno=%d",
+                BindAddress, OpenRemotePort, errno);
+        exit(errno);
+    }
 
     rc = listen(or20fd, 128);
     dbprintf("listen() %d/%d\n", rc, errno);
+    if (rc < 0) {
+        syslog(LEVEL, "[TCP] listen failed address=%s port=%d errno=%d",
+                BindAddress, OpenRemotePort, errno);
+        exit(errno);
+    }
 
     /* -------------------------------------------------------------------- */
 
@@ -996,9 +1127,9 @@ static int mydaemon(void)
 
     PollTimeOut = -1;
     syslog(LOG_NOTICE,
-            "Listening for clients on TCP ports %d, %d, and %d",
-            SERVER_PORT, SERVER_PORT + 1, SERVER_PORT + 2);
-    syslog(LOG_NOTICE, "mochad is running");
+            "[TCP] listening address=%s ports=%d,%d,%d",
+            BindAddress, ServerPort, XmlPort, OpenRemotePort);
+    syslog(LOG_NOTICE, "[STARTUP] mochad is running");
 
     while (!Do_exit) {
         int nsockclients;
@@ -1082,6 +1213,9 @@ static int mydaemon(void)
                         else {
                             cm15a_encode_state_t *state;
 			    dbprintf("Input: %.*s", bytesIn, (char *)buf);
+                            syslog(LOG_DEBUG,
+                                    "[COMMAND] received client_id=%u fd=%d bytes=%d",
+                                    client_id_for_fd(clifd), clifd, bytesIn);
                             state = client_encode_state(clifd);
                             if (state)
                                 cm15a_encode_with_state(clifd, state, buf, (size_t)bytesIn);
@@ -1092,7 +1226,8 @@ static int mydaemon(void)
             }
         }
     }
-    syslog(LOG_NOTICE, (Cm19a) ? "detaching CM19A" : "detaching CM15A");
+    syslog(LOG_NOTICE, "[SHUTDOWN] detaching controller model=%s",
+            (Cm19a) ? "CM19A" : "CM15A");
 
     if (IntrOut_transfer) {
         r = libusb_cancel_transfer(IntrOut_transfer);
@@ -1112,17 +1247,17 @@ static int mydaemon(void)
             break;
 
     if (Do_exit == 1) {
-        syslog(LOG_NOTICE, "Shutdown requested by %s (%d)",
+        syslog(LOG_NOTICE, "[SHUTDOWN] requested by %s (%d)",
                 signal_name(Exit_signal), Exit_signal);
         r = 0;
     }
     else {
-        syslog(LOG_NOTICE, "Stopping after USB or poll error");
+        syslog(LOG_NOTICE, "[SHUTDOWN] stopping after USB or poll error");
         r = 1;
     }
 
 out_deinit:
-    syslog(LOG_NOTICE, "Releasing USB resources");
+    syslog(LOG_NOTICE, "[SHUTDOWN] releasing USB resources");
     libusb_free_transfer(IntrIn_transfer);
     libusb_free_transfer(IntrOut_transfer);
 /* out_release: */
@@ -1131,7 +1266,7 @@ out:
     libusb_close(Devh);
     if (Reattach) libusb_attach_kernel_driver(Devh, 0);
     libusb_exit(NULL);
-    syslog(LOG_NOTICE, "Shutdown complete");
+    syslog(LOG_NOTICE, "[SHUTDOWN] complete");
     return r >= 0 ? r : -r;
 }
 
@@ -1151,6 +1286,11 @@ help() {
     printf("Copyright (C) 2010-2014 Brian Uechi.\n");
     printf("Copyright (C) 2014 Neil Cherry.\n");
     printf("    -d - run in foreground\n");
+    printf("    --bind ADDRESS - bind TCP listeners to IPv4 address (default 0.0.0.0)\n");
+    printf("    --port PORT - main TCP port (default 1099)\n");
+    printf("    --xml-port PORT - Flash XMLSocket port (default 1100)\n");
+    printf("    --openremote-port PORT - OpenRemote 2.0 port (default 1101)\n");
+    printf("    --raw-data\n");
     printf("    --raw-date\n");
     printf("    --version\n");
     printf("    --help\n");
@@ -1171,6 +1311,37 @@ int main(int argc, char *argv[])
             foreground = 1;
         else if (strcmp(argv[i], "--raw-data") == 0)
             raw_data = 1;
+        else if (strcmp(argv[i], "--bind") == 0) {
+            if (++i >= argc) {
+                fprintf(stderr, "--bind requires an IPv4 address\n");
+                exit(-1);
+            }
+            BindAddress = argv[i];
+        }
+        else if (strcmp(argv[i], "--port") == 0) {
+            if (++i >= argc) {
+                fprintf(stderr, "--port requires a TCP port\n");
+                exit(-1);
+            }
+            if (parse_port_option("--port", argv[i], &ServerPort) < 0)
+                exit(-1);
+        }
+        else if (strcmp(argv[i], "--xml-port") == 0) {
+            if (++i >= argc) {
+                fprintf(stderr, "--xml-port requires a TCP port\n");
+                exit(-1);
+            }
+            if (parse_port_option("--xml-port", argv[i], &XmlPort) < 0)
+                exit(-1);
+        }
+        else if (strcmp(argv[i], "--openremote-port") == 0) {
+            if (++i >= argc) {
+                fprintf(stderr, "--openremote-port requires a TCP port\n");
+                exit(-1);
+            }
+            if (parse_port_option("--openremote-port", argv[i], &OpenRemotePort) < 0)
+                exit(-1);
+        }
         else if (strcmp(argv[i], "--version") == 0) {
             printf("%s\n", REDUX_VERSION);
             printf("upstream base: %s\n", PACKAGE_STRING);
@@ -1187,31 +1358,35 @@ int main(int argc, char *argv[])
             exit(-1);
         }
     }
+    if (validate_runtime_config() < 0)
+        exit(-1);
 
     /* Initialize logging after argument parsing so foreground mode can mirror
      * friendly lifecycle messages to stderr for containers and manual tests.
      */
     openlog(DAEMON_NAME, LOG_PID | (foreground ? LOG_PERROR : 0), LOG_LOCAL5);
     syslog(LOG_NOTICE,
-            "%s starting (upstream_base=\"%s\", foreground=%s, raw_data=%s)",
+            "[STARTUP] %s starting (upstream_base=\"%s\", foreground=%s, raw_data=%s)",
             REDUX_VERSION, PACKAGE_STRING, foreground ? "yes" : "no",
             raw_data ? "yes" : "no");
+    syslog(LOG_NOTICE, "[STARTUP] TCP configuration bind=%s ports=%d,%d,%d",
+            BindAddress, ServerPort, XmlPort, OpenRemotePort);
 
     /* Daemonize */
     if (!foreground) {
         rc = daemon(0, 0);
         dbprintf("daemon() => %d\n", rc);
-        syslog(LOG_NOTICE, "Running in background");
+        syslog(LOG_NOTICE, "[STARTUP] running in background");
     }
     else {
-        syslog(LOG_NOTICE, "Running in foreground");
+        syslog(LOG_NOTICE, "[STARTUP] running in foreground");
     }
 
     /* Do real work */
     rc = mydaemon();
 
     /* Finish up */
-    syslog(LOG_NOTICE, "terminated");
+    syslog(LOG_NOTICE, "[SHUTDOWN] terminated");
     closelog();
     return rc;
 }

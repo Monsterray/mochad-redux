@@ -218,7 +218,7 @@ void cm15a_decode_plc(int fd, unsigned char *buf, size_t len)
     /* End this log line before hexdump output so later daemon logs do not
      * appear glued to decode traces.
      */
-    dbprintf("%s(%d,%u)\n", __func__, fd, len);
+    dbprintf("[PL] %s(%d,%u)\n", __func__, fd, len);
     hexdump(buf, len);
     // new event
     // ev->evint = EV_RX_PLC;
@@ -747,7 +747,7 @@ void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len)
     /* End this log line before hexdump output so later daemon logs do not
      * appear glued to decode traces.
      */
-    dbprintf("%s(%d,%u)\n", __func__, fd, len);
+    dbprintf("[RF] %s(%d,%u)\n", __func__, fd, len);
     hexdump(buf, len);
     /* CM19A packets are normalized by prepending 0x5D before this decoder.
      * Some RF packets already contain that prefix, so only trim duplicate

@@ -209,11 +209,11 @@ int hua_getstatus_sec(int rf8bitaddr, unsigned long rfaddr)
     x10secsensor_t *sen;
     unsigned int sensor;
 
-    dbprintf("hua_getstatus_sec(%d,%X)\n\r", rf8bitaddr, rfaddr);
+    dbprintf("[STATUS] hua_getstatus_sec(%d,%X)\n\r", rf8bitaddr, rfaddr);
     for (sensor = 0; sensor < X10sensorcount; sensor++) {
         sen = &X10sensors[sensor];
 
-        dbprintf("hua_getstatus_sec addr8 %d addr %X status %X\n\r",
+        dbprintf("[STATUS] hua_getstatus_sec addr8 %d addr %X status %X\n\r",
                 sen->secaddr8, sen->secaddr, sen->sensorstatus);
         if (rf8bitaddr && sen->secaddr8 && (rfaddr == sen->secaddr)) {
             switch (sen->sensorstatus) {

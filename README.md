@@ -153,6 +153,22 @@ Optional analyzer modes are documented in [MAINTAINING.md](MAINTAINING.md).
 Real controller testing is documented in
 [docs/hardware-validation.md](docs/hardware-validation.md).
 
+## Runtime Options
+
+By default, `mochad-redux` listens on `0.0.0.0:1099`, with auxiliary legacy
+listeners on `1100` and `1101`.
+
+```sh
+mochad -d \
+  --bind 0.0.0.0 \
+  --port 1099 \
+  --xml-port 1100 \
+  --openremote-port 1101
+```
+
+Ports must be distinct TCP ports from `1` to `65535`. Invalid bind addresses or
+ports fail at startup with a clear error.
+
 ## Troubleshooting
 
 If no RF activity appears when pressing remote buttons, check the service:
