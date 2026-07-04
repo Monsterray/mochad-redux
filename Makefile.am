@@ -2,10 +2,14 @@ bin_PROGRAMS = mochad
 mochad_SOURCES = mochad.c decode.c encode.c global.c x10state.c x10_write.c \
 		decode.h encode.h global.h x10state.h x10_write.h
 EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules-systemd \
+		udev/README.md \
 		hotplug2/20-usb-x10 hotplug2/mochad systemd/mochad.service \
 		cgi/x10.pl cgi/netcat.pl cgi/getsensors.pl cgi/cgi-lib.pl \
 		apps/mochamon.pl apps/simplemon.pl apps/bash.sh \
-		apps/rfsectopl3.pl apps/x10-tk.py apps/mochad.scr
+		apps/rfsectopl3.pl apps/x10-tk.py apps/mochad.scr \
+		docs/hardware-validation.md docs/milestone-1.md docs/support-files.md \
+		ARCHITECTURE.md DESIGN.md MAINTAINING.md PROJECT.md README.md \
+		ROADMAP.md LICENSE.md
 
 install-exec-hook:
 	if test -d /lib/systemd/system -a -x /bin/systemctl ; then \

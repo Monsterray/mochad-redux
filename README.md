@@ -57,8 +57,8 @@ The `systemd` and `udev` directories were restored from the original
 [mochad-0.1.17](https://sourceforge.net/projects/mochad/files/) release so the
 service and device rules install correctly on modern systems.
 
-If you need the older patch-only flow for version 0.1.17, see
-[res/README.md](res/README.md).
+Legacy examples and service integration files are documented in
+[docs/support-files.md](docs/support-files.md).
 
 ## Installation
 
@@ -105,7 +105,7 @@ Expected installed files include:
 
 ```text
 /usr/local/bin/mochad
-/etc/udev/rules/91-usb-x10-controllers.rules
+/etc/udev/rules.d/91-usb-x10-controllers.rules
 /etc/systemd/system/mochad.service
 ```
 
@@ -184,6 +184,19 @@ listener by disabling `IPV6_V6ONLY`. Some systems may still restrict this by
 sysctl or kernel policy; in that case use an explicit IPv4 bind address for
 IPv4 clients or an explicit IPv6 bind address for IPv6 clients.
 
+Startup logs show the chosen address family, bind address, port, and
+dual-stack result for each listener:
+
+```text
+[TCP] listener ready name=main address=:: port=1099 family=ipv6 dual_stack=enabled
+[TCP] listener ready name=xml address=:: port=1100 family=ipv6 dual_stack=enabled
+[TCP] listener ready name=openremote address=:: port=1101 family=ipv6 dual_stack=enabled
+```
+
+If the host or container runtime blocks IPv4-mapped IPv6 sockets, the log may
+show `dual_stack=failed`. In that case, keep the default `--bind 0.0.0.0` for
+IPv4-only service or explicitly use `--bind ::` for IPv6-only validation.
+
 ## Troubleshooting
 
 If no RF activity appears when pressing remote buttons, check the service:
@@ -228,3 +241,5 @@ enough if the device is already claimed.
 
 GNU General Public License version 3.0 (GPLv3), according to the
 [original project page on SourceForge](https://sourceforge.net/projects/mochad/).
+The license text is available in both [LICENSE.md](LICENSE.md) for GitHub
+conventions and [COPYING](COPYING) for GNU/autotools conventions.

@@ -790,6 +790,15 @@ static int validate_runtime_config(void)
     return 0;
 }
 
+static const char *socket_family_name(int family)
+{
+    if (family == AF_INET)
+        return "ipv4";
+    if (family == AF_INET6)
+        return "ipv6";
+    return "unknown";
+}
+
 static int create_listener(const char *name, int port)
 {
     struct addrinfo hints;
@@ -814,15 +823,26 @@ static int create_listener(const char *name, int port)
     }
 
     for (candidate = results; candidate != NULL; candidate = candidate->ai_next) {
+        int dual_stack_enabled = 0;
+        int dual_stack_failed = 0;
+        const char *dual_stack = "not_applicable";
+
         fd = socket(candidate->ai_family, candidate->ai_socktype,
                 candidate->ai_protocol);
-        if (fd < 0)
+        if (fd < 0) {
+            syslog(LEVEL,
+                    "[TCP] socket failed listener=%s address=%s port=%d family=%s errno=%d",
+                    name, BindAddress, port,
+                    socket_family_name(candidate->ai_family), errno);
             continue;
+        }
 
         if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&on,
                     sizeof(on)) < 0) {
-            syslog(LEVEL, "[TCP] setsockopt failed listener=%s errno=%d",
-                    name, errno);
+            syslog(LEVEL,
+                    "[TCP] setsockopt failed listener=%s address=%s port=%d family=%s option=SO_REUSEADDR errno=%d",
+                    name, BindAddress, port,
+                    socket_family_name(candidate->ai_family), errno);
             close(fd);
             fd = -1;
             continue;
@@ -833,17 +853,26 @@ static int create_listener(const char *name, int port)
 
             if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6only,
                         sizeof(v6only)) < 0) {
+                dual_stack_failed = 1;
                 syslog(LOG_INFO,
-                        "[TCP] could not enable dual-stack IPv6 listener=%s errno=%d",
-                        name, errno);
+                        "[TCP] IPv6 dual-stack request failed listener=%s address=%s port=%d errno=%d",
+                        name, BindAddress, port, errno);
+            }
+            else {
+                dual_stack_enabled = 1;
             }
         }
 
         rc = bind(fd, candidate->ai_addr, candidate->ai_addrlen);
         dbprintf("bind(%s) %d/%d\n", name, rc, errno);
         if (rc < 0) {
-            syslog(LEVEL, "[TCP] bind failed listener=%s address=%s port=%d errno=%d",
-                    name, BindAddress, port, errno);
+            syslog(LEVEL,
+                    "[TCP] bind failed listener=%s address=%s port=%d family=%s dual_stack=%s errno=%d",
+                    name, BindAddress, port,
+                    socket_family_name(candidate->ai_family),
+                    dual_stack_failed ? "failed" :
+                    (dual_stack_enabled ? "enabled" : "not_applicable"),
+                    errno);
             close(fd);
             fd = -1;
             continue;
@@ -852,17 +881,24 @@ static int create_listener(const char *name, int port)
         rc = listen(fd, 128);
         dbprintf("listen(%s) %d/%d\n", name, rc, errno);
         if (rc < 0) {
-            syslog(LEVEL, "[TCP] listen failed listener=%s address=%s port=%d errno=%d",
-                    name, BindAddress, port, errno);
+            syslog(LEVEL,
+                    "[TCP] listen failed listener=%s address=%s port=%d family=%s errno=%d",
+                    name, BindAddress, port,
+                    socket_family_name(candidate->ai_family), errno);
             close(fd);
             fd = -1;
             continue;
         }
 
+        if (candidate->ai_family == AF_INET6) {
+            dual_stack = dual_stack_failed ? "failed" :
+                    (dual_stack_enabled ? "enabled" : "unknown");
+        }
         ioctl(fd, FIONBIO, &on);
-        syslog(LOG_NOTICE, "[TCP] listener ready name=%s address=%s port=%d family=%s",
+        syslog(LOG_NOTICE,
+                "[TCP] listener ready name=%s address=%s port=%d family=%s dual_stack=%s",
                 name, BindAddress, port,
-                (candidate->ai_family == AF_INET6) ? "ipv6" : "ipv4");
+                socket_family_name(candidate->ai_family), dual_stack);
         break;
     }
 

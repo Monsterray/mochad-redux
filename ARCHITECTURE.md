@@ -113,5 +113,8 @@ Docker should not hide USB errors. If USB is unavailable, logs should clearly ex
 
 TCP listeners are created through a shared `getaddrinfo` path so IPv4 and IPv6
 use the same validation, logging, socket options, and error handling. The
-default bind remains `0.0.0.0` for compatibility. IPv6 is enabled by passing an
-IPv6 address such as `::` or `::1` to `--bind`.
+default bind remains `0.0.0.0` for compatibility. IPv6 is explicit opt-in and
+is enabled by passing an IPv6 address such as `::` or `::1` to `--bind`.
+Startup logs must report each listener name, bind address, port, address
+family, and IPv6 dual-stack result when applicable. Docker, kernel, or sysctl
+policy may still prevent dual-stack behavior even when mochad requests it.

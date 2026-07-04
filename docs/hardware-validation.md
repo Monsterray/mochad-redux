@@ -63,9 +63,9 @@ Expected startup milestones:
 [USB] controller found model=CM19A
 [USB] controller initialized
 [USB] transfers started
-[TCP] listener ready name=main address=0.0.0.0 port=1099 family=ipv4
-[TCP] listener ready name=xml address=0.0.0.0 port=1100 family=ipv4
-[TCP] listener ready name=openremote address=0.0.0.0 port=1101 family=ipv4
+[TCP] listener ready name=main address=0.0.0.0 port=1099 family=ipv4 dual_stack=not_applicable
+[TCP] listener ready name=xml address=0.0.0.0 port=1100 family=ipv4 dual_stack=not_applicable
+[TCP] listener ready name=openremote address=0.0.0.0 port=1101 family=ipv4 dual_stack=not_applicable
 [TCP] listening address=0.0.0.0 ports=1099,1100,1101
 [STARTUP] mochad is running
 ```
@@ -94,7 +94,8 @@ Then connect over IPv6:
 nc -6 ::1 1099
 ```
 
-Record whether the log reports `family=ipv6` for all three listeners.
+Record whether the log reports `family=ipv6` for all three listeners and
+whether `dual_stack=enabled`, `dual_stack=failed`, or `dual_stack=unknown`.
 If the host allows dual-stack IPv6 listeners, IPv4 clients may also be able to
 connect while bound to `::`. If not, use `--bind 0.0.0.0` for IPv4 or
 `--bind ::` for IPv6 and validate the selected mode explicitly.
