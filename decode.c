@@ -23,7 +23,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <sys/timeb.h>
+#include <sys/time.h>
 #include <time.h>
 
 #include "global.h"
@@ -588,10 +588,10 @@ typedef uint64_t timems_t;
 /* Get system time in milliseconds */
 static timems_t get_timems(void)
 {
-    struct timeb tp;
+    struct timeval tv;
 
-    ftime(&tp);
-    return (timems_t) (tp.time * 1000) + tp.millitm;
+    gettimeofday(&tv, NULL);
+    return (timems_t) (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
 }
 
 #define DUP_TIME (650)
