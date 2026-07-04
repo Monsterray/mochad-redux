@@ -1,7 +1,7 @@
 # MOCHAD
 
 `mochad` is a Linux TCP gateway daemon for the X10 CM15A RF (radio frequency) and
-PL (power line) and the CM19A RF controllers. 
+PL (power line) and the CM19A RF controllers.
 <!-- TOC -->
 
 - [1. Why this Fork ?](#1-why-this-fork-)
@@ -22,18 +22,17 @@ PL (power line) and the CM19A RF controllers.
 - [6. USB Interface Error](#6-usb-interface-error)
 - [7. Cleanup](#7-cleanup)
 - [8. More Information](#8-more-information)
-- [9. Shameless Self Promotion](#9-shameless-self-promotion)
-- [10. License](#10-license)
+- [9. License](#9-license)
 
 <!-- /TOC -->
 
 ## 1. Why this Fork ?
 
-Changes were needed to the [Neil Cherry (linuxha) fork](https://github.com/linuxha/mochad) to compile and install `mochad` on recent versions of Linux with the `systemd` init system. Specifically this fork has been tested on the following 64-bit systems. 
+Changes were needed to the [Neil Cherry (linuxha) fork](https://github.com/linuxha/mochad) to compile and install `mochad` on recent versions of Linux with the `systemd` init system. Specifically this fork has been tested on the following 64-bit systems.
 
 - x86_64 GNU/Linux : Mint 20.1, Ubuntu 20.04 LTS (focal), Linux 5.4.0-124
 
-- aarch64 GNU/Linux : Armbian 22.05.3, Ubuntu 22.04.1 LTS (jammy), Linux 5.10.123-meson64 
+- aarch64 GNU/Linux : Armbian 22.05.3, Ubuntu 22.04.1 LTS (jammy), Linux 5.10.123-meson64
 
 - aarch64 GNU/Linux : Raspberry Pi OS 2022-04-04, Debian 11.4 (bullseye), Linux 5.15.32-v8+
 
@@ -56,11 +55,11 @@ The problem was solved by declaring those variables as `extern` in `global.h` an
 
 ### 2.2. Configuration
 
-The `mochad` service was not installed properly in `systemd` and it would stop functioning with a 
+The `mochad` service was not installed properly in `systemd` and it would stop functioning with a
 
     usb_claim_interface failed -6
 
-error. 
+error.
 
 The solution was to restore the `systemd` and `udev` directories found in the original [mochad-0.1.17](https://sourceforge.net/projects/mochad/files/) repository by mmauka. Modification of the `Makefile.am` was also necessary.
 
@@ -72,7 +71,7 @@ If IPV6 support is needed then this fork will have to be installed as explained 
 
 ## 4. Installation of `mochad`
 
-**FR:** Il y a une [traduction en français de ces instructions](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_fr.html#installation). 
+**FR:** Il y a une [traduction en français de ces instructions](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_fr.html#installation).
 
 
 ### 4.1. Install prerequisite
@@ -104,7 +103,7 @@ The source code on GitHub can be obtained with any one of the usual methods. Not
     $ wget https://github.com/sigmdel/mochad/archive/refs/heads/master.zip
     $ unzip master.zip
     $ cd mochad-master
-   
+
 The current work directory should contain the source including `mochad.c`  and `autogen.sh`.
 
 ### 4.3. Enable IPV6 support (optional)
@@ -120,7 +119,7 @@ I do not use IPV6 and have not tested that code at all. Any questions about that
 
 While it should be, make sure that `autogen.sh` is an executable.
 
-    $ chmod +x autogen.sh 
+    $ chmod +x autogen.sh
 
 Run the script.
 
@@ -137,14 +136,14 @@ This will create the `Makefile`, so now run `make`.
 
 Again within the directory containing the source.
 
-### 4.6. Confirm the presence of installed files 
+### 4.6. Confirm the presence of installed files
 
      /usr/local/bin/mochad
      /etc/udev/rules/91-usb-x10-controllers.rules
 
 In `systemd` a service file is also installed.
 
-     /etc/systemd/system/mochad.service 
+     /etc/systemd/system/mochad.service
 
 Note that the service will remain inactive until a CM1xA is connected to the system. That's the reason for the `udev` rules.
 
@@ -157,7 +156,7 @@ First connect a CM15A or CM19A to a USB port. Test the service by connecting to 
     02/03 19:27:44 Rx RF HouseUnit: K6 Func: Off
     02/03 19:27:46 Rx RF House: K Func: Dim
 
-Use the `Ctrl+C` keyboard combination to close `netcat`. 
+Use the `Ctrl+C` keyboard combination to close `netcat`.
 
 ## 6. USB Interface Error
 
@@ -166,16 +165,16 @@ If nothing happened when pressing a button on the remote, look at the status of 
     $ systemctl status mochad.service
     ● mochad.service - Mochad a TCP gateway service for X10-RF (CM15A/CM15Pro/CM19A)
         Loaded: loaded (/etc/systemd/system/mochad.service; disabled; preset: enabled)
-      ... 
+      ...
       ...  mochad[739]: usb_claim_interface failed -6
-      ... 
+      ...
 
 Should a **`usb_claim_interface failed -6`**  error be present as shown above, check if the `ati_remote` driver is running.
 
     $ lsmod | grep ati_remote
     ati_remote              9260  0   
 
-The Lola remote for ATI All-In-Wonder video card has the same `0x0bc7:0x002` id as the CM19A. Because of that, the [ati_remote](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/drivers/media/rc/ati_remote.c) driver will be loaded. Blacklist the module and the problem should be solved. 
+The Lola remote for ATI All-In-Wonder video card has the same `0x0bc7:0x002` id as the CM19A. Because of that, the [ati_remote](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/drivers/media/rc/ati_remote.c) driver will be loaded. Blacklist the module and the problem should be solved.
 
      $ echo "blacklist ati_remote" | sudo tee /usr/lib/modprobe.d/ati-remote-blacklist.conf
 
@@ -195,12 +194,8 @@ Steve Porter provides a fork of the mmauka 0.0.17 version which he presents as [
 
 More information about this fork in excruciating details at [Mochad on Recent Linux Distributions](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_en.html).
 
-**FR:** Il a plus de détails au sujet de cette fourche dans un billet intitulé [Mochad sur les distributions Linux récentes](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_fr.html). 
+**FR:** Il a plus de détails au sujet de cette fourche dans un billet intitulé [Mochad sur les distributions Linux récentes](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_fr.html).
 
-## 9. Shameless Self Promotion
-
-The [Domoticz](https://www.domoticz.com/) *Mochad CM15Pro/CM19A bridge with LAN interface* decodes only the On and Off packets received from `mochad`. When the Mochad bridge receives Dim or Bright packets from `mochad`, it reports a decode error. The [mochas](https://github.com/sigmdel/mochas) repository contains a Python script that can be run as a service connected to `mochad` to handle these packets.
-
-## 10. License
+## 9. License
 
 GNU General Public License version 3.0 (GPLv3) according to the [original project page on SourceForge](https://sourceforge.net/projects/mochad/).
