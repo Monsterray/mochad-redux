@@ -848,35 +848,69 @@ int processcommandline(int fd, char *aLine)
  * Parse human readable commands and convert to binary X10 protocol.
  * Send to CM15A.
  */
-void cm15a_encode(int fd, unsigned char * buf, size_t buflen)
+void cm15a_encode_state_init(cm15a_encode_state_t *state)
 {
-    static char remainder[80];      // Any leftover, not seen \n yet.
-    static size_t remlen=0;
+    state->remainder[0] = '\0';
+    state->remlen = 0;
+    state->discarding = 0;
+}
+
+void cm15a_encode_with_state(int fd, cm15a_encode_state_t *state,
+        unsigned char *buf, size_t buflen)
+{
     char *remptr;
 
     dbprintf("buflen %lu\n\r", (unsigned long)buflen);
     hexdump(buf, buflen);
-    dbprintf("remlen %lu\n\r", (unsigned long)remlen);
-    hexdump(remainder, remlen);
+    dbprintf("remlen %lu\n\r", (unsigned long)state->remlen);
+    hexdump(state->remainder, state->remlen);
 
     /* Break the input stream into \n or \r terminated lines. The stream is not
      * guaranteed to end on a line boundary so there may be left over input
      * which must be processed the next time around.
      */
-    remptr = remainder + remlen;
+    remptr = state->remainder + state->remlen;
     while (buflen--) {
+        if (state->discarding) {
+            if ((*buf == '\n') || (*buf == '\r') || (*buf == '\0')) {
+                state->discarding = 0;
+            }
+            buf++;
+            continue;
+        }
+        if (remptr >= state->remainder + sizeof(state->remainder) - 1) {
+            dbprintf("command line too long; dropping partial input\n\r");
+            state->remainder[0] = '\0';
+            state->remlen = 0;
+            state->discarding = 1;
+            remptr = state->remainder;
+            buf++;
+            continue;
+        }
         *remptr = *buf;
         if ((*remptr == '\n') || (*remptr == '\r') || (*remptr == '\0')) {
             *remptr = '\0';
-            if (strlen(remainder)) {
-                processcommandline(fd, remainder);
+            if (strlen(state->remainder)) {
+                processcommandline(fd, state->remainder);
                 if (or20client(fd)) del_client(fd);
             }
-            remptr = remainder;
+            remptr = state->remainder;
         }
         else
             remptr++;
         buf++;
     }
-    remlen = remptr - remainder;
+    state->remlen = remptr - state->remainder;
+}
+
+void cm15a_encode(int fd, unsigned char *buf, size_t buflen)
+{
+    static cm15a_encode_state_t default_state;
+    static int initialized = 0;
+
+    if (!initialized) {
+        cm15a_encode_state_init(&default_state);
+        initialized = 1;
+    }
+    cm15a_encode_with_state(fd, &default_state, buf, buflen);
 }

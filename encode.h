@@ -1,3 +1,8 @@
+#ifndef ENCODE_H
+#define ENCODE_H
+
+#include <stddef.h>
+
 /*
  * Copyright 2010-2011 Brian Uechi <buasst@gmail.com>
  *
@@ -19,5 +24,17 @@
 
 int processcommandline(int fd, char *aLine);
 
+typedef struct cm15a_encode_state {
+    char remainder[80];
+    size_t remlen;
+    int discarding;
+} cm15a_encode_state_t;
+
+void cm15a_encode_state_init(cm15a_encode_state_t *state);
+
+void cm15a_encode_with_state(int fd, cm15a_encode_state_t *state,
+        unsigned char *buf, size_t buflen);
+
 void cm15a_encode(int fd, unsigned char * buf, size_t buflen);
 
+#endif
