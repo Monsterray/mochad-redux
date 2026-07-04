@@ -112,18 +112,6 @@ Expected installed files include:
 The service remains inactive until a supported CM15A or CM19A controller is
 connected. The installed `udev` rules handle service activation.
 
-## Optional IPv6 Support
-
-IPv6 is disabled by default. To enable it, change the `IPV6` macro near the
-start of `mochad.c` from `0` to `1`:
-
-```c
-#define IPV6 1
-```
-
-IPv6 support is inherited from earlier upstream work and is not currently a
-primary maintenance target.
-
 ## Testing
 
 Connect a CM15A or CM19A to USB, then connect to `mochad` with `netcat` and
@@ -168,6 +156,33 @@ mochad -d \
 
 Ports must be distinct TCP ports from `1` to `65535`. Invalid bind addresses or
 ports fail at startup with a clear error.
+
+## IPv6
+
+IPv6 is configured at runtime with `--bind`; no source edit or rebuild is
+required.
+
+Common bind addresses:
+
+```text
+0.0.0.0    all IPv4 interfaces, default
+127.0.0.1  IPv4 loopback only
+::         all IPv6 interfaces, with dual-stack IPv4-mapped connections when
+           the operating system allows them
+::1        IPv6 loopback only
+```
+
+Examples:
+
+```sh
+mochad -d --bind ::
+mochad -d --bind ::1 --port 1099 --xml-port 1100 --openremote-port 1101
+```
+
+When bound to `::`, `mochad-redux` asks the operating system for a dual-stack
+listener by disabling `IPV6_V6ONLY`. Some systems may still restrict this by
+sysctl or kernel policy; in that case use an explicit IPv4 bind address for
+IPv4 clients or an explicit IPv6 bind address for IPv6 clients.
 
 ## Troubleshooting
 

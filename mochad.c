@@ -28,8 +28,6 @@
  * supports macros, timers, or RTC so it can be used as-is.
  */
 
-#define IPV6    0
-
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -58,6 +56,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 #include "global.h"
 #include "encode.h"
@@ -137,16 +136,27 @@ static int xmlclient(int fd)
  */
 int or20client(int fd)
 {
-    struct sockaddr_in locl;
+    struct sockaddr_storage locl;
     socklen_t locllen;
+    unsigned short port;
 
     locllen = sizeof(locl);
     if (getsockname(fd, (struct sockaddr *)&locl, &locllen) < 0) {
         dbprintf("getsockname -1/%d\n", errno);
         return 0;
     }
-    dbprintf("locl port %d\n", ntohs(locl.sin_port));
-    return (ntohs(locl.sin_port) == OpenRemotePort);
+    if (locl.ss_family == AF_INET) {
+        port = ntohs(((struct sockaddr_in *)&locl)->sin_port);
+    }
+    else if (locl.ss_family == AF_INET6) {
+        port = ntohs(((struct sockaddr_in6 *)&locl)->sin6_port);
+    }
+    else {
+        dbprintf("locl family %d\n", locl.ss_family);
+        return 0;
+    }
+    dbprintf("locl port %d\n", port);
+    return (port == OpenRemotePort);
 }
 
 /*
@@ -754,12 +764,23 @@ static int parse_port_option(const char *name, const char *value, int *port)
 
 static int validate_runtime_config(void)
 {
-    struct in_addr addr;
+    struct addrinfo hints;
+    struct addrinfo *result = NULL;
+    char portbuf[16];
+    int rc;
 
-    if (inet_pton(AF_INET, BindAddress, &addr) != 1) {
-        fprintf(stderr, "--bind must be an IPv4 address: %s\n", BindAddress);
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE | AI_NUMERICHOST | AI_NUMERICSERV;
+    snprintf(portbuf, sizeof(portbuf), "%d", ServerPort);
+    rc = getaddrinfo(BindAddress, portbuf, &hints, &result);
+    if (rc != 0) {
+        fprintf(stderr, "--bind must be a numeric IPv4 or IPv6 address: %s\n",
+                BindAddress);
         return -1;
     }
+    freeaddrinfo(result);
     if (ServerPort == XmlPort || ServerPort == OpenRemotePort ||
             XmlPort == OpenRemotePort) {
         fprintf(stderr,
@@ -769,13 +790,88 @@ static int validate_runtime_config(void)
     return 0;
 }
 
-static void configure_ipv4_address(struct sockaddr_in *addr, int port)
+static int create_listener(const char *name, int port)
 {
-    memset(addr, 0, sizeof(*addr));
-    addr->sin_family = AF_INET;
-    if (inet_pton(AF_INET, BindAddress, &addr->sin_addr) != 1)
-        addr->sin_addr.s_addr = htonl(INADDR_ANY);
-    addr->sin_port = htons(port);
+    struct addrinfo hints;
+    struct addrinfo *results = NULL;
+    struct addrinfo *candidate;
+    char portbuf[16];
+    int fd = -1;
+    int rc;
+    int on = 1;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE | AI_NUMERICHOST | AI_NUMERICSERV;
+    snprintf(portbuf, sizeof(portbuf), "%d", port);
+
+    rc = getaddrinfo(BindAddress, portbuf, &hints, &results);
+    if (rc != 0) {
+        syslog(LEVEL, "[TCP] invalid bind address=%s port=%d error=%s",
+                BindAddress, port, gai_strerror(rc));
+        return -1;
+    }
+
+    for (candidate = results; candidate != NULL; candidate = candidate->ai_next) {
+        fd = socket(candidate->ai_family, candidate->ai_socktype,
+                candidate->ai_protocol);
+        if (fd < 0)
+            continue;
+
+        if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&on,
+                    sizeof(on)) < 0) {
+            syslog(LEVEL, "[TCP] setsockopt failed listener=%s errno=%d",
+                    name, errno);
+            close(fd);
+            fd = -1;
+            continue;
+        }
+
+        if (candidate->ai_family == AF_INET6) {
+            int v6only = 0;
+
+            if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6only,
+                        sizeof(v6only)) < 0) {
+                syslog(LOG_INFO,
+                        "[TCP] could not enable dual-stack IPv6 listener=%s errno=%d",
+                        name, errno);
+            }
+        }
+
+        rc = bind(fd, candidate->ai_addr, candidate->ai_addrlen);
+        dbprintf("bind(%s) %d/%d\n", name, rc, errno);
+        if (rc < 0) {
+            syslog(LEVEL, "[TCP] bind failed listener=%s address=%s port=%d errno=%d",
+                    name, BindAddress, port, errno);
+            close(fd);
+            fd = -1;
+            continue;
+        }
+
+        rc = listen(fd, 128);
+        dbprintf("listen(%s) %d/%d\n", name, rc, errno);
+        if (rc < 0) {
+            syslog(LEVEL, "[TCP] listen failed listener=%s address=%s port=%d errno=%d",
+                    name, BindAddress, port, errno);
+            close(fd);
+            fd = -1;
+            continue;
+        }
+
+        ioctl(fd, FIONBIO, &on);
+        syslog(LOG_NOTICE, "[TCP] listener ready name=%s address=%s port=%d family=%s",
+                name, BindAddress, port,
+                (candidate->ai_family == AF_INET6) ? "ipv6" : "ipv4");
+        break;
+    }
+
+    freeaddrinfo(results);
+    if (fd < 0) {
+        syslog(LEVEL, "[TCP] could not start listener=%s address=%s port=%d",
+                name, BindAddress, port);
+    }
+    return fd;
 }
 
 static int mydaemon(void)
@@ -785,13 +881,11 @@ static int mydaemon(void)
     /**** sockets ****/
     socklen_t clilen; 
     int clifd, listenfd, flashxmlfd, or20fd;
+    struct sockaddr_storage cliaddr;
     unsigned char buf[1024];
     int bytesIn;
 
 //   struct sockaddr_in cliaddr, servaddr;
-
-    int rc;
-    int on = 1;
 
     /**** USB ****/
     struct sigaction sigact;
@@ -886,233 +980,12 @@ static int mydaemon(void)
     else
         initcm1Xa(initcm15abinary);
 
-    /*
-    ** Basically listen & bind on IPv4, listen & bind on IPv4 port+1, listen & bind on IPv6
-    */
-
     /**** sockets ****/
-#if IPV6
-    /* -------------------------------------------------------------------- */
-    /* Listen socket for IPv4 clients*/
-
-    // http://publib.boulder.ibm.com/infocenter/iseries/v6r1m0/topic/rzab6/xacceptboth.htm
-    // http://tldp.org/HOWTO/html_single/Linux+IPv6-HOWTO/#CHAPTER-PROGRAMMING
-    // may be of interest: network programming
-    // http://www.cs.utah.edu/~swalton/listings/sockets/programs/
-
-    /*
-    ** Careful! This part is not ready yet!
-    */
-    struct sockaddr_in6 servaddr, cliaddr;
-
-    listenfd = socket(AF_INET6, SOCK_STREAM, 0);
-    dbprintf("listenfd %d\n", listenfd);
-
-    /*********************************************************************/
-    /* After the socket descriptor is created, a bind() function gets a  */
-    /* unique name for the socket.  In this example, the user sets the   */
-    /* address to in6addr_any, which (by default) allows connections to  */
-    /* be established from any IPv4 or IPv6 client that specifies the    */
-    /* configured main TCP port. This behavior can be modified using the */
-    /* IPPROTO_IPV6 level socket option IPV6_V6ONLY if required.         */
-    /*********************************************************************/
-
-    // As per:
-    // http://publib.boulder.ibm.com/infocenter/iseries/v6r1m0/topic/rzab6/xacceptboth.htm
-
-    memset(&servaddr, 0, sizeof(servaddr));
-
-    servaddr.sin6_family = AF_INET6;
-    servaddr.sin6_addr   = in6addr_any;
-    servaddr.sin6_port   = htons(ServerPort); // Same server port as IPv4
-
-    /* -------------------------------------------------------------------- */
-    /* Listen socket for IPv6 Flash XML clients */
-    // IPv6 port+1
-
-    /* -------------------------------------------------------------------- */
-#else
-    /* -------------------------------------------------------------------- */
-    /* Listen socket for IPv4 */
-    // IPv4
-    struct sockaddr_in servaddr, cliaddr;
-
-    listenfd = socket(AF_INET, SOCK_STREAM, 0);
-    dbprintf("listenfd %d\n", listenfd);
-
-    configure_ipv4_address(&servaddr, ServerPort);
-#endif
-
-    /********************************************************************/
-    /* The setsockopt() function is used to allow the local address to  */
-    /* be reused when the server is restarted before the required wait  */
-    /* time expires.                                                    */
-    /********************************************************************/
-    if(setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)) < 0) {
-      perror("setsockopt(SO_REUSEADDR) failed");
-      exit(errno);
-    }
-
-    //rc = setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
-    //dbprintf("setsockopt() %d/%d\n", rc, errno);
-
-    rc = bind(listenfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
-    dbprintf("bind() %d/%d\n", rc, errno);
-    if (rc < 0) {
-        syslog(LEVEL, "[TCP] bind failed address=%s port=%d errno=%d",
-                BindAddress, ServerPort, errno);
-        exit(errno);
-    }
-
-    rc = listen(listenfd, 128);
-    // Why am I doing this ???
-    ioctl(listenfd, FIONBIO, &on);
-    dbprintf("listen() %d/%d\n", rc, errno);
-    if (rc < 0) {
-        syslog(LEVEL, "[TCP] listen failed address=%s port=%d errno=%d",
-                BindAddress, ServerPort, errno);
-        exit(errno);
-    }
-
-#if IPV6
-    /* -------------------------------------------------------------------- */
-    /* Listen spcket for IPv4 clients*/
-
-    flashxmlfd = socket(AF_INET6, SOCK_STREAM, 0);
-    dbprintf("flashxmlfd %d\n", flashxmlfd);
-
-    /*********************************************************************/
-    /* After the socket descriptor is created, a bind() function gets a  */
-    /* unique name for the socket.  In this example, the user sets the   */
-    /* address to in6addr_any, which (by default) allows connections to  */
-    /* be established from any IPv4 or IPv6 client that specifies the    */
-    /* configured XMLSocket TCP port. This behavior can be modified      */
-    /* using the IPPROTO_IPV6 level socket option IPV6_V6ONLY if needed. */
-    /*********************************************************************/
-
-    // As per:
-    // http://publib.boulder.ibm.com/infocenter/iseries/v6r1m0/topic/rzab6/xacceptboth.htm
-
-    memset(&servaddr, 0, sizeof(servaddr));
-
-    servaddr.sin6_family = AF_INET6;
-    servaddr.sin6_addr   = in6addr_any;
-    servaddr.sin6_port   = htons(XmlPort); // Same server port as IPv4
-
-    /* -------------------------------------------------------------------- */
-    /* Listen socket for IPv6 Flash XML clients */
-    // IPv6 port+1
-
-    /* -------------------------------------------------------------------- */
-#else
-    /* -------------------------------------------------------------------- */
-    /* Listen socket for Flash XML clients */
-    // IPv4 port+1
-    flashxmlfd = socket(AF_INET, SOCK_STREAM, 0);
-    dbprintf("flashxmlfd %d\n", flashxmlfd);
-
-    configure_ipv4_address(&servaddr, XmlPort);
-#endif
-    /********************************************************************/
-    /* The setsockopt() function is used to allow the local address to  */
-    /* be reused when the server is restarted before the required wait  */
-    /* time expires.                                                    */
-    /********************************************************************/
-    if(setsockopt(flashxmlfd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)) < 0) {
-      perror("setsockopt(SO_REUSEADDR) failed");
-      exit(errno);
-    }
-
-    //rc = setsockopt(flashxmlfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
-    //dbprintf("setsockopt() %d/%d\n", rc, errno);
-
-    rc = bind(flashxmlfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
-    dbprintf("bind() %d/%d\n", rc, errno);
-    if (rc < 0) {
-        syslog(LEVEL, "[TCP] bind failed address=%s port=%d errno=%d",
-                BindAddress, XmlPort, errno);
-        exit(errno);
-    }
-
-    rc = listen(flashxmlfd, 128);
-    dbprintf("listen() %d/%d\n", rc, errno);
-    if (rc < 0) {
-        syslog(LEVEL, "[TCP] listen failed address=%s port=%d errno=%d",
-                BindAddress, XmlPort, errno);
-        exit(errno);
-    }
-
-    /* -------------------------------------------------------------------- */
-    /* Listen socket for IPv6 Flash XML clients */
-    // IPv6 port+1
-
-    /* -------------------------------------------------------------------- */
-
-#if IPV6
-    /* -------------------------------------------------------------------- */
-    /* Listen socket for IPv4 clients*/
-
-    or20fd = socket(AF_INET6, SOCK_STREAM, 0);
-    dbprintf("flashxmlfd %d\n", flashxmlfd);
-
-    /*********************************************************************/
-    /* After the socket descriptor is created, a bind() function gets a  */
-    /* unique name for the socket.  In this example, the user sets the   */
-    /* address to in6addr_any, which (by default) allows connections to  */
-    /* be established from any IPv4 or IPv6 client that specifies the    */
-    /* configured OpenRemote TCP port. This behavior can be modified     */
-    /* using the IPPROTO_IPV6 level socket option IPV6_V6ONLY if needed. */
-    /*********************************************************************/
-
-    // As per:
-    // http://publib.boulder.ibm.com/infocenter/iseries/v6r1m0/topic/rzab6/xacceptboth.htm
-
-    memset(&servaddr, 0, sizeof(servaddr));
-
-    servaddr.sin6_family = AF_INET6;
-    servaddr.sin6_addr   = in6addr_any;
-    servaddr.sin6_port   = htons(OpenRemotePort); // Same server port as IPv4
-#else
-    /* -------------------------------------------------------------------- */
-    /* Listen socket for Flash XML clients */
-    // IPv4 port+1
-    /* Listen socket for OR 2.0 clients */
-    or20fd = socket(AF_INET, SOCK_STREAM, 0);
-    dbprintf("or20fd %d\n", or20fd);
-
-    configure_ipv4_address(&servaddr, OpenRemotePort);
-#endif
-
-    /********************************************************************/
-    /* The setsockopt() function is used to allow the local address to  */
-    /* be reused when the server is restarted before the required wait  */
-    /* time expires.                                                    */
-    /********************************************************************/
-    if(setsockopt(or20fd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)) < 0) {
-      perror("setsockopt(SO_REUSEADDR) failed");
-      exit(errno);
-    }
-
-    //rc = setsockopt(or20fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
-    //dbprintf("setsockopt() %d/%d\n", rc, errno);
-
-    rc = bind(or20fd, (struct sockaddr*) &servaddr, sizeof(servaddr));
-    dbprintf("bind() %d/%d\n", rc, errno);
-    if (rc < 0) {
-        syslog(LEVEL, "[TCP] bind failed address=%s port=%d errno=%d",
-                BindAddress, OpenRemotePort, errno);
-        exit(errno);
-    }
-
-    rc = listen(or20fd, 128);
-    dbprintf("listen() %d/%d\n", rc, errno);
-    if (rc < 0) {
-        syslog(LEVEL, "[TCP] listen failed address=%s port=%d errno=%d",
-                BindAddress, OpenRemotePort, errno);
-        exit(errno);
-    }
-
-    /* -------------------------------------------------------------------- */
+    listenfd = create_listener("main", ServerPort);
+    flashxmlfd = create_listener("xml", XmlPort);
+    or20fd = create_listener("openremote", OpenRemotePort);
+    if (listenfd < 0 || flashxmlfd < 0 || or20fd < 0)
+        goto out_deinit;
 
     init_client();
 
@@ -1286,7 +1159,7 @@ help() {
     printf("Copyright (C) 2010-2014 Brian Uechi.\n");
     printf("Copyright (C) 2014 Neil Cherry.\n");
     printf("    -d - run in foreground\n");
-    printf("    --bind ADDRESS - bind TCP listeners to IPv4 address (default 0.0.0.0)\n");
+    printf("    --bind ADDRESS - bind TCP listeners to IPv4 or IPv6 address (default 0.0.0.0)\n");
     printf("    --port PORT - main TCP port (default 1099)\n");
     printf("    --xml-port PORT - Flash XMLSocket port (default 1100)\n");
     printf("    --openremote-port PORT - OpenRemote 2.0 port (default 1101)\n");
@@ -1313,7 +1186,7 @@ int main(int argc, char *argv[])
             raw_data = 1;
         else if (strcmp(argv[i], "--bind") == 0) {
             if (++i >= argc) {
-                fprintf(stderr, "--bind requires an IPv4 address\n");
+                fprintf(stderr, "--bind requires an IPv4 or IPv6 address\n");
                 exit(-1);
             }
             BindAddress = argv[i];

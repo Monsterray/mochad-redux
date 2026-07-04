@@ -16,7 +16,7 @@ AC_SEARCH_LIBS([libusb_init],[usb-1.0])
 AC_SEARCH_LIBS([clock_gettime],[rt])
 
 # Checks for header files.
-AC_CHECK_HEADERS([fcntl.h netinet/in.h stdlib.h string.h sys/socket.h syslog.h unistd.h])
+AC_CHECK_HEADERS([fcntl.h netdb.h netinet/in.h stdlib.h string.h sys/socket.h syslog.h unistd.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_PID_T
@@ -27,7 +27,7 @@ AC_TYPE_UINT8_T
 # Checks for library functions.
 AC_FUNC_FORK
 AC_FUNC_MALLOC
-AC_CHECK_FUNCS([alarm memset select socket strerror strtol strtoul])
+AC_CHECK_FUNCS([alarm getaddrinfo gai_strerror memset select socket strerror strtol strtoul])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
