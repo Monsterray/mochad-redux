@@ -91,14 +91,20 @@ st
 
 Any new command should be backward-compatible.
 
-## Future Diagnostics
+## TCP Diagnostics
 
-Possible future TCP commands:
+Additive TCP diagnostic commands may be added when they do not alter existing
+command behavior. Diagnostic responses should be single-line JSON so external
+bridges and scripts can parse them reliably.
+
+Supported diagnostic commands:
 
 ```text
 hello
-features
+capabilities
 health
+clients
+version
 ```
 
 These must not break existing clients.

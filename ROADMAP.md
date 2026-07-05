@@ -89,9 +89,9 @@ Quality gates:
 * [x] Document Linux, Docker, Raspberry Pi, IPv4, and explicit IPv6
   compatibility expectations.
 
-Avoid broad USB, TCP, protocol, or state refactors in this milestone. Defer new
-protocol commands such as `hello`, `features`, or `health` until runtime
-logging and diagnostics are excellent.
+Avoid broad USB, TCP, protocol, or state refactors in this milestone. Keep new
+diagnostic protocol commands additive, single-line JSON, and compatible with
+existing clients.
 
 ## v1.0.0 - Stable Maintained Release
 

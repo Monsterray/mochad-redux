@@ -637,7 +637,22 @@ int processcommandline(int fd, char *aLine)
     }
     command = strtok(aLine, " ");
     if (command) {
-        if (strcmp(command, "PL") == 0) {
+        if (strcmp(command, "HELLO") == 0) {
+            return mochad_diag_hello(fd);
+        }
+        else if (strcmp(command, "CAPABILITIES") == 0) {
+            return mochad_diag_capabilities(fd);
+        }
+        else if (strcmp(command, "HEALTH") == 0) {
+            return mochad_diag_health(fd);
+        }
+        else if (strcmp(command, "CLIENTS") == 0) {
+            return mochad_diag_clients(fd);
+        }
+        else if (strcmp(command, "VERSION") == 0) {
+            return mochad_diag_version(fd);
+        }
+        else if (strcmp(command, "PL") == 0) {
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
             house = getdeviceaddr(&unit);
             dbprintf("house %d unit %d\n\r", house, unit);

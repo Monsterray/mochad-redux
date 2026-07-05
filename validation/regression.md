@@ -9,10 +9,13 @@ USB ownership, and shutdown behavior.
 Validate these areas when preparing a release or changing nearby code:
 
 - Default TCP listener: `0.0.0.0:1099`.
-- Auxiliary listeners: `1100` and `1101`.
+- Auxiliary listeners: `1100` and `1101` enabled by default.
+- Optional XML/OpenRemote disable flags do not affect the main listener.
 - Explicit IPv6 bind through `--bind ::`.
 - Existing line-oriented TCP output.
 - Existing `rf`, `pl`, `rfsec`, and `st` command behavior.
+- Diagnostic commands `hello`, `capabilities`, `health`, `clients`, and
+  `version` return single-line JSON.
 - CM19A RF receive path.
 - CM15A RF/power-line path when hardware is available.
 - USB interface claim, detach, release, and kernel-driver reattach behavior.
@@ -45,6 +48,14 @@ For status:
 
 ```sh
 printf 'st\n' | nc localhost 1099
+```
+
+For diagnostics:
+
+```sh
+printf 'hello\n' | nc localhost 1099
+printf 'health\n' | nc localhost 1099
+printf 'clients\n' | nc localhost 1099
 ```
 
 For explicit IPv6 listener validation:

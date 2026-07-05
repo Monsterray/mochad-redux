@@ -56,7 +56,7 @@ Expected startup milestones:
 
 ```text
 [STARTUP] mochad-redux v0.3.0 starting
-[STARTUP] TCP configuration bind=0.0.0.0 ports=1099,1100,1101
+[STARTUP] TCP configuration bind=0.0.0.0 main=enabled:1099 xml=enabled:1100 openremote=enabled:1101
 [USB] initializing libusb
 [USB] libusb initialized
 [USB] looking for CM15A/CM19A controller
@@ -69,7 +69,7 @@ Expected startup milestones:
 [TCP] listener ready name=main address=0.0.0.0 port=1099 family=ipv4 dual_stack=not_applicable
 [TCP] listener ready name=xml address=0.0.0.0 port=1100 family=ipv4 dual_stack=not_applicable
 [TCP] listener ready name=openremote address=0.0.0.0 port=1101 family=ipv4 dual_stack=not_applicable
-[TCP] listening address=0.0.0.0 ports=1099,1100,1101
+[TCP] services configured address=0.0.0.0 main=enabled:1099 xml=enabled:1100 openremote=enabled:1101
 [STARTUP] mochad is running
 ```
 

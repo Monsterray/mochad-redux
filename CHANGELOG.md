@@ -13,6 +13,10 @@ entry should link to validation evidence when available.
 - Release checklist for evidence-based releases.
 - Supported-platform documentation.
 - Generated-artifact policy.
+- Backward-compatible TCP diagnostic commands: `hello`, `capabilities`,
+  `health`, `clients`, and `version`, each returning single-line JSON.
+- Runtime options to independently enable or disable the legacy XML and
+  OpenRemote listeners while preserving their default enabled behavior.
 
 ### Changed
 

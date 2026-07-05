@@ -91,6 +91,9 @@ static const char *BindAddress = DEFAULT_BIND_ADDRESS;
 static int ServerPort = DEFAULT_SERVER_PORT;
 static int XmlPort = DEFAULT_XML_PORT;
 static int OpenRemotePort = DEFAULT_OPENREMOTE_PORT;
+static int XmlEnabled = 1;
+static int OpenRemoteEnabled = 1;
+static time_t StartTime = 0;
 
 /**** USB usblib 1.0 ****/
 
@@ -103,6 +106,8 @@ static struct libusb_transfer *IntrIn_transfer  = NULL;
 
 static unsigned char IntrOutBuf[8];
 static unsigned char IntrInBuf[8];
+
+extern int raw_data;
 
 /*
  * Like printf but print to socket without date/time stamp.
@@ -118,6 +123,105 @@ int statusprintf(int fd, const char *fmt, ...)
     buflen = vsnprintf(buf, sizeof(buf)-2, fmt, args);
     va_end(args);
     return send(fd, buf, buflen, MSG_NOSIGNAL);
+}
+
+static unsigned long uptime_seconds(void)
+{
+    time_t now;
+
+    if (StartTime == 0)
+        return 0;
+
+    now = time(NULL);
+    if (now < StartTime)
+        return 0;
+
+    return (unsigned long)(now - StartTime);
+}
+
+static const char *controller_model(void)
+{
+    if (!Devh)
+        return "none";
+
+    return Cm19a ? "CM19A" : "CM15A";
+}
+
+static int usb_connected(void)
+{
+    return Devh != NULL;
+}
+
+static int endpoints_ready(void)
+{
+    return InEndpoint != 0 && OutEndpoint != 0;
+}
+
+static int transfers_ready(void)
+{
+    return IntrIn_transfer != NULL && IntrOut_transfer != NULL;
+}
+
+static size_t total_clients(void)
+{
+    return NClients + NxmlClients + Nor20Clients;
+}
+
+int mochad_diag_hello(int fd)
+{
+    return statusprintf(fd,
+            "{\"ok\":true,\"daemon\":\"mochad-redux\",\"version\":\"%s\","
+            "\"upstream_base\":\"%s\",\"diagnostics\":true}\n",
+            REDUX_VERSION, PACKAGE_STRING);
+}
+
+int mochad_diag_capabilities(int fd)
+{
+    return statusprintf(fd,
+            "{\"ok\":true,\"commands\":[\"hello\",\"capabilities\","
+            "\"health\",\"clients\",\"version\"],"
+            "\"legacy_commands\":[\"pl\",\"rf\",\"rfsec\",\"rfcam\",\"pt\","
+            "\"rftopl\",\"rftorf\",\"st\",\"getstatus\",\"getstatussec\"],"
+            "\"json\":true,\"single_line\":true,\"raw_data\":%s}\n",
+            raw_data ? "true" : "false");
+}
+
+int mochad_diag_health(int fd)
+{
+    return statusprintf(fd,
+            "{\"ok\":true,\"version\":\"%s\",\"upstream_base\":\"%s\","
+            "\"uptime_seconds\":%lu,\"usb_connected\":%s,"
+            "\"controller\":\"%s\",\"endpoints_ready\":%s,"
+            "\"transfers_ready\":%s,\"clients_total\":%lu,"
+            "\"bind_address\":\"%s\",\"listeners\":{\"main\":{\"enabled\":true,"
+            "\"port\":%d},\"xml\":{\"enabled\":%s,\"port\":%d},"
+            "\"openremote\":{\"enabled\":%s,\"port\":%d}}}\n",
+            REDUX_VERSION, PACKAGE_STRING, uptime_seconds(),
+            usb_connected() ? "true" : "false", controller_model(),
+            endpoints_ready() ? "true" : "false",
+            transfers_ready() ? "true" : "false",
+            (unsigned long)total_clients(), BindAddress, ServerPort,
+            XmlEnabled ? "true" : "false", XmlPort,
+            OpenRemoteEnabled ? "true" : "false", OpenRemotePort);
+}
+
+int mochad_diag_clients(int fd)
+{
+    return statusprintf(fd,
+            "{\"ok\":true,\"clients\":{\"main\":%lu,\"xml\":%lu,"
+            "\"openremote\":%lu,\"total\":%lu},\"max_clients\":%d,"
+            "\"next_client_id\":%u}\n",
+            (unsigned long)NClients, (unsigned long)NxmlClients,
+            (unsigned long)Nor20Clients, (unsigned long)total_clients(),
+            MAXCLISOCKETS, NextClientId);
+}
+
+int mochad_diag_version(int fd)
+{
+    return statusprintf(fd,
+            "{\"ok\":true,\"daemon\":\"mochad-redux\",\"version\":\"%s\","
+            "\"upstream_base\":\"%s\"}\n",
+            REDUX_VERSION, PACKAGE_STRING);
 }
 
 static int xmlclient(int fd)
@@ -794,10 +898,11 @@ static int validate_runtime_config(void)
         return -1;
     }
     freeaddrinfo(result);
-    if (ServerPort == XmlPort || ServerPort == OpenRemotePort ||
-            XmlPort == OpenRemotePort) {
+    if ((XmlEnabled && ServerPort == XmlPort) ||
+            (OpenRemoteEnabled && ServerPort == OpenRemotePort) ||
+            (XmlEnabled && OpenRemoteEnabled && XmlPort == OpenRemotePort)) {
         fprintf(stderr,
-                "--port, --xml-port, and --openremote-port must be distinct\n");
+                "enabled listener ports must be distinct\n");
         return -1;
     }
     return 0;
@@ -1053,9 +1158,23 @@ static int mydaemon(void)
 
     /**** sockets ****/
     listenfd = create_listener("main", ServerPort);
-    flashxmlfd = create_listener("xml", XmlPort);
-    or20fd = create_listener("openremote", OpenRemotePort);
-    if (listenfd < 0 || flashxmlfd < 0 || or20fd < 0) {
+    if (XmlEnabled) {
+        flashxmlfd = create_listener("xml", XmlPort);
+    }
+    else {
+        syslog(LOG_NOTICE, "[TCP] optional service disabled name=xml port=%d",
+                XmlPort);
+    }
+    if (OpenRemoteEnabled) {
+        or20fd = create_listener("openremote", OpenRemotePort);
+    }
+    else {
+        syslog(LOG_NOTICE,
+                "[TCP] optional service disabled name=openremote port=%d",
+                OpenRemotePort);
+    }
+    if (listenfd < 0 || (XmlEnabled && flashxmlfd < 0) ||
+            (OpenRemoteEnabled && or20fd < 0)) {
         syslog(LEVEL,
                 "[TCP] listener startup failed; closing any listeners that were already opened");
         goto out_deinit;
@@ -1067,15 +1186,17 @@ static int mydaemon(void)
     Clients[0].events = POLLIN;
 
     Clients[1].fd = flashxmlfd;
-    Clients[1].events = POLLIN;
+    Clients[1].events = flashxmlfd >= 0 ? POLLIN : 0;
 
     Clients[2].fd = or20fd;
-    Clients[2].events = POLLIN;
+    Clients[2].events = or20fd >= 0 ? POLLIN : 0;
 
     PollTimeOut = -1;
     syslog(LOG_NOTICE,
-            "[TCP] listening address=%s ports=%d,%d,%d",
-            BindAddress, ServerPort, XmlPort, OpenRemotePort);
+            "[TCP] services configured address=%s main=enabled:%d xml=%s:%d openremote=%s:%d",
+            BindAddress, ServerPort, XmlEnabled ? "enabled" : "disabled",
+            XmlPort, OpenRemoteEnabled ? "enabled" : "disabled",
+            OpenRemotePort);
     syslog(LOG_NOTICE, "[STARTUP] mochad is running");
 
     while (!Do_exit) {
@@ -1127,7 +1248,7 @@ static int mydaemon(void)
                 }
                 if (--nready <= 0) continue;
             }
-            if (Clients[1].revents & POLLIN) {
+            if (flashxmlfd >= 0 && (Clients[1].revents & POLLIN)) {
                 /* new flashxml client connection */
                 clilen = sizeof(cliaddr);
                 clifd  = accept(flashxmlfd, (struct sockaddr *)&cliaddr, &clilen);
@@ -1139,7 +1260,7 @@ static int mydaemon(void)
                 if (--nready <= 0) continue;
             }
 
-            if (Clients[2].revents & POLLIN) {
+            if (or20fd >= 0 && (Clients[2].revents & POLLIN)) {
                 /* new OR2.0 client connection */
                 clilen = sizeof(cliaddr);
                 clifd  = accept(or20fd, (struct sockaddr *)&cliaddr, &clilen);
@@ -1268,7 +1389,11 @@ help() {
     printf("    -d - run in foreground\n");
     printf("    --bind ADDRESS - bind TCP listeners to IPv4 or IPv6 address (default 0.0.0.0)\n");
     printf("    --port PORT - main TCP port (default 1099)\n");
+    printf("    --enable-xml - enable Flash XMLSocket listener (default)\n");
+    printf("    --disable-xml - disable Flash XMLSocket listener\n");
     printf("    --xml-port PORT - Flash XMLSocket port (default 1100)\n");
+    printf("    --enable-openremote - enable OpenRemote 2.0 listener (default)\n");
+    printf("    --disable-openremote - disable OpenRemote 2.0 listener\n");
     printf("    --openremote-port PORT - OpenRemote 2.0 port (default 1101)\n");
     printf("    --raw-data\n");
     printf("    --raw-date\n");
@@ -1306,6 +1431,12 @@ int main(int argc, char *argv[])
             if (parse_port_option("--port", argv[i], &ServerPort) < 0)
                 exit(-1);
         }
+        else if (strcmp(argv[i], "--enable-xml") == 0) {
+            XmlEnabled = 1;
+        }
+        else if (strcmp(argv[i], "--disable-xml") == 0) {
+            XmlEnabled = 0;
+        }
         else if (strcmp(argv[i], "--xml-port") == 0) {
             if (++i >= argc) {
                 fprintf(stderr, "--xml-port requires a TCP port\n");
@@ -1313,6 +1444,12 @@ int main(int argc, char *argv[])
             }
             if (parse_port_option("--xml-port", argv[i], &XmlPort) < 0)
                 exit(-1);
+        }
+        else if (strcmp(argv[i], "--enable-openremote") == 0) {
+            OpenRemoteEnabled = 1;
+        }
+        else if (strcmp(argv[i], "--disable-openremote") == 0) {
+            OpenRemoteEnabled = 0;
         }
         else if (strcmp(argv[i], "--openremote-port") == 0) {
             if (++i >= argc) {
@@ -1344,13 +1481,17 @@ int main(int argc, char *argv[])
     /* Initialize logging after argument parsing so foreground mode can mirror
      * friendly lifecycle messages to stderr for containers and manual tests.
      */
+    StartTime = time(NULL);
     openlog(DAEMON_NAME, LOG_PID | (foreground ? LOG_PERROR : 0), LOG_LOCAL5);
     syslog(LOG_NOTICE,
             "[STARTUP] %s starting (upstream_base=\"%s\", foreground=%s, raw_data=%s)",
             REDUX_VERSION, PACKAGE_STRING, foreground ? "yes" : "no",
             raw_data ? "yes" : "no");
-    syslog(LOG_NOTICE, "[STARTUP] TCP configuration bind=%s ports=%d,%d,%d",
-            BindAddress, ServerPort, XmlPort, OpenRemotePort);
+    syslog(LOG_NOTICE,
+            "[STARTUP] TCP configuration bind=%s main=enabled:%d xml=%s:%d openremote=%s:%d",
+            BindAddress, ServerPort, XmlEnabled ? "enabled" : "disabled",
+            XmlPort, OpenRemoteEnabled ? "enabled" : "disabled",
+            OpenRemotePort);
 
     /* Daemonize */
     if (!foreground) {

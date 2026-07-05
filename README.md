@@ -156,11 +156,16 @@ listeners on `1100` and `1101`.
 mochad -d \
   --bind 0.0.0.0 \
   --port 1099 \
+  --enable-xml \
   --xml-port 1100 \
+  --enable-openremote \
   --openremote-port 1101
 ```
 
-Ports must be distinct TCP ports from `1` to `65535`. Invalid bind addresses or
+The XML and OpenRemote listeners are enabled by default for backward
+compatibility. Use `--disable-xml` or `--disable-openremote` to turn off either
+auxiliary listener while keeping the main TCP listener on. Enabled listener
+ports must be distinct TCP ports from `1` to `65535`. Invalid bind addresses or
 ports fail at startup with a clear error.
 
 ## IPv6
@@ -202,6 +207,23 @@ dual-stack result for each listener:
 If the host or container runtime blocks IPv4-mapped IPv6 sockets, the log may
 show `dual_stack=failed`. In that case, keep the default `--bind 0.0.0.0` for
 IPv4-only service or explicitly use `--bind ::` for IPv6-only validation.
+
+## TCP Diagnostics
+
+The main TCP listener accepts backward-compatible diagnostic commands. These
+commands return one JSON object per line and do not change legacy command
+behavior.
+
+```sh
+printf 'hello\n' | nc localhost 1099
+printf 'capabilities\n' | nc localhost 1099
+printf 'health\n' | nc localhost 1099
+printf 'clients\n' | nc localhost 1099
+printf 'version\n' | nc localhost 1099
+```
+
+These commands are intended for health checks, MQTT bridge integration, and
+release validation.
 
 ## Troubleshooting
 
