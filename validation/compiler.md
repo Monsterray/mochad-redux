@@ -9,10 +9,22 @@ before hardware testing.
 Run these before release candidates and before broad maintenance merges:
 
 ```sh
+scripts/validate/clean-build-test.sh --libusb-free-only
 scripts/validate/strict-libusb-free-compile.sh
+scripts/validate/libusb-stub-syntax-check.sh
 sh tools/compile_without_libusb.sh --cppcheck
 git diff --check
 ```
+
+Use `scripts/validate/clean-build-test.sh` for release candidates on a Linux
+host with libusb headers. It removes ignored build outputs before running the
+strict libusb-free compile, full Autotools build, and native smoke test.
+
+`libusb-stub-syntax-check.sh` is for development machines without libusb
+headers. It compiles `mochad.c` with the checked-in header under
+`tools/stubs/libusb-1.0/` so maintainers can catch ordinary compile mistakes in
+USB-facing code. This is build assistance only; release evidence still needs a
+real Linux/libusb build.
 
 ## Full Linux Build
 

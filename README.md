@@ -86,7 +86,7 @@ sudo apt install netcat-openbsd
 Clone the source:
 
 ```sh
-git clone https://github.com/StoaferP/mochad-redux.git
+git clone https://github.com/Monsterray/mochad-redux.git
 cd mochad-redux
 ```
 
@@ -140,6 +140,29 @@ For build-only checks that do not require `libusb`, use:
 sh tools/compile_without_libusb.sh --strict
 ```
 
+To syntax-check the USB-facing source on a development machine without real
+libusb headers installed, use the checked-in development stub:
+
+```sh
+scripts/validate/libusb-stub-syntax-check.sh
+```
+
+This does not replace a real Linux/libusb build. It only keeps maintainers from
+missing ordinary C syntax or include errors in `mochad.c` while working on
+machines such as macOS.
+
+To remove ignored build artifacts before validating, use:
+
+```sh
+scripts/validate/clean-build-test.sh
+```
+
+In environments without libusb headers, run the clean libusb-free validation:
+
+```sh
+scripts/validate/clean-build-test.sh --libusb-free-only
+```
+
 Optional analyzer modes are documented in [MAINTAINING.md](MAINTAINING.md).
 Real controller testing is documented in
 [docs/hardware-validation.md](docs/hardware-validation.md).
@@ -167,6 +190,36 @@ compatibility. Use `--disable-xml` or `--disable-openremote` to turn off either
 auxiliary listener while keeping the main TCP listener on. Enabled listener
 ports must be distinct TCP ports from `1` to `65535`. Invalid bind addresses or
 ports fail at startup with a clear error.
+
+Configuration is applied in a predictable order:
+
+1. compiled defaults
+2. optional config file from `MOCHAD_CONFIG` or `--config FILE`
+3. environment variables
+4. command-line options
+
+Useful configuration commands:
+
+```sh
+mochad --check-config
+mochad --print-config
+```
+
+Supported environment variables:
+
+```text
+MOCHAD_CONFIG
+MOCHAD_BIND or MOCHAD_BIND_ADDRESS
+MOCHAD_PORT or MOCHAD_SERVER_PORT
+MOCHAD_XML_ENABLED
+MOCHAD_XML_PORT
+MOCHAD_OPENREMOTE_ENABLED
+MOCHAD_OPENREMOTE_PORT
+MOCHAD_FOREGROUND
+MOCHAD_RAW_DATA
+MOCHAD_DUAL_STACK
+MOCHAD_LOG_LEVEL
+```
 
 ## IPv6
 
@@ -219,6 +272,7 @@ printf 'hello\n' | nc localhost 1099
 printf 'capabilities\n' | nc localhost 1099
 printf 'health\n' | nc localhost 1099
 printf 'clients\n' | nc localhost 1099
+printf 'config\n' | nc localhost 1099
 printf 'version\n' | nc localhost 1099
 ```
 

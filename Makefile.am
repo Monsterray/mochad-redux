@@ -1,6 +1,6 @@
 bin_PROGRAMS = mochad
-mochad_SOURCES = mochad.c decode.c encode.c global.c x10state.c x10_write.c \
-		decode.h encode.h global.h x10state.h x10_write.h
+mochad_SOURCES = mochad.c config.c decode.c encode.c global.c x10state.c x10_write.c \
+		config.h decode.h encode.h global.h x10state.h x10_write.h
 EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules-systemd \
 		udev/README.md \
 		hotplug2/20-usb-x10 hotplug2/mochad systemd/mochad.service \
@@ -8,9 +8,11 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		apps/mochamon.pl apps/simplemon.pl apps/bash.sh \
 		apps/rfsectopl3.pl apps/x10-tk.py apps/mochad.scr \
 		scripts/validate/cm19a-hardware-validation.sh \
+		scripts/validate/clean-build-test.sh \
 		scripts/validate/docker-build.sh \
 		scripts/validate/docker-smoke-test.sh \
 		scripts/validate/full-libusb-build.sh \
+		scripts/validate/libusb-stub-syntax-check.sh \
 		scripts/validate/native-smoke-test.sh \
 		scripts/validate/strict-libusb-free-compile.sh \
 		docs/generated-artifacts.md docs/hardware-validation.md \
@@ -20,7 +22,8 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		validation/releases/README.md \
 		ARCHITECTURE.md CHANGELOG.md CONTRIBUTING.md DESIGN.md \
 		MAINTAINING.md PROJECT.md README.md RELEASE_CHECKLIST.md \
-		ROADMAP.md SECURITY.md LICENSE.md
+		ROADMAP.md SECURITY.md LICENSE.md \
+		tools/stubs/libusb-1.0/libusb.h
 
 install-exec-hook:
 	if test -d /lib/systemd/system -a -x /bin/systemctl ; then \

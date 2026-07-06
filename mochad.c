@@ -58,13 +58,10 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#include "config.h"
 #include "global.h"
 #include "encode.h"
 
-#define DEFAULT_BIND_ADDRESS "0.0.0.0"
-#define DEFAULT_SERVER_PORT (1099)
-#define DEFAULT_XML_PORT (1100)
-#define DEFAULT_OPENREMOTE_PORT (1101)
 #define MAXCLISOCKETS   (32)
 #define MAXSOCKETS      (1+MAXCLISOCKETS)
 				/* first socket=listen socket, 32 client sockets */
@@ -87,13 +84,14 @@ static size_t NClients;     /* # of valid entries in Clientsocks     */
 static size_t NxmlClients;  /* # of valid entries in Clientxmlsocks  */
 static size_t Nor20Clients; /* # of valid entries in Clientor20socks */
 static unsigned int NextClientId = 1;
-static const char *BindAddress = DEFAULT_BIND_ADDRESS;
-static int ServerPort = DEFAULT_SERVER_PORT;
-static int XmlPort = DEFAULT_XML_PORT;
-static int OpenRemotePort = DEFAULT_OPENREMOTE_PORT;
-static int XmlEnabled = 1;
-static int OpenRemoteEnabled = 1;
 static time_t StartTime = 0;
+
+#define BindAddress (MochadConfig.bind_address)
+#define ServerPort (MochadConfig.server_port)
+#define XmlPort (MochadConfig.xml_port)
+#define OpenRemotePort (MochadConfig.openremote_port)
+#define XmlEnabled (MochadConfig.xml_enabled)
+#define OpenRemoteEnabled (MochadConfig.openremote_enabled)
 
 /**** USB usblib 1.0 ****/
 
@@ -179,11 +177,11 @@ int mochad_diag_capabilities(int fd)
 {
     return statusprintf(fd,
             "{\"ok\":true,\"commands\":[\"hello\",\"capabilities\","
-            "\"health\",\"clients\",\"version\"],"
+            "\"health\",\"clients\",\"config\",\"version\"],"
             "\"legacy_commands\":[\"pl\",\"rf\",\"rfsec\",\"rfcam\",\"pt\","
             "\"rftopl\",\"rftorf\",\"st\",\"getstatus\",\"getstatussec\"],"
             "\"json\":true,\"single_line\":true,\"raw_data\":%s}\n",
-            raw_data ? "true" : "false");
+            MochadConfig.raw_data ? "true" : "false");
 }
 
 int mochad_diag_health(int fd)
@@ -214,6 +212,17 @@ int mochad_diag_clients(int fd)
             (unsigned long)NClients, (unsigned long)NxmlClients,
             (unsigned long)Nor20Clients, (unsigned long)total_clients(),
             MAXCLISOCKETS, NextClientId);
+}
+
+int mochad_diag_config(int fd)
+{
+    char json[1024];
+
+    if (mochad_config_snprint_json(json, sizeof(json), &MochadConfig) < 0)
+        return statusprintf(fd,
+                "{\"ok\":false,\"error\":\"config output too large\"}\n");
+
+    return statusprintf(fd, "%s\n", json);
 }
 
 int mochad_diag_version(int fd)
@@ -862,52 +871,6 @@ static const char *signal_name(int signum)
     }
 }
 
-static int parse_port_option(const char *name, const char *value, int *port)
-{
-    char *endptr = NULL;
-    long parsed;
-
-    errno = 0;
-    parsed = strtol(value, &endptr, 10);
-    if (errno || endptr == value || *endptr != '\0' ||
-            parsed < 1 || parsed > 65535) {
-        fprintf(stderr, "%s must be a TCP port from 1 to 65535: %s\n",
-                name, value);
-        return -1;
-    }
-    *port = (int)parsed;
-    return 0;
-}
-
-static int validate_runtime_config(void)
-{
-    struct addrinfo hints;
-    struct addrinfo *result = NULL;
-    char portbuf[16];
-    int rc;
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE | AI_NUMERICHOST | AI_NUMERICSERV;
-    snprintf(portbuf, sizeof(portbuf), "%d", ServerPort);
-    rc = getaddrinfo(BindAddress, portbuf, &hints, &result);
-    if (rc != 0) {
-        fprintf(stderr, "--bind must be a numeric IPv4 or IPv6 address: %s\n",
-                BindAddress);
-        return -1;
-    }
-    freeaddrinfo(result);
-    if ((XmlEnabled && ServerPort == XmlPort) ||
-            (OpenRemoteEnabled && ServerPort == OpenRemotePort) ||
-            (XmlEnabled && OpenRemoteEnabled && XmlPort == OpenRemotePort)) {
-        fprintf(stderr,
-                "enabled listener ports must be distinct\n");
-        return -1;
-    }
-    return 0;
-}
-
 static const char *socket_family_name(int family)
 {
     if (family == AF_INET)
@@ -966,7 +929,19 @@ static int create_listener(const char *name, int port)
             continue;
         }
 
-        if (candidate->ai_family == AF_INET6) {
+        if (candidate->ai_family == AF_INET6 &&
+                MochadConfig.dual_stack == MOCHAD_DUAL_STACK_DISABLE) {
+            int v6only = 1;
+
+            dual_stack = "disabled";
+            if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6only,
+                        sizeof(v6only)) < 0) {
+                syslog(LOG_INFO,
+                        "[TCP] IPv6-only request failed listener=%s address=%s port=%d errno=%d",
+                        name, BindAddress, port, errno);
+            }
+        }
+        else if (candidate->ai_family == AF_INET6) {
             int v6only = 0;
 
             if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6only,
@@ -975,10 +950,21 @@ static int create_listener(const char *name, int port)
                 syslog(LOG_INFO,
                         "[TCP] IPv6 dual-stack request failed listener=%s address=%s port=%d errno=%d",
                         name, BindAddress, port, errno);
+                if (MochadConfig.dual_stack == MOCHAD_DUAL_STACK_ENABLE) {
+                    close(fd);
+                    fd = -1;
+                    continue;
+                }
             }
             else {
                 dual_stack_enabled = 1;
             }
+        }
+
+        if (candidate->ai_family == AF_INET6 &&
+                MochadConfig.dual_stack != MOCHAD_DUAL_STACK_DISABLE) {
+            dual_stack = dual_stack_failed ? "failed" :
+                    (dual_stack_enabled ? "enabled" : "unknown");
         }
 
         rc = bind(fd, candidate->ai_addr, candidate->ai_addrlen);
@@ -987,10 +973,7 @@ static int create_listener(const char *name, int port)
             syslog(LEVEL,
                     "[TCP] bind failed listener=%s address=%s port=%d family=%s dual_stack=%s errno=%d",
                     name, BindAddress, port,
-                    socket_family_name(candidate->ai_family),
-                    dual_stack_failed ? "failed" :
-                    (dual_stack_enabled ? "enabled" : "not_applicable"),
-                    errno);
+                    socket_family_name(candidate->ai_family), dual_stack, errno);
             close(fd);
             fd = -1;
             continue;
@@ -1008,10 +991,6 @@ static int create_listener(const char *name, int port)
             continue;
         }
 
-        if (candidate->ai_family == AF_INET6) {
-            dual_stack = dual_stack_failed ? "failed" :
-                    (dual_stack_enabled ? "enabled" : "unknown");
-        }
         ioctl(fd, FIONBIO, &on);
         syslog(LOG_NOTICE,
                 "[TCP] listener ready name=%s address=%s port=%d family=%s dual_stack=%s",
@@ -1193,10 +1172,11 @@ static int mydaemon(void)
 
     PollTimeOut = -1;
     syslog(LOG_NOTICE,
-            "[TCP] services configured address=%s main=enabled:%d xml=%s:%d openremote=%s:%d",
+            "[TCP] services configured address=%s main=enabled:%d xml=%s:%d openremote=%s:%d dual_stack=%s",
             BindAddress, ServerPort, XmlEnabled ? "enabled" : "disabled",
             XmlPort, OpenRemoteEnabled ? "enabled" : "disabled",
-            OpenRemotePort);
+            OpenRemotePort,
+            mochad_config_dual_stack_name(MochadConfig.dual_stack));
     syslog(LOG_NOTICE, "[STARTUP] mochad is running");
 
     while (!Do_exit) {
@@ -1386,17 +1366,28 @@ void
 help() {
     printf("Copyright (C) 2010-2014 Brian Uechi.\n");
     printf("Copyright (C) 2014 Neil Cherry.\n");
+    printf("    --config FILE - read optional key=value configuration file\n");
     printf("    -d - run in foreground\n");
-    printf("    --bind ADDRESS - bind TCP listeners to IPv4 or IPv6 address (default 0.0.0.0)\n");
-    printf("    --port PORT - main TCP port (default 1099)\n");
+    printf("    --foreground - run in foreground\n");
+    printf("    --background - run in background\n");
+    printf("    --bind ADDRESS - bind TCP listeners to IPv4 or IPv6 address (default %s)\n",
+            MOCHAD_DEFAULT_BIND_ADDRESS);
+    printf("    --port PORT - main TCP port (default %d)\n",
+            MOCHAD_DEFAULT_SERVER_PORT);
     printf("    --enable-xml - enable Flash XMLSocket listener (default)\n");
     printf("    --disable-xml - disable Flash XMLSocket listener\n");
-    printf("    --xml-port PORT - Flash XMLSocket port (default 1100)\n");
+    printf("    --xml-port PORT - Flash XMLSocket port (default %d)\n",
+            MOCHAD_DEFAULT_XML_PORT);
     printf("    --enable-openremote - enable OpenRemote 2.0 listener (default)\n");
     printf("    --disable-openremote - disable OpenRemote 2.0 listener\n");
-    printf("    --openremote-port PORT - OpenRemote 2.0 port (default 1101)\n");
+    printf("    --openremote-port PORT - OpenRemote 2.0 port (default %d)\n",
+            MOCHAD_DEFAULT_OPENREMOTE_PORT);
+    printf("    --dual-stack auto|enable|disable - IPv6 dual-stack policy (default auto)\n");
+    printf("    --log-level LEVEL - syslog level: debug, info, notice, warning, error\n");
     printf("    --raw-data\n");
-    printf("    --raw-date\n");
+    printf("    --no-raw-data\n");
+    printf("    --check-config - validate configuration and exit before USB initialization\n");
+    printf("    --print-config - print validated configuration as JSON and exit\n");
     printf("    --version\n");
     printf("    --help\n");
     printf("\n");
@@ -1408,93 +1399,78 @@ int raw_data = 0;
 int main(int argc, char *argv[])
 {
     int rc, i;
-    int foreground=0;
+    char config_error[256];
 
-    /* Process command line args */
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-d") == 0)
-            foreground = 1;
-        else if (strcmp(argv[i], "--raw-data") == 0)
-            raw_data = 1;
-        else if (strcmp(argv[i], "--bind") == 0) {
-            if (++i >= argc) {
-                fprintf(stderr, "--bind requires an IPv4 or IPv6 address\n");
-                exit(-1);
-            }
-            BindAddress = argv[i];
-        }
-        else if (strcmp(argv[i], "--port") == 0) {
-            if (++i >= argc) {
-                fprintf(stderr, "--port requires a TCP port\n");
-                exit(-1);
-            }
-            if (parse_port_option("--port", argv[i], &ServerPort) < 0)
-                exit(-1);
-        }
-        else if (strcmp(argv[i], "--enable-xml") == 0) {
-            XmlEnabled = 1;
-        }
-        else if (strcmp(argv[i], "--disable-xml") == 0) {
-            XmlEnabled = 0;
-        }
-        else if (strcmp(argv[i], "--xml-port") == 0) {
-            if (++i >= argc) {
-                fprintf(stderr, "--xml-port requires a TCP port\n");
-                exit(-1);
-            }
-            if (parse_port_option("--xml-port", argv[i], &XmlPort) < 0)
-                exit(-1);
-        }
-        else if (strcmp(argv[i], "--enable-openremote") == 0) {
-            OpenRemoteEnabled = 1;
-        }
-        else if (strcmp(argv[i], "--disable-openremote") == 0) {
-            OpenRemoteEnabled = 0;
-        }
-        else if (strcmp(argv[i], "--openremote-port") == 0) {
-            if (++i >= argc) {
-                fprintf(stderr, "--openremote-port requires a TCP port\n");
-                exit(-1);
-            }
-            if (parse_port_option("--openremote-port", argv[i], &OpenRemotePort) < 0)
-                exit(-1);
-        }
-        else if (strcmp(argv[i], "--version") == 0) {
+        if (strcmp(argv[i], "--version") == 0) {
             printf("%s\n", REDUX_VERSION);
             printf("upstream base: %s\n", PACKAGE_STRING);
             printcopy();
-            exit(0);
-        } else if((strcmp(argv[i], "-h") == 0) || (strcmp(argv[i], "--help") == 0)) {
+            return 0;
+        }
+        if (strcmp(argv[i], "-h") == 0 ||
+                strcmp(argv[i], "--help") == 0) {
             printf("%s\n", REDUX_VERSION);
             printf("upstream base: %s\n", PACKAGE_STRING);
-	    help();
-            exit(0);
-        }
-        else {
-            printf("unknown option %s\n", argv[i]);
-            exit(-1);
+            help();
+            return 0;
         }
     }
-    if (validate_runtime_config() < 0)
-        exit(-1);
+
+    if (mochad_config_load(&MochadConfig, argc, argv,
+                config_error, sizeof(config_error)) < 0) {
+        fprintf(stderr, "configuration error: %s\n", config_error);
+        return 1;
+    }
+
+    if (MochadConfig.show_version) {
+        printf("%s\n", REDUX_VERSION);
+        printf("upstream base: %s\n", PACKAGE_STRING);
+        printcopy();
+        return 0;
+    }
+
+    if (MochadConfig.show_help) {
+        printf("%s\n", REDUX_VERSION);
+        printf("upstream base: %s\n", PACKAGE_STRING);
+        help();
+        return 0;
+    }
+
+    if (MochadConfig.print_config) {
+        mochad_config_print(stdout, &MochadConfig);
+        return 0;
+    }
+
+    if (MochadConfig.check_config) {
+        printf("configuration ok\n");
+        return 0;
+    }
+
+    raw_data = MochadConfig.raw_data;
 
     /* Initialize logging after argument parsing so foreground mode can mirror
      * friendly lifecycle messages to stderr for containers and manual tests.
      */
     StartTime = time(NULL);
-    openlog(DAEMON_NAME, LOG_PID | (foreground ? LOG_PERROR : 0), LOG_LOCAL5);
+    openlog(DAEMON_NAME, LOG_PID |
+            (MochadConfig.foreground ? LOG_PERROR : 0), LOG_LOCAL5);
+    setlogmask(LOG_UPTO(MochadConfig.log_level));
     syslog(LOG_NOTICE,
-            "[STARTUP] %s starting (upstream_base=\"%s\", foreground=%s, raw_data=%s)",
-            REDUX_VERSION, PACKAGE_STRING, foreground ? "yes" : "no",
-            raw_data ? "yes" : "no");
+            "[STARTUP] %s starting (upstream_base=\"%s\", foreground=%s, raw_data=%s, log_level=%s)",
+            REDUX_VERSION, PACKAGE_STRING,
+            MochadConfig.foreground ? "yes" : "no",
+            raw_data ? "yes" : "no",
+            mochad_config_log_level_name(MochadConfig.log_level));
     syslog(LOG_NOTICE,
-            "[STARTUP] TCP configuration bind=%s main=enabled:%d xml=%s:%d openremote=%s:%d",
+            "[STARTUP] TCP configuration bind=%s main=enabled:%d xml=%s:%d openremote=%s:%d dual_stack=%s",
             BindAddress, ServerPort, XmlEnabled ? "enabled" : "disabled",
             XmlPort, OpenRemoteEnabled ? "enabled" : "disabled",
-            OpenRemotePort);
+            OpenRemotePort,
+            mochad_config_dual_stack_name(MochadConfig.dual_stack));
 
     /* Daemonize */
-    if (!foreground) {
+    if (!MochadConfig.foreground) {
         rc = daemon(0, 0);
         dbprintf("daemon() => %d\n", rc);
         syslog(LOG_NOTICE, "[STARTUP] running in background");

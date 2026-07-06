@@ -41,13 +41,30 @@ MQTT credentials, USB serial details, or unrelated logs.
 Release-oriented helper scripts live under `scripts/validate/`:
 
 ```sh
+scripts/validate/clean-build-test.sh
 scripts/validate/strict-libusb-free-compile.sh
+scripts/validate/libusb-stub-syntax-check.sh
 scripts/validate/full-libusb-build.sh
 scripts/validate/docker-build.sh
 scripts/validate/native-smoke-test.sh
 scripts/validate/docker-smoke-test.sh
 scripts/validate/cm19a-hardware-validation.sh
 ```
+
+`clean-build-test.sh` removes ignored build artifacts with `git clean -fdX`
+before running validation. Use it when release evidence needs to prove the
+build did not depend on stale Autotools files, object files, or previous
+binary outputs. In environments without libusb development headers, run:
+
+```sh
+scripts/validate/clean-build-test.sh --libusb-free-only
+scripts/validate/libusb-stub-syntax-check.sh
+```
+
+The stub syntax check compiles `mochad.c` against a deliberately incomplete
+development-only libusb header. It catches normal compiler errors on machines
+without libusb headers, but it is not runtime evidence and does not replace the
+full Linux/libusb build.
 
 The scripts print clear console output suitable for pasting into release
 evidence. Docker scripts default to the sibling `../mochad-docker` project and

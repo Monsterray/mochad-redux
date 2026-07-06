@@ -135,6 +135,7 @@ cleanup() {
 trap cleanup EXIT INT HUP TERM
 
 SOURCES="
+config.c
 decode.c
 encode.c
 global.c

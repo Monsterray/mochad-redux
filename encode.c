@@ -649,6 +649,9 @@ int processcommandline(int fd, char *aLine)
         else if (strcmp(command, "CLIENTS") == 0) {
             return mochad_diag_clients(fd);
         }
+        else if (strcmp(command, "CONFIG") == 0) {
+            return mochad_diag_config(fd);
+        }
         else if (strcmp(command, "VERSION") == 0) {
             return mochad_diag_version(fd);
         }
