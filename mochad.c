@@ -47,7 +47,6 @@
 
 /* Multiple On-line Controllers Home Automation Daemon */
 #define DAEMON_NAME "mochad"
-#define REDUX_VERSION "mochad-redux v0.3.0"
 
 #define LEVEL LOG_INFO // was originally LOG_EMERG
 
@@ -59,8 +58,11 @@
 #include <netdb.h>
 
 #include "config.h"
+#include "diagnostics.h"
 #include "global.h"
 #include "encode.h"
+#include "socket_io.h"
+#include "version.h"
 
 #define MAXCLISOCKETS   (32)
 #define MAXSOCKETS      (1+MAXCLISOCKETS)
@@ -107,6 +109,26 @@ static unsigned char IntrInBuf[8];
 
 extern int raw_data;
 
+static int format_bounded(char *buffer, size_t buffer_len,
+        const char *fmt, va_list args)
+{
+    int written;
+
+    if (buffer_len == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    written = vsnprintf(buffer, buffer_len, fmt, args);
+    if (written < 0)
+        return -1;
+
+    if ((size_t)written >= buffer_len)
+        return (int)buffer_len - 1;
+
+    return written;
+}
+
 /*
  * Like printf but print to socket without date/time stamp.
  * Used to send back result of getstatus command.
@@ -118,9 +140,13 @@ int statusprintf(int fd, const char *fmt, ...)
     int buflen;
 
     va_start(args,fmt);
-    buflen = vsnprintf(buf, sizeof(buf)-2, fmt, args);
+    buflen = format_bounded(buf, sizeof(buf), fmt, args);
     va_end(args);
-    return send(fd, buf, buflen, MSG_NOSIGNAL);
+
+    if (buflen < 0)
+        return -1;
+
+    return send_all(fd, buf, (size_t)buflen);
 }
 
 static unsigned long uptime_seconds(void)
@@ -160,77 +186,84 @@ static int transfers_ready(void)
     return IntrIn_transfer != NULL && IntrOut_transfer != NULL;
 }
 
-static size_t total_clients(void)
+static void fill_diag_runtime(mochad_diag_runtime *runtime)
 {
-    return NClients + NxmlClients + Nor20Clients;
+    runtime->uptime_seconds = uptime_seconds();
+    runtime->usb_connected = usb_connected();
+    runtime->controller = controller_model();
+    runtime->endpoints_ready = endpoints_ready();
+    runtime->transfers_ready = transfers_ready();
+    runtime->clients_main = (unsigned long)NClients;
+    runtime->clients_xml = (unsigned long)NxmlClients;
+    runtime->clients_openremote = (unsigned long)Nor20Clients;
+    runtime->max_clients = MAXCLISOCKETS;
+    runtime->next_client_id = NextClientId;
+    runtime->config = &MochadConfig;
+}
+
+static int send_diag_json(int fd, int result, const char *json)
+{
+    if (result < 0)
+        return statusprintf(fd,
+                "{\"ok\":false,\"error\":\"diagnostic output too large\"}\n");
+
+    return statusprintf(fd, "%s\n", json);
 }
 
 int mochad_diag_hello(int fd)
 {
-    return statusprintf(fd,
-            "{\"ok\":true,\"daemon\":\"mochad-redux\",\"version\":\"%s\","
-            "\"upstream_base\":\"%s\",\"diagnostics\":true}\n",
-            REDUX_VERSION, PACKAGE_STRING);
+    char json[1024];
+
+    return send_diag_json(fd,
+            mochad_diag_json_hello(json, sizeof(json), PACKAGE_STRING), json);
 }
 
 int mochad_diag_capabilities(int fd)
 {
-    return statusprintf(fd,
-            "{\"ok\":true,\"commands\":[\"hello\",\"capabilities\","
-            "\"health\",\"clients\",\"config\",\"version\"],"
-            "\"legacy_commands\":[\"pl\",\"rf\",\"rfsec\",\"rfcam\",\"pt\","
-            "\"rftopl\",\"rftorf\",\"st\",\"getstatus\",\"getstatussec\"],"
-            "\"json\":true,\"single_line\":true,\"raw_data\":%s}\n",
-            MochadConfig.raw_data ? "true" : "false");
+    char json[1024];
+
+    return send_diag_json(fd,
+            mochad_diag_json_capabilities(json, sizeof(json),
+                    MochadConfig.raw_data),
+            json);
 }
 
 int mochad_diag_health(int fd)
 {
-    return statusprintf(fd,
-            "{\"ok\":true,\"version\":\"%s\",\"upstream_base\":\"%s\","
-            "\"uptime_seconds\":%lu,\"usb_connected\":%s,"
-            "\"controller\":\"%s\",\"endpoints_ready\":%s,"
-            "\"transfers_ready\":%s,\"clients_total\":%lu,"
-            "\"bind_address\":\"%s\",\"listeners\":{\"main\":{\"enabled\":true,"
-            "\"port\":%d},\"xml\":{\"enabled\":%s,\"port\":%d},"
-            "\"openremote\":{\"enabled\":%s,\"port\":%d}}}\n",
-            REDUX_VERSION, PACKAGE_STRING, uptime_seconds(),
-            usb_connected() ? "true" : "false", controller_model(),
-            endpoints_ready() ? "true" : "false",
-            transfers_ready() ? "true" : "false",
-            (unsigned long)total_clients(), BindAddress, ServerPort,
-            XmlEnabled ? "true" : "false", XmlPort,
-            OpenRemoteEnabled ? "true" : "false", OpenRemotePort);
+    char json[1024];
+    mochad_diag_runtime runtime;
+
+    fill_diag_runtime(&runtime);
+    return send_diag_json(fd,
+            mochad_diag_json_health(json, sizeof(json), PACKAGE_STRING,
+                    &runtime),
+            json);
 }
 
 int mochad_diag_clients(int fd)
 {
-    return statusprintf(fd,
-            "{\"ok\":true,\"clients\":{\"main\":%lu,\"xml\":%lu,"
-            "\"openremote\":%lu,\"total\":%lu},\"max_clients\":%d,"
-            "\"next_client_id\":%u}\n",
-            (unsigned long)NClients, (unsigned long)NxmlClients,
-            (unsigned long)Nor20Clients, (unsigned long)total_clients(),
-            MAXCLISOCKETS, NextClientId);
+    char json[1024];
+    mochad_diag_runtime runtime;
+
+    fill_diag_runtime(&runtime);
+    return send_diag_json(fd,
+            mochad_diag_json_clients(json, sizeof(json), &runtime), json);
 }
 
 int mochad_diag_config(int fd)
 {
     char json[1024];
 
-    if (mochad_config_snprint_json(json, sizeof(json), &MochadConfig) < 0)
-        return statusprintf(fd,
-                "{\"ok\":false,\"error\":\"config output too large\"}\n");
-
-    return statusprintf(fd, "%s\n", json);
+    return send_diag_json(fd,
+            mochad_diag_json_config(json, sizeof(json), &MochadConfig), json);
 }
 
 int mochad_diag_version(int fd)
 {
-    return statusprintf(fd,
-            "{\"ok\":true,\"daemon\":\"mochad-redux\",\"version\":\"%s\","
-            "\"upstream_base\":\"%s\"}\n",
-            REDUX_VERSION, PACKAGE_STRING);
+    char json[1024];
+
+    return send_diag_json(fd,
+            mochad_diag_json_version(json, sizeof(json), PACKAGE_STRING), json);
 }
 
 static int xmlclient(int fd)
@@ -281,40 +314,53 @@ int sockprintf(int fd, const char *fmt, ...)
     va_list args;
     char buf[1024];
     char *aLine;
-    int len, buflen;
+    size_t prefix_len;
+    size_t buflen;
     time_t now;
     struct tm local_tm;
     int i;
     int bytesOut;
+    int body_len;
 
     aLine = buf;
     now = time(NULL);
-    len = strftime(aLine, sizeof(buf), "%m/%d %T ", localtime_r(&now, &local_tm));
+    prefix_len = strftime(aLine, sizeof(buf), "%m/%d %T ",
+            localtime_r(&now, &local_tm));
+    if (prefix_len == 0) {
+        errno = EOVERFLOW;
+        return -1;
+    }
+
     va_start(args,fmt);
-    buflen = vsnprintf(aLine+len, sizeof(buf)-len, fmt, args);
+    body_len = format_bounded(aLine + prefix_len, sizeof(buf) - prefix_len,
+            fmt, args);
     va_end(args);
-    buflen += len;
+
+    if (body_len < 0)
+        return -1;
+
+    buflen = prefix_len + (size_t)body_len;
     if (fd != -1) {
-        if (xmlclient(fd) && (aLine[buflen-1] == '\n')) {
+        if (buflen > 0 && xmlclient(fd) && (aLine[buflen-1] == '\n')) {
             aLine[buflen-1] = '\0';
         }
-        return send(fd, aLine, buflen, MSG_NOSIGNAL);
+        return send_all(fd, aLine, buflen);
     }
 
     /* Send to all socket clients */
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if ((fd = Clientsocks[i].fd) > 0) {
             dbprintf("%s i %d fd %d\n", __func__, i, fd);
-            bytesOut = send(fd, aLine, buflen, MSG_NOSIGNAL);
+            bytesOut = send_all(fd, aLine, buflen);
             dbprintf("bytesOut %d\n", bytesOut);
-            if (bytesOut != buflen)
+            if (bytesOut != (int)buflen)
                 dbprintf("%s: %d/%d\n", __func__, bytesOut, errno);
         }
     }
-    /* Replace trialing newline with NUL if present. 
+    /* Replace trailing newline with NUL if present.
      * This assumes newline only at end of buffer.
      */
-    if (aLine[buflen-1] == '\n') {
+    if (buflen > 0 && aLine[buflen-1] == '\n') {
         aLine[buflen-1] = '\0';
     }
     /* Send to all xml socket clients */
@@ -322,13 +368,13 @@ int sockprintf(int fd, const char *fmt, ...)
         if ((fd = Clientxmlsocks[i].fd) > 0) {
             dbprintf("%s i %d fd %d\n", __func__, i, fd);
             /* NOTE: Send xml including trailing NUL '\0' */
-            bytesOut = send(fd, aLine, buflen, MSG_NOSIGNAL);
+            bytesOut = send_all(fd, aLine, buflen);
             dbprintf("bytesOut %d\n", bytesOut);
-            if (bytesOut != buflen)
+            if (bytesOut != (int)buflen)
                 dbprintf("%s: %d/%d\n", __func__, bytesOut, errno);
         }
     }
-    return buflen;
+    return (int)buflen;
 }
 
 static void _hexdump(void *p, size_t len, char *outbuf, size_t outlen)
@@ -1403,14 +1449,14 @@ int main(int argc, char *argv[])
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0) {
-            printf("%s\n", REDUX_VERSION);
+            printf("%s\n", MOCHAD_REDUX_VERSION);
             printf("upstream base: %s\n", PACKAGE_STRING);
             printcopy();
             return 0;
         }
         if (strcmp(argv[i], "-h") == 0 ||
                 strcmp(argv[i], "--help") == 0) {
-            printf("%s\n", REDUX_VERSION);
+            printf("%s\n", MOCHAD_REDUX_VERSION);
             printf("upstream base: %s\n", PACKAGE_STRING);
             help();
             return 0;
@@ -1424,14 +1470,14 @@ int main(int argc, char *argv[])
     }
 
     if (MochadConfig.show_version) {
-        printf("%s\n", REDUX_VERSION);
+        printf("%s\n", MOCHAD_REDUX_VERSION);
         printf("upstream base: %s\n", PACKAGE_STRING);
         printcopy();
         return 0;
     }
 
     if (MochadConfig.show_help) {
-        printf("%s\n", REDUX_VERSION);
+        printf("%s\n", MOCHAD_REDUX_VERSION);
         printf("upstream base: %s\n", PACKAGE_STRING);
         help();
         return 0;
@@ -1458,7 +1504,7 @@ int main(int argc, char *argv[])
     setlogmask(LOG_UPTO(MochadConfig.log_level));
     syslog(LOG_NOTICE,
             "[STARTUP] %s starting (upstream_base=\"%s\", foreground=%s, raw_data=%s, log_level=%s)",
-            REDUX_VERSION, PACKAGE_STRING,
+            MOCHAD_REDUX_VERSION, PACKAGE_STRING,
             MochadConfig.foreground ? "yes" : "no",
             raw_data ? "yes" : "no",
             mochad_config_log_level_name(MochadConfig.log_level));

@@ -1,6 +1,7 @@
 bin_PROGRAMS = mochad
-mochad_SOURCES = mochad.c config.c decode.c encode.c global.c x10state.c x10_write.c \
-		config.h decode.h encode.h global.h x10state.h x10_write.h
+mochad_SOURCES = mochad.c config.c diagnostics.c encode.c global.c socket_io.c \
+		x10state.c x10_write.c config.h decode.h diagnostics.h encode.h \
+		global.h socket_io.h version.h x10state.h x10_write.h
 EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules-systemd \
 		udev/README.md \
 		hotplug2/20-usb-x10 hotplug2/mochad systemd/mochad.service \
@@ -15,6 +16,10 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		scripts/validate/libusb-stub-syntax-check.sh \
 		scripts/validate/native-smoke-test.sh \
 		scripts/validate/strict-libusb-free-compile.sh \
+		scripts/validate/tcp-diagnostics-smoke-test.sh \
+		scripts/validate/unit-tests.sh \
+		tests/test_config.c tests/test_diagnostics.c \
+		tests/test_socket_io.c tests/test_tcp_diagnostics.c \
 		docs/generated-artifacts.md docs/hardware-validation.md \
 		docs/milestone-1.md docs/support-files.md docs/supported-platforms.md \
 		validation/README.md validation/compiler.md validation/hardware.md \

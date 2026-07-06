@@ -151,6 +151,14 @@ This does not replace a real Linux/libusb build. It only keeps maintainers from
 missing ordinary C syntax or include errors in `mochad.c` while working on
 machines such as macOS.
 
+To run sanitizer-backed unit tests and validate diagnostic JSON over a loopback
+TCP socket:
+
+```sh
+scripts/validate/unit-tests.sh
+scripts/validate/tcp-diagnostics-smoke-test.sh
+```
+
 To remove ignored build artifacts before validating, use:
 
 ```sh

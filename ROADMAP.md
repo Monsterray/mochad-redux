@@ -79,7 +79,7 @@ Validation:
 * [ ] Validate CM15A behavior if hardware is available.
 * [x] Add or refine GitHub issue templates for bug reports and hardware
   validation.
-* [ ] Add small testable seams around diagnostics where they reduce risk.
+* [x] Add small testable seams around diagnostics where they reduce risk.
 
 Quality gates:
 

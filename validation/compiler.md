@@ -12,6 +12,8 @@ Run these before release candidates and before broad maintenance merges:
 scripts/validate/clean-build-test.sh --libusb-free-only
 scripts/validate/strict-libusb-free-compile.sh
 scripts/validate/libusb-stub-syntax-check.sh
+scripts/validate/unit-tests.sh
+scripts/validate/tcp-diagnostics-smoke-test.sh
 sh tools/compile_without_libusb.sh --cppcheck
 git diff --check
 ```
@@ -25,6 +27,11 @@ headers. It compiles `mochad.c` with the checked-in header under
 `tools/stubs/libusb-1.0/` so maintainers can catch ordinary compile mistakes in
 USB-facing code. This is build assistance only; release evidence still needs a
 real Linux/libusb build.
+
+`unit-tests.sh` runs strict warning, ASan, and UBSan execution checks for the
+configuration, diagnostics, and socket-output helpers.
+`tcp-diagnostics-smoke-test.sh` validates that the diagnostic JSON builders can
+produce single-line JSON over a real loopback TCP socket.
 
 ## Full Linux Build
 

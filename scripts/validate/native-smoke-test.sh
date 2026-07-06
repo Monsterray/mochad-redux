@@ -23,7 +23,39 @@ echo
 echo "+ $MOCHAD_BIN --help"
 "$MOCHAD_BIN" --help >/tmp/mochad-redux-help.$$
 cat /tmp/mochad-redux-help.$$
+if ! grep -q -- "--raw-data" /tmp/mochad-redux-help.$$; then
+    rm -f /tmp/mochad-redux-help.$$
+    echo "FAIL: help output does not document --raw-data" >&2
+    exit 1
+fi
+if grep -q -- "--raw-date" /tmp/mochad-redux-help.$$; then
+    rm -f /tmp/mochad-redux-help.$$
+    echo "FAIL: help output still contains obsolete --raw-date typo" >&2
+    exit 1
+fi
 rm -f /tmp/mochad-redux-help.$$
+
+echo
+echo "+ $MOCHAD_BIN --check-config"
+"$MOCHAD_BIN" --check-config
+
+echo
+echo "+ $MOCHAD_BIN --print-config"
+"$MOCHAD_BIN" --print-config >/tmp/mochad-redux-config.$$
+cat /tmp/mochad-redux-config.$$
+python3 - /tmp/mochad-redux-config.$$ <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    config = json.load(handle)
+
+if config.get("ok") is not True:
+    raise SystemExit("config JSON did not report ok=true")
+if config.get("listeners", {}).get("main", {}).get("port") != 1099:
+    raise SystemExit("config JSON did not include default main port 1099")
+PY
+rm -f /tmp/mochad-redux-config.$$
 
 echo
 echo "+ invalid port should fail"

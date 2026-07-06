@@ -83,6 +83,7 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include "global.h"
+#include "socket_io.h"
 #include "encode.h"
 #include "decode.h"
 #include "x10state.h"
@@ -632,7 +633,7 @@ int processcommandline(int fd, char *aLine)
     dbprintf("%lu:%s\n\r", (unsigned long)strlen(aLine), aLine);
     if (strcmp(aLine, "<POLICY-FILE-REQUEST/>") == 0) {
         /* Yes, this sends the '\0' terminator which is required. */
-        send(fd, DOMAINPOLICY, sizeof(DOMAINPOLICY), MSG_NOSIGNAL);
+        send_all(fd, DOMAINPOLICY, sizeof(DOMAINPOLICY));
         return 0;
     }
     command = strtok(aLine, " ");

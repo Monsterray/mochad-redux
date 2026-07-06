@@ -17,11 +17,20 @@ entry should link to validation evidence when available.
   `health`, `clients`, and `version`, each returning single-line JSON.
 - Runtime options to independently enable or disable the legacy XML and
   OpenRemote listeners while preserving their default enabled behavior.
+- Partial-write-safe socket output helper with unit coverage.
+- Testable diagnostic JSON builders and a read-only `config` TCP diagnostic
+  command.
+- Sanitizer-backed unit tests for configuration, diagnostics, and socket
+  output helpers.
+- JSON-validating loopback TCP diagnostics smoke test.
 
 ### Changed
 
 - Release stewardship now requires compiler, static-analysis, runtime, and
   hardware validation evidence where practical.
+- `statusprintf()` and `sockprintf()` now clamp formatted output to their stack
+  buffers before sending.
+- The maintained redux version string now lives in one source header.
 
 ## v0.3.0
 
