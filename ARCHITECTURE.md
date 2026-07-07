@@ -97,6 +97,13 @@ Additive TCP diagnostic commands may be added when they do not alter existing
 command behavior. Diagnostic responses should be single-line JSON so external
 bridges and scripts can parse them reliably.
 
+Bridge-oriented diagnostic commands belong on the main TCP listener, which
+defaults to port `1099` and uses newline-delimited command and event framing.
+The legacy Flash XMLSocket-compatible listener, default port `1100`, changes
+event framing from newline-delimited to NUL-delimited for legacy clients. It is
+not a structured XML API and should not be used by new bridges unless explicit
+legacy compatibility requires it.
+
 Supported diagnostic commands:
 
 ```text
@@ -124,3 +131,18 @@ is enabled by passing an IPv6 address such as `::` or `::1` to `--bind`.
 Startup logs must report each listener name, bind address, port, address
 family, and IPv6 dual-stack result when applicable. Docker, kernel, or sysctl
 policy may still prevent dual-stack behavior even when mochad requests it.
+
+## Future JSON API
+
+A future generic JSON API is documented in [docs/json-api.md](docs/json-api.md).
+It is design-only and should remain outside the active `v0.4.x` hardening scope
+until the current logging, validation, and compatibility work is complete.
+
+The proposed JSON API is an optional JSON-RPC 2.0 listener on port `1102`,
+disabled by default while experimental. It is not Home Assistant-specific and
+must not encode MQTT topics, Home Assistant discovery, entities, or config-entry
+concepts into the daemon protocol.
+
+Before that listener is implemented, event output should be normalized around
+an internal `mochad_event_t` so the legacy text, XMLSocket, OpenRemote, and JSON
+formatters all render from the same event model.

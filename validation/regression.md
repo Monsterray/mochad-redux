@@ -15,7 +15,9 @@ Validate these areas when preparing a release or changing nearby code:
 - Existing line-oriented TCP output.
 - Existing `rf`, `pl`, `rfsec`, and `st` command behavior.
 - Diagnostic commands `hello`, `capabilities`, `health`, `clients`, and
-  `version` return single-line JSON.
+  `version` return newline-delimited single-line JSON on the main listener.
+- The Flash XMLSocket-compatible listener on port `1100` remains legacy-only:
+  it uses NUL-delimited event framing and does not provide structured XML.
 - CM19A RF receive path.
 - CM15A RF/power-line path when hardware is available.
 - USB interface claim, detach, release, and kernel-driver reattach behavior.

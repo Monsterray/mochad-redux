@@ -23,6 +23,8 @@ entry should link to validation evidence when available.
 - Sanitizer-backed unit tests for configuration, diagnostics, and socket
   output helpers.
 - JSON-validating loopback TCP diagnostics smoke test.
+- Design document for a future generic JSON-RPC API on an optional disabled-by-
+  default listener.
 
 ### Changed
 

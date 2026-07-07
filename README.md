@@ -199,6 +199,12 @@ auxiliary listener while keeping the main TCP listener on. Enabled listener
 ports must be distinct TCP ports from `1` to `65535`. Invalid bind addresses or
 ports fail at startup with a clear error.
 
+A future generic JSON-RPC API is documented in
+[docs/json-api.md](docs/json-api.md). It is not implemented in the current
+runtime. The proposed listener is optional, disabled by default while
+experimental, and intended to use port `1102` without changing the existing
+`1099`, `1100`, or `1101` listener contracts.
+
 Configuration is applied in a predictable order:
 
 1. compiled defaults

@@ -93,6 +93,40 @@ Avoid broad USB, TCP, protocol, or state refactors in this milestone. Keep new
 diagnostic protocol commands additive, single-line JSON, and compatible with
 existing clients.
 
+## Future - Generic JSON API
+
+Goal: add a modern local push API without changing existing listener behavior
+or encoding integration-specific concepts into the daemon.
+
+Status: design only. See [docs/json-api.md](docs/json-api.md).
+
+* [ ] Introduce a normalized internal `mochad_event_t`.
+* [ ] Route legacy text, XMLSocket, OpenRemote, and JSON output through event
+  formatters.
+* [ ] Add persistent `instance_id` and per-start `session_id`.
+* [ ] Add an optional JSON-RPC 2.0 listener on port `1102`, disabled by
+  default while experimental.
+* [ ] Support UTF-8 JSON object per newline framing with request IDs, standard
+  JSON-RPC errors, server notifications, and protocol negotiation.
+* [ ] Protect the daemon event loop with bounded per-client output queues.
+* [ ] Implement read-only `handshake`, `health`, `capabilities`, `config`,
+  `state.snapshot`, and atomic `events.subscribe_snapshot` before command
+  methods.
+* [ ] Add `x10.command.send` only after read-only behavior is stable.
+* [ ] Keep Home Assistant entity, discovery, MQTT topic, and config-entry
+  concepts outside the daemon protocol.
+
+## Future - Python Client and Integration Migration
+
+Goal: consume the generic JSON API from higher-level integrations while keeping
+those integration concerns outside `mochad-redux`.
+
+* [ ] Add `MOCHAD_PROTOCOL=auto|json|legacy` to `mochad-mqtt-bridge` after the
+  daemon JSON API is usable.
+* [ ] Build a separate async `aiomochad` PyPI library for JSON API clients.
+* [ ] Use `aiomochad` to modernize the Home Assistant `mochad` integration from
+  legacy YAML/local polling to config-entry-based local push.
+
 ## v1.0.0 - Stable Maintained Release
 
 Goal: stable public release suitable for everyday use.
