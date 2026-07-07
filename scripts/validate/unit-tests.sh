@@ -30,6 +30,13 @@ echo "+ config"
 "$BUILD_DIR/test_config"
 
 echo
+echo "+ mochad_event"
+# shellcheck disable=SC2086
+"$CC" $CFLAGS tests/test_mochad_event.c mochad_event.c \
+    -o "$BUILD_DIR/test_mochad_event" $LDFLAGS
+"$BUILD_DIR/test_mochad_event"
+
+echo
 echo "+ diagnostics"
 # shellcheck disable=SC2086
 "$CC" $CFLAGS tests/test_diagnostics.c diagnostics.c config.c -o "$BUILD_DIR/test_diagnostics" $LDFLAGS

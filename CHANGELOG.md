@@ -25,6 +25,8 @@ entry should link to validation evidence when available.
 - JSON-validating loopback TCP diagnostics smoke test.
 - Design document for a future generic JSON-RPC API on an optional disabled-by-
   default listener.
+- Normalized internal `mochad_event_t` and legacy formatter golden tests for
+  compatibility-preserving event output work.
 
 ### Changed
 
@@ -32,6 +34,8 @@ entry should link to validation evidence when available.
   hardware validation evidence where practical.
 - `statusprintf()` and `sockprintf()` now clamp formatted output to their stack
   buffers before sending.
+- Decoded X10 activity now routes through the internal event dispatcher before
+  being rendered to existing legacy listener output.
 - The maintained redux version string now lives in one source header.
 
 ## v0.3.0
