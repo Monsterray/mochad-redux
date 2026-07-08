@@ -696,6 +696,14 @@ static void initcm1Xa(const struct binarydata *p)
     }
 }
 
+static const char *usb_error_name(int rc)
+{
+    if (rc >= 0)
+        return "success";
+
+    return libusb_error_name(rc);
+}
+
 /*
 ** Find CM15A or CM19A. The EU versions (CM15Pro and CM19Pro) have the same
 ** vendor and product IDs, respectively.
@@ -716,6 +724,19 @@ static int find_cm15a(struct libusb_device_handle **devhptr)
         }
         Cm19a = 1;
     }
+    syslog(LOG_NOTICE, "[USB] controller candidate found model=%s",
+            (Cm19a) ? "CM19A" : "CM15A");
+
+    r = libusb_set_auto_detach_kernel_driver(*devhptr, 1);
+    if (r == 0) {
+        syslog(LOG_NOTICE, "[USB] automatic kernel driver detach enabled");
+    }
+    else {
+        syslog(LOG_DEBUG,
+                "[USB] automatic kernel driver detach unavailable rc=%d error=%s",
+                r, usb_error_name(r));
+    }
+
     r = libusb_claim_interface(*devhptr, 0);
     if (r == 0) {
         syslog(LOG_NOTICE, "[USB] controller found model=%s",
@@ -723,25 +744,28 @@ static int find_cm15a(struct libusb_device_handle **devhptr)
         return 0;
     }
     syslog(LEVEL,
-            "[USB] claim interface failed rc=%d; check permissions, Docker USB passthrough, or kernel drivers",
-            r);
+            "[USB] claim interface failed rc=%d error=%s; check permissions, Docker USB passthrough, or kernel drivers",
+            r, usb_error_name(r));
     r = libusb_kernel_driver_active(*devhptr, 0);
     if (r < 0) {
-        syslog(LEVEL, "[USB] kernel driver check failed rc=%d", r);
+        syslog(LEVEL, "[USB] kernel driver check failed rc=%d error=%s",
+                r, usb_error_name(r));
         return -EIO;
     }
     syslog(LOG_NOTICE, "[USB] kernel driver active=%d; trying detach", r);
     r = libusb_detach_kernel_driver(*devhptr, 0);
     if (r < 0) {
         syslog(LEVEL,
-                "[USB] kernel driver detach failed rc=%d; check drivers such as ati_remote",
-                r);
+                "[USB] kernel driver detach failed rc=%d error=%s; check drivers such as ati_remote",
+                r, usb_error_name(r));
         return -EIO;
     }
     Reattach = 1;
     r = libusb_claim_interface(*devhptr, 0);
     if (r < 0) {
-        syslog(LEVEL, "[USB] claim interface failed after detach rc=%d", r);
+        syslog(LEVEL,
+                "[USB] claim interface failed after detach rc=%d error=%s",
+                r, usb_error_name(r));
         return -EIO;
     }
     syslog(LOG_NOTICE, "[USB] controller found model=%s",
@@ -762,29 +786,79 @@ static int get_endpoint_address(libusb_device_handle *devh, uint8_t *inendpt, ui
     struct libusb_device *uDevice;
     struct libusb_device_descriptor desc;
     int i, j, k;
+    unsigned int in_packet_size = 0;
+    unsigned int out_packet_size = 0;
 
     *inendpt = 0;
     *outendpt = 0;
 
     uDevice = libusb_get_device(devh);
-    if (!uDevice) return -ENODEV;
+    if (!uDevice) {
+        syslog(LEVEL, "[USB] controller device lookup failed");
+        return -ENODEV;
+    }
     r = libusb_get_device_descriptor(uDevice, &desc);
-    if (r < 0) return r;
+    if (r < 0) {
+        syslog(LEVEL, "[USB] device descriptor lookup failed rc=%d error=%s",
+                r, usb_error_name(r));
+        return r;
+    }
 
     r = libusb_get_active_config_descriptor(uDevice, &config);
-    if (r < 0) return r;
-    if (!config) return -ENODEV;
+    if (r < 0) {
+        syslog(LEVEL,
+                "[USB] active configuration descriptor lookup failed rc=%d error=%s",
+                r, usb_error_name(r));
+        return r;
+    }
+    if (!config) {
+        syslog(LEVEL, "[USB] active configuration descriptor missing");
+        return -ENODEV;
+    }
     interfaces = config->interface;
     for (i = 0; i < config->bNumInterfaces; i++) {
         interface_desc = interfaces->altsetting;
         for (j = 0; j < interfaces->num_altsetting; j++) {
             endpoint_desc = interface_desc->endpoint;
             for (k = 0; k < interface_desc->bNumEndpoints; k++) {
-                if (endpoint_desc->bEndpointAddress & 0x80) {
-                    *inendpt = endpoint_desc->bEndpointAddress;
+                unsigned int packet_size;
+                int is_interrupt;
+
+                packet_size = endpoint_desc->wMaxPacketSize & 0x07ff;
+                is_interrupt = (endpoint_desc->bmAttributes &
+                        LIBUSB_TRANSFER_TYPE_MASK) ==
+                        LIBUSB_TRANSFER_TYPE_INTERRUPT;
+                if (!is_interrupt) {
+                    syslog(LOG_DEBUG,
+                            "[USB] endpoint skipped address=0x%02X reason=not_interrupt attributes=0x%02X",
+                            endpoint_desc->bEndpointAddress,
+                            endpoint_desc->bmAttributes);
                 }
-                else {
+                else if ((endpoint_desc->bEndpointAddress &
+                            LIBUSB_ENDPOINT_IN) &&
+                        packet_size < sizeof(IntrInBuf)) {
+                    syslog(LEVEL,
+                            "[USB] endpoint skipped address=0x%02X direction=in reason=packet_too_small packet_size=%u required=%lu",
+                            endpoint_desc->bEndpointAddress, packet_size,
+                            (unsigned long)sizeof(IntrInBuf));
+                }
+                else if (!(endpoint_desc->bEndpointAddress &
+                            LIBUSB_ENDPOINT_IN) &&
+                        packet_size < sizeof(IntrOutBuf)) {
+                    syslog(LEVEL,
+                            "[USB] endpoint skipped address=0x%02X direction=out reason=packet_too_small packet_size=%u required=%lu",
+                            endpoint_desc->bEndpointAddress, packet_size,
+                            (unsigned long)sizeof(IntrOutBuf));
+                }
+                else if ((endpoint_desc->bEndpointAddress &
+                            LIBUSB_ENDPOINT_IN) && !*inendpt) {
+                    *inendpt = endpoint_desc->bEndpointAddress;
+                    in_packet_size = packet_size;
+                }
+                else if (!(endpoint_desc->bEndpointAddress &
+                            LIBUSB_ENDPOINT_IN) && !*outendpt) {
                     *outendpt = endpoint_desc->bEndpointAddress;
+                    out_packet_size = packet_size;
                 }
                 endpoint_desc++;
             }
@@ -794,7 +868,15 @@ static int get_endpoint_address(libusb_device_handle *devh, uint8_t *inendpt, ui
     }
     libusb_free_config_descriptor(config);
 
-    if (!*inendpt || !*outendpt) return -ENODEV;
+    if (!*inendpt || !*outendpt) {
+        syslog(LEVEL,
+                "[USB] interrupt endpoint discovery failed in=0x%02X out=0x%02X",
+                *inendpt, *outendpt);
+        return -ENODEV;
+    }
+    syslog(LOG_NOTICE,
+            "[USB] interrupt endpoints selected in=0x%02X in_packet=%u out=0x%02X out_packet=%u",
+            *inendpt, in_packet_size, *outendpt, out_packet_size);
     return 0;
 }
 
@@ -843,8 +925,8 @@ static int cancel_transfer_if_active(const char *name,
         return 0;
     }
     if (r < 0) {
-        syslog(LEVEL, "[USB] transfer cancel failed name=%s rc=%d",
-                name, r);
+        syslog(LEVEL, "[USB] transfer cancel failed name=%s rc=%d error=%s",
+                name, r, usb_error_name(r));
         return r;
     }
 
@@ -864,7 +946,8 @@ static int drain_cancelled_transfers(int max_events)
         if (r == LIBUSB_ERROR_INTERRUPTED)
             continue;
         if (r < 0) {
-            syslog(LEVEL, "[USB] cancellation drain failed rc=%d", r);
+            syslog(LEVEL, "[USB] cancellation drain failed rc=%d error=%s",
+                    r, usb_error_name(r));
             return r;
         }
     }
@@ -1140,8 +1223,8 @@ static int start_transfers(void)
     r = libusb_submit_transfer(IntrIn_transfer);
     if (r < 0) {
         syslog(LEVEL,
-                "[USB] interrupt input transfer submit failed rc=%d; controller is not ready",
-                r);
+                "[USB] interrupt input transfer submit failed rc=%d error=%s; controller is not ready",
+                r, usb_error_name(r));
         return r;
     }
     IntrIn_submitted = 1;
@@ -1202,8 +1285,9 @@ int write_usb(unsigned char *buf, size_t len)
             IntrOutBuf, len, IntrOut_cb, NULL, 0);
     r = libusb_submit_transfer(IntrOut_transfer);
     if (r < 0) {
-        syslog(LEVEL, "[USB] interrupt output transfer submit failed rc=%d",
-                r);
+        syslog(LEVEL,
+                "[USB] interrupt output transfer submit failed rc=%d error=%s",
+                r, usb_error_name(r));
         return r;
     }
     IntrOut_submitted = 1;
@@ -1404,8 +1488,8 @@ static int mydaemon(void)
     r = libusb_init(&UsbCtx);
     if (r < 0) {
         syslog(LEVEL,
-                "[USB] libusb initialization failed rc=%d; check USB permissions and container passthrough",
-                r);
+                "[USB] libusb initialization failed rc=%d error=%s; check USB permissions and container passthrough",
+                r, usb_error_name(r));
         dbprintf("failed to initialise libusb %d\n", r);
         return 1;
     }
@@ -1424,8 +1508,8 @@ static int mydaemon(void)
     r = find_cm15a(&Devh);
     if (r < 0) {
         syslog(LEVEL,
-                "[USB] could not open CM15A/CM19A rc=%d; check USB passthrough, permissions, and kernel drivers such as ati_remote",
-                r);
+                "[USB] could not open CM15A/CM19A rc=%d error=%s; check USB passthrough, permissions, and kernel drivers such as ati_remote",
+                r, usb_error_name(r));
         dbprintf("Could not find/open CM15A/CM19A %d\n", r);
         goto out;
     }
@@ -1433,8 +1517,8 @@ static int mydaemon(void)
     r = get_endpoint_address(Devh, &InEndpoint, &OutEndpoint);
     if (r < 0) {
         syslog(LEVEL,
-                "[USB] could not find interrupt endpoints rc=%d; unsupported or unavailable controller descriptor",
-                r);
+                "[USB] could not find interrupt endpoints rc=%d error=%s; unsupported or unavailable controller descriptor",
+                r, usb_error_name(r));
         dbprintf("Could not find endpoints %d\n", r);
         goto out_deinit;
     }

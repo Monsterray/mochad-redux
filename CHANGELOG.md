@@ -44,6 +44,9 @@ entry should link to validation evidence when available.
   fails so the queue can retry instead of silently advancing past the command.
 - libusb is now owned through an explicit context, with dynamic poll descriptor
   registration instead of a fixed-size USB pollfd slot.
+- USB startup diagnostics now include symbolic libusb error names, automatic
+  kernel-driver detach attempts, and stricter interrupt endpoint/packet-size
+  validation.
 
 ## v0.3.0
 

@@ -35,6 +35,10 @@
 #define LIBUSB_TRANSFER_NO_DEVICE 5
 #define LIBUSB_TRANSFER_OVERFLOW 6
 
+#define LIBUSB_ENDPOINT_IN 0x80
+#define LIBUSB_TRANSFER_TYPE_MASK 0x03
+#define LIBUSB_TRANSFER_TYPE_INTERRUPT 0x03
+
 typedef struct libusb_device_handle libusb_device_handle;
 typedef struct libusb_device libusb_device;
 typedef struct libusb_context libusb_context;
@@ -45,6 +49,8 @@ struct libusb_device_descriptor {
 
 struct libusb_endpoint_descriptor {
     uint8_t bEndpointAddress;
+    uint8_t bmAttributes;
+    uint16_t wMaxPacketSize;
 };
 
 struct libusb_interface_descriptor {
@@ -80,6 +86,8 @@ typedef void (*libusb_pollfd_removed_cb)(int fd, void *user_data);
 libusb_device_handle *libusb_open_device_with_vid_pid(libusb_context *ctx,
         uint16_t vendor_id, uint16_t product_id);
 int libusb_claim_interface(libusb_device_handle *devh, int interface_number);
+int libusb_set_auto_detach_kernel_driver(libusb_device_handle *devh,
+        int enable);
 int libusb_kernel_driver_active(libusb_device_handle *devh,
         int interface_number);
 int libusb_detach_kernel_driver(libusb_device_handle *devh,
@@ -98,6 +106,7 @@ void libusb_fill_interrupt_transfer(struct libusb_transfer *transfer,
         void *user_data, unsigned int timeout);
 int libusb_submit_transfer(struct libusb_transfer *transfer);
 int libusb_cancel_transfer(struct libusb_transfer *transfer);
+const char *libusb_error_name(int error_code);
 int libusb_handle_events(libusb_context *ctx);
 int libusb_init(libusb_context **ctx);
 void libusb_set_debug(libusb_context *ctx, int level);
