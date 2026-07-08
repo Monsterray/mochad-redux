@@ -37,6 +37,7 @@
 #include <poll.h>
 #include <time.h>
 #include <errno.h>
+#include <limits.h>
 #include <unistd.h>
 
 /**** system log ****/
@@ -67,9 +68,8 @@
 #define MAXCLISOCKETS   (32)
 #define MAXSOCKETS      (1+MAXCLISOCKETS)
 				/* first socket=listen socket, 32 client sockets */
-#define USB_FDS         (10)    /* libusb file descriptors */
-
-static struct pollfd Clients[(3*MAXSOCKETS)+USB_FDS];
+static struct pollfd *Pollfds = NULL;
+static nfds_t PollfdCapacity = 0;
 
 /* Client sockets */
 static struct pollfd Clientsocks[MAXCLISOCKETS];
@@ -100,13 +100,20 @@ static time_t StartTime = 0;
 #include <libusb-1.0/libusb.h>
 uint8_t InEndpoint, OutEndpoint;
 
+static libusb_context *UsbCtx = NULL;
 static struct libusb_device_handle *Devh        = NULL;
 static struct libusb_transfer *IntrOut_transfer = NULL;
 static struct libusb_transfer *IntrIn_transfer  = NULL;
+/* libusb transfer pointers remain allocated while callbacks are pending. */
 static int IntrOut_submitted = 0;
 static int IntrOut_canceling = 0;
 static int IntrIn_submitted = 0;
 static int IntrIn_canceling = 0;
+/* libusb owns the authoritative pollfd set and can change it at runtime. */
+static struct pollfd *UsbPollfds = NULL;
+static nfds_t NUsbPollfds = 0;
+static nfds_t UsbPollfdCapacity = 0;
+static int UsbPollfdError = 0;
 
 static unsigned char IntrOutBuf[8];
 static unsigned char IntrInBuf[8];
@@ -699,9 +706,9 @@ static int find_cm15a(struct libusb_device_handle **devhptr)
     int r;
 
     Cm19a = 0;
-    *devhptr = libusb_open_device_with_vid_pid(NULL,  0x0bc7, 0x0001);
+    *devhptr = libusb_open_device_with_vid_pid(UsbCtx,  0x0bc7, 0x0001);
     if (!*devhptr) {
-        *devhptr = libusb_open_device_with_vid_pid(NULL,  0x0bc7, 0x0002);
+        *devhptr = libusb_open_device_with_vid_pid(UsbCtx,  0x0bc7, 0x0002);
         if (!*devhptr) {
             syslog(LEVEL,
                     "[USB] CM15A/CM19A not found; in Docker, verify /dev/bus/usb is mapped and the container has USB permissions");
@@ -853,7 +860,7 @@ static int drain_cancelled_transfers(int max_events)
     while (max_events-- > 0 &&
             (transfer_is_active(IntrIn_submitted, IntrIn_canceling) ||
              transfer_is_active(IntrOut_submitted, IntrOut_canceling))) {
-        r = libusb_handle_events(NULL);
+        r = libusb_handle_events(UsbCtx);
         if (r == LIBUSB_ERROR_INTERRUPTED)
             continue;
         if (r < 0) {
@@ -889,6 +896,164 @@ static void free_transfer_if_inactive(const char *name,
 
     libusb_free_transfer(*transfer);
     *transfer = NULL;
+}
+
+static int ensure_pollfd_capacity(struct pollfd **fds, nfds_t *capacity,
+        nfds_t needed)
+{
+    struct pollfd *new_fds;
+    nfds_t new_capacity;
+
+    if (needed <= *capacity)
+        return 0;
+
+    new_capacity = *capacity ? *capacity : 8;
+    while (new_capacity < needed)
+        new_capacity *= 2;
+
+    new_fds = realloc(*fds, new_capacity * sizeof(*new_fds));
+    if (new_fds == NULL) {
+        syslog(LEVEL,
+                "[USB] poll descriptor allocation failed requested=%lu",
+                (unsigned long)needed);
+        return -ENOMEM;
+    }
+
+    *fds = new_fds;
+    *capacity = new_capacity;
+    return 0;
+}
+
+static int add_usb_pollfd_record(int fd, short events)
+{
+    int r;
+
+    r = ensure_pollfd_capacity(&UsbPollfds, &UsbPollfdCapacity,
+            NUsbPollfds + 1);
+    if (r < 0)
+        return r;
+
+    UsbPollfds[NUsbPollfds].fd = fd;
+    UsbPollfds[NUsbPollfds].events = events;
+    UsbPollfds[NUsbPollfds].revents = 0;
+    NUsbPollfds++;
+    syslog(LOG_DEBUG, "[USB] poll descriptor added fd=%d events=0x%X",
+            fd, events);
+    return 0;
+}
+
+static void remove_usb_pollfd_record(int fd)
+{
+    nfds_t i;
+
+    for (i = 0; i < NUsbPollfds; i++) {
+        if (UsbPollfds[i].fd == fd) {
+            if (i + 1 < NUsbPollfds) {
+                memmove(&UsbPollfds[i], &UsbPollfds[i + 1],
+                        (NUsbPollfds - i - 1) * sizeof(UsbPollfds[0]));
+            }
+            NUsbPollfds--;
+            syslog(LOG_DEBUG, "[USB] poll descriptor removed fd=%d", fd);
+            return;
+        }
+    }
+
+    syslog(LOG_DEBUG, "[USB] poll descriptor remove ignored fd=%d", fd);
+}
+
+static void usb_pollfd_added(int fd, short events, void *user_data)
+{
+    int r;
+
+    (void)user_data;
+    r = add_usb_pollfd_record(fd, events);
+    if (r < 0)
+        UsbPollfdError = r;
+}
+
+static void usb_pollfd_removed(int fd, void *user_data)
+{
+    (void)user_data;
+    remove_usb_pollfd_record(fd);
+}
+
+static int initialize_usb_pollfds(void)
+{
+    const struct libusb_pollfd **pollfds;
+    int i;
+    int r;
+
+    pollfds = libusb_get_pollfds(UsbCtx);
+    if (pollfds == NULL) {
+        syslog(LEVEL, "[USB] libusb poll descriptor lookup failed");
+        return -ENOMEM;
+    }
+
+    for (i = 0; pollfds[i] != NULL; i++) {
+        r = add_usb_pollfd_record(pollfds[i]->fd, pollfds[i]->events);
+        if (r < 0) {
+            free(pollfds);
+            return r;
+        }
+    }
+    free(pollfds);
+
+    libusb_set_pollfd_notifiers(UsbCtx, usb_pollfd_added,
+            usb_pollfd_removed, NULL);
+    syslog(LOG_NOTICE, "[USB] poll descriptors ready count=%lu",
+            (unsigned long)NUsbPollfds);
+    return 0;
+}
+
+static void cleanup_usb_pollfds(void)
+{
+    if (UsbCtx)
+        libusb_set_pollfd_notifiers(UsbCtx, NULL, NULL, NULL);
+
+    free(UsbPollfds);
+    UsbPollfds = NULL;
+    NUsbPollfds = 0;
+    UsbPollfdCapacity = 0;
+    UsbPollfdError = 0;
+}
+
+static int timeval_to_timeout_ms(const struct timeval *timeout)
+{
+    long seconds_ms;
+    long useconds_ms;
+
+    if (timeout->tv_sec < 0 || timeout->tv_usec < 0)
+        return 0;
+    if (timeout->tv_sec > INT_MAX / 1000)
+        return INT_MAX;
+
+    seconds_ms = timeout->tv_sec * 1000;
+    useconds_ms = (timeout->tv_usec + 999) / 1000;
+    if (seconds_ms > INT_MAX - useconds_ms)
+        return INT_MAX;
+
+    return (int)(seconds_ms + useconds_ms);
+}
+
+static int combined_poll_timeout_ms(int x10_timeout_ms)
+{
+    struct timeval usb_timeout;
+    int usb_timeout_ms;
+
+    if (libusb_get_next_timeout(UsbCtx, &usb_timeout) != 1)
+        return x10_timeout_ms;
+
+    usb_timeout_ms = timeval_to_timeout_ms(&usb_timeout);
+    if (x10_timeout_ms < 0)
+        return usb_timeout_ms;
+    if (usb_timeout_ms < x10_timeout_ms)
+        return usb_timeout_ms;
+    return x10_timeout_ms;
+}
+
+static int ensure_main_poll_capacity(nfds_t needed)
+{
+    return ensure_pollfd_capacity(&Pollfds, &PollfdCapacity, needed);
 }
 
 static void IntrOut_cb(struct libusb_transfer *transfer)
@@ -1231,14 +1396,12 @@ static int mydaemon(void)
     /**** USB ****/
     struct sigaction sigact;
     int r = 1;
-    const struct libusb_pollfd **usbfds;
-    nfds_t nusbfds;
     struct timeval timeout;
 
     hua_sec_init();
 
     syslog(LOG_NOTICE, "[USB] initializing libusb");
-    r = libusb_init(NULL);
+    r = libusb_init(&UsbCtx);
     if (r < 0) {
         syslog(LEVEL,
                 "[USB] libusb initialization failed rc=%d; check USB permissions and container passthrough",
@@ -1247,11 +1410,11 @@ static int mydaemon(void)
         return 1;
     }
     syslog(LOG_NOTICE, "[USB] libusb initialized");
-    libusb_set_debug(NULL, 3);
+    libusb_set_debug(UsbCtx, 3);
 
 #if 0
     /* This function is not available in older versions of libusb-1.0 */
-    r = libusb_pollfds_handle_timeouts(NULL);
+    r = libusb_pollfds_handle_timeouts(UsbCtx);
     if (!r) {
         dbprintf("poll timeout required %d\n", r);
         goto out;
@@ -1302,27 +1465,9 @@ static int mydaemon(void)
     syslog(LOG_NOTICE,
             "[STARTUP] signal handlers installed signals=SIGINT,SIGTERM,SIGQUIT");
 
-    usbfds = libusb_get_pollfds(NULL);
-    if (!usbfds) {
-        syslog(LEVEL, "[USB] libusb poll descriptor lookup failed");
-        r = 1;
+    r = initialize_usb_pollfds();
+    if (r < 0)
         goto out_deinit;
-    }
-    dbprintf("usbfds %p %p %p %p %p\n", usbfds, 
-            usbfds[0], usbfds[1], usbfds[2], usbfds[3]);
-    nusbfds = 3;        /* Skip over listen fd at [0,1,2] */
-    for (i = 0; usbfds[i] != NULL; i++) {
-        dbprintf(" %lu: %p fd %d %04X\n", nusbfds, 
-                usbfds[i], usbfds[i]->fd, usbfds[i]->events);
-        Clients[nusbfds].fd = usbfds[i]->fd;
-        Clients[nusbfds].events = usbfds[i]->events;
-        Clients[nusbfds].revents = 0;
-        nusbfds++;
-    }
-    nusbfds -= 3;  /* Adjust for skipping 0,1,2 */
-    dbprintf("nusbfds %lu\n", nusbfds);
-    syslog(LOG_NOTICE, "[USB] poll descriptors ready count=%lu",
-            (unsigned long)nusbfds);
     memset(&timeout, 0, sizeof(timeout));
 
     if (Cm19a)
@@ -1356,15 +1501,6 @@ static int mydaemon(void)
 
     init_client();
 
-    Clients[0].fd = listenfd;
-    Clients[0].events = POLLIN;
-
-    Clients[1].fd = flashxmlfd;
-    Clients[1].events = flashxmlfd >= 0 ? POLLIN : 0;
-
-    Clients[2].fd = or20fd;
-    Clients[2].events = or20fd >= 0 ? POLLIN : 0;
-
     PollTimeOut = -1;
     syslog(LOG_NOTICE,
             "[TCP] services configured address=%s main=enabled:%d xml=%s:%d openremote=%s:%d dual_stack=%s",
@@ -1377,16 +1513,47 @@ static int mydaemon(void)
     while (!Do_exit) {
         int nsockclients;
         int npollfds;
+        int poll_timeout;
+        nfds_t usb_index;
 
-        /* Start appending records for socket clients to Clients array after 
-         * listen, flashxml listen, or20 listen, and USB records
-         */
-        nsockclients = copy_clients(&Clients[3+nusbfds]);
-        /* 1 for listen socket, 1 for flashxml listen socket, 1 for or20 listen
-         * socket, nusbfds for libusb, nsockclients for socket clients
-        */
-        npollfds = 3 + nusbfds + nsockclients;
-        nready = poll(Clients, npollfds, PollTimeOut);
+        if (UsbPollfdError < 0) {
+            syslog(LEVEL,
+                    "[USB] poll descriptor update failed rc=%d; shutting down",
+                    UsbPollfdError);
+            Do_exit = 2;
+            break;
+        }
+
+        npollfds = 3 + (int)NUsbPollfds +
+                (int)(NClients + NxmlClients + Nor20Clients);
+        r = ensure_main_poll_capacity((nfds_t)npollfds);
+        if (r < 0) {
+            Do_exit = 2;
+            break;
+        }
+
+        Pollfds[0].fd = listenfd;
+        Pollfds[0].events = POLLIN;
+        Pollfds[0].revents = 0;
+
+        Pollfds[1].fd = flashxmlfd;
+        Pollfds[1].events = flashxmlfd >= 0 ? POLLIN : 0;
+        Pollfds[1].revents = 0;
+
+        Pollfds[2].fd = or20fd;
+        Pollfds[2].events = or20fd >= 0 ? POLLIN : 0;
+        Pollfds[2].revents = 0;
+
+        for (usb_index = 0; usb_index < NUsbPollfds; usb_index++) {
+            Pollfds[3 + usb_index] = UsbPollfds[usb_index];
+            Pollfds[3 + usb_index].revents = 0;
+        }
+
+        /* Start appending socket clients after listener and USB records. */
+        nsockclients = copy_clients(&Pollfds[3 + NUsbPollfds]);
+        npollfds = 3 + (int)NUsbPollfds + nsockclients;
+        poll_timeout = combined_poll_timeout_ms(PollTimeOut);
+        nready = poll(Pollfds, (nfds_t)npollfds, poll_timeout);
         if (nready < 0) {
             if (errno == EINTR) {
                 syslog(LOG_DEBUG, "[SHUTDOWN] poll interrupted by signal");
@@ -1400,19 +1567,20 @@ static int mydaemon(void)
         dbprintf("poll() %d\n", nready);
         for (i = 0; i < npollfds; i++) {
             dbprintf("Clients[%d] fd %d events %X revents %X\n",
-                    i, Clients[i].fd, Clients[i].events, Clients[i].revents);
+                    i, Pollfds[i].fd, Pollfds[i].events, Pollfds[i].revents);
         }
 #endif
         /**** Time out ****/
         if (nready == 0) {
+            libusb_handle_events_timeout(UsbCtx, &timeout);
             send_next_x10out();
         }
         else {
             /**** USB ****/
-            libusb_handle_events_timeout(NULL, &timeout);
+            libusb_handle_events_timeout(UsbCtx, &timeout);
 
             /**** listen sockets ****/
-            if (Clients[0].revents & POLLIN) {
+            if (Pollfds[0].revents & POLLIN) {
                 /* new client connection */
                 clilen = sizeof(cliaddr);
                 clifd  = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
@@ -1423,7 +1591,7 @@ static int mydaemon(void)
                 }
                 if (--nready <= 0) continue;
             }
-            if (flashxmlfd >= 0 && (Clients[1].revents & POLLIN)) {
+            if (flashxmlfd >= 0 && (Pollfds[1].revents & POLLIN)) {
                 /* new flashxml client connection */
                 clilen = sizeof(cliaddr);
                 clifd  = accept(flashxmlfd, (struct sockaddr *)&cliaddr, &clilen);
@@ -1435,7 +1603,7 @@ static int mydaemon(void)
                 if (--nready <= 0) continue;
             }
 
-            if (or20fd >= 0 && (Clients[2].revents & POLLIN)) {
+            if (or20fd >= 0 && (Pollfds[2].revents & POLLIN)) {
                 /* new OR2.0 client connection */
                 clilen = sizeof(cliaddr);
                 clifd  = accept(or20fd, (struct sockaddr *)&cliaddr, &clilen);
@@ -1447,10 +1615,10 @@ static int mydaemon(void)
                 if (--nready <= 0) continue;
             }
 
-            for (i = 3+nusbfds; i < npollfds; i++) {
-                if ((clifd = Clients[i].fd) >= 0) {
+            for (i = 3 + (int)NUsbPollfds; i < npollfds; i++) {
+                if ((clifd = Pollfds[i].fd) >= 0) {
                     /* dbprintf("client %d revents 0x%X\n", i, Clients[i].revents); */
-                    if (Clients[i].revents & (POLLIN|POLLERR)) {
+                    if (Pollfds[i].revents & (POLLIN|POLLERR)) {
                         if ((bytesIn = read(clifd, buf, sizeof(buf))) < 0) {
                             dbprintf("read err %d\n", errno);
                             if (errno != ECONNRESET) {
@@ -1501,6 +1669,10 @@ out_deinit:
     close_listener("main", &listenfd);
     close_listener("xml", &flashxmlfd);
     close_listener("openremote", &or20fd);
+    free(Pollfds);
+    Pollfds = NULL;
+    PollfdCapacity = 0;
+    cleanup_usb_pollfds();
     syslog(LOG_NOTICE, "[SHUTDOWN] releasing USB resources");
     free_transfer_if_inactive("input", &IntrIn_transfer,
             IntrIn_submitted, IntrIn_canceling);
@@ -1526,7 +1698,10 @@ out_deinit:
 out:
     if (Devh)
         libusb_close(Devh);
-    libusb_exit(NULL);
+    if (UsbCtx) {
+        libusb_exit(UsbCtx);
+        UsbCtx = NULL;
+    }
     syslog(LOG_NOTICE, "[SHUTDOWN] complete");
     return r >= 0 ? r : -r;
 }

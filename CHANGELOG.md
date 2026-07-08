@@ -42,6 +42,8 @@ entry should link to validation evidence when available.
   canceling flags instead of treating transfer pointers as activity state.
 - X10 output queue handling now preserves queued commands when USB submission
   fails so the queue can retry instead of silently advancing past the command.
+- libusb is now owned through an explicit context, with dynamic poll descriptor
+  registration instead of a fixed-size USB pollfd slot.
 
 ## v0.3.0
 
