@@ -9,6 +9,7 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		cgi/x10.pl cgi/netcat.pl cgi/getsensors.pl cgi/cgi-lib.pl \
 		apps/mochamon.pl apps/simplemon.pl apps/bash.sh \
 		apps/rfsectopl3.pl apps/x10-tk.py apps/mochad.scr \
+		scripts/setup-native-permissions.sh \
 		scripts/validate/cm19a-hardware-validation.sh \
 		scripts/validate/clean-build-test.sh \
 		scripts/validate/docker-build.sh \

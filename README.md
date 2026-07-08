@@ -104,6 +104,19 @@ Install the package:
 sudo make install
 ```
 
+To prepare a native Linux host for the new non-root service permissions without
+running the full install target, use:
+
+```sh
+sudo scripts/setup-native-permissions.sh
+```
+
+Preview the operations first with:
+
+```sh
+scripts/setup-native-permissions.sh --dry-run
+```
+
 Expected installed files include:
 
 ```text
