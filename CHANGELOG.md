@@ -47,6 +47,8 @@ entry should link to validation evidence when available.
 - USB startup diagnostics now include symbolic libusb error names, automatic
   kernel-driver detach attempts, and stricter interrupt endpoint/packet-size
   validation.
+- Fixed the autotools source list so `decode.c` is linked into the `mochad`
+  binary.
 
 ## v0.3.0
 

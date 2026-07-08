@@ -1,5 +1,5 @@
 bin_PROGRAMS = mochad
-mochad_SOURCES = mochad.c config.c diagnostics.c encode.c global.c \
+mochad_SOURCES = mochad.c config.c decode.c diagnostics.c encode.c global.c \
 		mochad_event.c socket_io.c x10state.c x10_write.c \
 		config.h decode.h diagnostics.h encode.h global.h \
 		mochad_event.h socket_io.h version.h x10state.h x10_write.h
