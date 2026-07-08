@@ -47,6 +47,10 @@ entry should link to validation evidence when available.
 - USB startup diagnostics now include symbolic libusb error names, automatic
   kernel-driver detach attempts, and stricter interrupt endpoint/packet-size
   validation.
+- USB hotplug monitoring now reports CM15A/CM19A controller connection and
+  disconnection events when supported by libusb.
+- TCP, client, and USB lifecycle logs now include clearer human-readable error
+  details in older failure paths.
 - Fixed the autotools source list so `decode.c` is linked into the `mochad`
   binary.
 

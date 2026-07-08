@@ -12,6 +12,8 @@
 #include <stdint.h>
 #include <sys/time.h>
 
+#define LIBUSB_API_VERSION 0x01000102
+
 #define LIBUSB_SUCCESS 0
 #define LIBUSB_ERROR_IO -1
 #define LIBUSB_ERROR_INVALID_PARAM -2
@@ -39,11 +41,19 @@
 #define LIBUSB_TRANSFER_TYPE_MASK 0x03
 #define LIBUSB_TRANSFER_TYPE_INTERRUPT 0x03
 
+#define LIBUSB_CAP_HAS_HOTPLUG 0x00000001
+#define LIBUSB_HOTPLUG_MATCH_ANY -1
+#define LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED 0x01
+#define LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT 0x02
+
 typedef struct libusb_device_handle libusb_device_handle;
 typedef struct libusb_device libusb_device;
 typedef struct libusb_context libusb_context;
+typedef int libusb_hotplug_event;
+typedef int libusb_hotplug_callback_handle;
 
 struct libusb_device_descriptor {
+    uint16_t idVendor;
     uint16_t idProduct;
 };
 
@@ -82,6 +92,8 @@ struct libusb_pollfd {
 typedef void (*libusb_transfer_cb_fn)(struct libusb_transfer *transfer);
 typedef void (*libusb_pollfd_added_cb)(int fd, short events, void *user_data);
 typedef void (*libusb_pollfd_removed_cb)(int fd, void *user_data);
+typedef int (*libusb_hotplug_callback_fn)(libusb_context *ctx,
+        libusb_device *device, libusb_hotplug_event event, void *user_data);
 
 libusb_device_handle *libusb_open_device_with_vid_pid(libusb_context *ctx,
         uint16_t vendor_id, uint16_t product_id);
@@ -107,6 +119,13 @@ void libusb_fill_interrupt_transfer(struct libusb_transfer *transfer,
 int libusb_submit_transfer(struct libusb_transfer *transfer);
 int libusb_cancel_transfer(struct libusb_transfer *transfer);
 const char *libusb_error_name(int error_code);
+int libusb_has_capability(uint32_t capability);
+int libusb_hotplug_register_callback(libusb_context *ctx, int events,
+        int flags, int vendor_id, int product_id, int dev_class,
+        libusb_hotplug_callback_fn callback_fn, void *user_data,
+        libusb_hotplug_callback_handle *callback_handle);
+void libusb_hotplug_deregister_callback(libusb_context *ctx,
+        libusb_hotplug_callback_handle callback_handle);
 int libusb_handle_events(libusb_context *ctx);
 int libusb_init(libusb_context **ctx);
 void libusb_set_debug(libusb_context *ctx, int level);

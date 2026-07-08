@@ -68,6 +68,10 @@
 #define MAXCLISOCKETS   (32)
 #define MAXSOCKETS      (1+MAXCLISOCKETS)
 				/* first socket=listen socket, 32 client sockets */
+#define X10_VENDOR_ID   0x0bc7
+#define CM15A_PRODUCT_ID 0x0001
+#define CM19A_PRODUCT_ID 0x0002
+
 static struct pollfd *Pollfds = NULL;
 static nfds_t PollfdCapacity = 0;
 
@@ -98,6 +102,9 @@ static time_t StartTime = 0;
 /**** USB usblib 1.0 ****/
 
 #include <libusb-1.0/libusb.h>
+#if defined(LIBUSB_API_VERSION) && LIBUSB_API_VERSION >= 0x01000102
+#define MOCHAD_HAVE_LIBUSB_HOTPLUG 1
+#endif
 uint8_t InEndpoint, OutEndpoint;
 
 static libusb_context *UsbCtx = NULL;
@@ -114,6 +121,10 @@ static struct pollfd *UsbPollfds = NULL;
 static nfds_t NUsbPollfds = 0;
 static nfds_t UsbPollfdCapacity = 0;
 static int UsbPollfdError = 0;
+#ifdef MOCHAD_HAVE_LIBUSB_HOTPLUG
+static libusb_hotplug_callback_handle HotplugHandle;
+static int HotplugRegistered = 0;
+#endif
 
 static unsigned char IntrOutBuf[8];
 static unsigned char IntrInBuf[8];
@@ -567,7 +578,8 @@ static void log_accept_result(const char *name, int fd)
      */
     if (fd < 0) {
         dbprintf("%s accept failed errno %d\n", name, errno);
-        syslog(LOG_INFO, "[CLIENT] accept failed type=%s errno=%d", name, errno);
+        syslog(LOG_INFO, "[CLIENT] accept failed type=%s errno=%d error=%s",
+                name, errno, strerror(errno));
     }
     else {
         dbprintf("%s accept fd %d\n", name, fd);
@@ -704,6 +716,112 @@ static const char *usb_error_name(int rc)
     return libusb_error_name(rc);
 }
 
+static const char *controller_model_from_product(uint16_t product_id)
+{
+    switch (product_id) {
+        case CM15A_PRODUCT_ID:
+            return "CM15A";
+        case CM19A_PRODUCT_ID:
+            return "CM19A";
+        default:
+            return "unknown";
+    }
+}
+
+static int product_is_cm1x(uint16_t product_id)
+{
+    return product_id == CM15A_PRODUCT_ID || product_id == CM19A_PRODUCT_ID;
+}
+
+#ifdef MOCHAD_HAVE_LIBUSB_HOTPLUG
+static const char *hotplug_event_name(libusb_hotplug_event event)
+{
+    switch (event) {
+        case LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED:
+            return "connected";
+        case LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT:
+            return "disconnected";
+        default:
+            return "changed";
+    }
+}
+
+static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device,
+        libusb_hotplug_event event, void *user_data)
+{
+    struct libusb_device_descriptor desc;
+    int r;
+
+    (void)ctx;
+    (void)user_data;
+
+    r = libusb_get_device_descriptor(device, &desc);
+    if (r < 0) {
+        syslog(LEVEL,
+                "[USB] hotplug event received but descriptor lookup failed rc=%d error=%s",
+                r, usb_error_name(r));
+        return 0;
+    }
+
+    if (desc.idVendor != X10_VENDOR_ID || !product_is_cm1x(desc.idProduct))
+        return 0;
+
+    syslog(LOG_NOTICE,
+            "[USB] controller %s model=%s vendor=0x%04X product=0x%04X",
+            hotplug_event_name(event),
+            controller_model_from_product(desc.idProduct),
+            desc.idVendor, desc.idProduct);
+    return 0;
+}
+
+static void register_usb_hotplug_monitor(void)
+{
+    int r;
+
+    if (!libusb_has_capability(LIBUSB_CAP_HAS_HOTPLUG)) {
+        syslog(LOG_NOTICE,
+                "[USB] hotplug monitoring unavailable: libusb does not report hotplug capability");
+        return;
+    }
+
+    r = libusb_hotplug_register_callback(UsbCtx,
+            LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED |
+            LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
+            0, X10_VENDOR_ID, LIBUSB_HOTPLUG_MATCH_ANY,
+            LIBUSB_HOTPLUG_MATCH_ANY, usb_hotplug_cb, NULL,
+            &HotplugHandle);
+    if (r < 0) {
+        syslog(LEVEL,
+                "[USB] hotplug monitor registration failed rc=%d error=%s",
+                r, usb_error_name(r));
+        return;
+    }
+
+    HotplugRegistered = 1;
+    syslog(LOG_NOTICE,
+            "[USB] hotplug monitoring enabled for CM15A/CM19A controllers");
+}
+
+static void cleanup_usb_hotplug_monitor(void)
+{
+    if (HotplugRegistered) {
+        libusb_hotplug_deregister_callback(UsbCtx, HotplugHandle);
+        HotplugRegistered = 0;
+        syslog(LOG_NOTICE, "[USB] hotplug monitoring stopped");
+    }
+}
+#else
+static void register_usb_hotplug_monitor(void)
+{
+    syslog(LOG_NOTICE,
+            "[USB] hotplug monitoring unavailable: libusb headers do not expose hotplug support");
+}
+
+static void cleanup_usb_hotplug_monitor(void)
+{
+}
+#endif
+
 /*
 ** Find CM15A or CM19A. The EU versions (CM15Pro and CM19Pro) have the same
 ** vendor and product IDs, respectively.
@@ -714,9 +832,11 @@ static int find_cm15a(struct libusb_device_handle **devhptr)
     int r;
 
     Cm19a = 0;
-    *devhptr = libusb_open_device_with_vid_pid(UsbCtx,  0x0bc7, 0x0001);
+    *devhptr = libusb_open_device_with_vid_pid(UsbCtx, X10_VENDOR_ID,
+            CM15A_PRODUCT_ID);
     if (!*devhptr) {
-        *devhptr = libusb_open_device_with_vid_pid(UsbCtx,  0x0bc7, 0x0002);
+        *devhptr = libusb_open_device_with_vid_pid(UsbCtx, X10_VENDOR_ID,
+                CM19A_PRODUCT_ID);
         if (!*devhptr) {
             syslog(LEVEL,
                     "[USB] CM15A/CM19A not found; in Docker, verify /dev/bus/usb is mapped and the container has USB permissions");
@@ -1154,13 +1274,15 @@ static void IntrOut_cb(struct libusb_transfer *transfer)
         return;
     }
 
-    syslog(LEVEL, "[USB] interrupt output transfer completed status=%s(%d)",
+    syslog(LEVEL, "[USB] interrupt output transfer failed status=%s(%d)",
             transfer_status_name(transfer->status), transfer->status);
     Do_exit = 2;
 }
 
 static void IntrIn_cb(struct libusb_transfer *transfer)
 {
+    int r;
+
 #if 0
     int fd, i;
 #endif
@@ -1175,7 +1297,7 @@ static void IntrIn_cb(struct libusb_transfer *transfer)
     IntrIn_canceling = 0;
 
     if (transfer->status != LIBUSB_TRANSFER_COMPLETED) {
-        syslog(LEVEL, "[USB] interrupt input transfer completed status=%s(%d)",
+        syslog(LEVEL, "[USB] interrupt input transfer failed status=%s(%d)",
                 transfer_status_name(transfer->status), transfer->status);
         Do_exit = 2;
         return;
@@ -1202,9 +1324,11 @@ static void IntrIn_cb(struct libusb_transfer *transfer)
     if (Do_exit)
         return;
 
-    if (libusb_submit_transfer(IntrIn_transfer) < 0) {
+    r = libusb_submit_transfer(IntrIn_transfer);
+    if (r < 0) {
         syslog(LEVEL,
-                "[USB] interrupt input transfer resubmit failed; shutting down");
+                "[USB] interrupt input transfer resubmit failed rc=%d error=%s; shutting down",
+                r, usb_error_name(r));
         Do_exit = 2;
         return;
     }
@@ -1278,6 +1402,9 @@ int write_usb(unsigned char *buf, size_t len)
     if (len > sizeof(IntrOutBuf)) {
         dbprintf("usb write too long %lu/%lu\n", (unsigned long)len,
                 (unsigned long)sizeof(IntrOutBuf));
+        syslog(LEVEL,
+                "[USB] refusing output packet: length=%lu exceeds controller packet size=%lu",
+                (unsigned long)len, (unsigned long)sizeof(IntrOutBuf));
         return -EINVAL;
     }
     memcpy(IntrOutBuf, buf, len);
@@ -1356,18 +1483,20 @@ static int create_listener(const char *name, int port)
                 candidate->ai_protocol);
         if (fd < 0) {
             syslog(LEVEL,
-                    "[TCP] socket failed listener=%s address=%s port=%d family=%s errno=%d",
+                    "[TCP] socket failed listener=%s address=%s port=%d family=%s errno=%d error=%s",
                     name, BindAddress, port,
-                    socket_family_name(candidate->ai_family), errno);
+                    socket_family_name(candidate->ai_family), errno,
+                    strerror(errno));
             continue;
         }
 
         if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&on,
                     sizeof(on)) < 0) {
             syslog(LEVEL,
-                    "[TCP] setsockopt failed listener=%s address=%s port=%d family=%s option=SO_REUSEADDR errno=%d",
+                    "[TCP] setsockopt failed listener=%s address=%s port=%d family=%s option=SO_REUSEADDR errno=%d error=%s",
                     name, BindAddress, port,
-                    socket_family_name(candidate->ai_family), errno);
+                    socket_family_name(candidate->ai_family), errno,
+                    strerror(errno));
             close(fd);
             fd = -1;
             continue;
@@ -1381,8 +1510,8 @@ static int create_listener(const char *name, int port)
             if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6only,
                         sizeof(v6only)) < 0) {
                 syslog(LOG_INFO,
-                        "[TCP] IPv6-only request failed listener=%s address=%s port=%d errno=%d",
-                        name, BindAddress, port, errno);
+                        "[TCP] IPv6-only request failed listener=%s address=%s port=%d errno=%d error=%s",
+                        name, BindAddress, port, errno, strerror(errno));
             }
         }
         else if (candidate->ai_family == AF_INET6) {
@@ -1392,8 +1521,8 @@ static int create_listener(const char *name, int port)
                         sizeof(v6only)) < 0) {
                 dual_stack_failed = 1;
                 syslog(LOG_INFO,
-                        "[TCP] IPv6 dual-stack request failed listener=%s address=%s port=%d errno=%d",
-                        name, BindAddress, port, errno);
+                        "[TCP] IPv6 dual-stack request failed listener=%s address=%s port=%d errno=%d error=%s",
+                        name, BindAddress, port, errno, strerror(errno));
                 if (MochadConfig.dual_stack == MOCHAD_DUAL_STACK_ENABLE) {
                     close(fd);
                     fd = -1;
@@ -1415,9 +1544,10 @@ static int create_listener(const char *name, int port)
         dbprintf("bind(%s) %d/%d\n", name, rc, errno);
         if (rc < 0) {
             syslog(LEVEL,
-                    "[TCP] bind failed listener=%s address=%s port=%d family=%s dual_stack=%s errno=%d",
+                    "[TCP] bind failed listener=%s address=%s port=%d family=%s dual_stack=%s errno=%d error=%s",
                     name, BindAddress, port,
-                    socket_family_name(candidate->ai_family), dual_stack, errno);
+                    socket_family_name(candidate->ai_family), dual_stack,
+                    errno, strerror(errno));
             close(fd);
             fd = -1;
             continue;
@@ -1427,9 +1557,10 @@ static int create_listener(const char *name, int port)
         dbprintf("listen(%s) %d/%d\n", name, rc, errno);
         if (rc < 0) {
             syslog(LEVEL,
-                    "[TCP] listen failed listener=%s address=%s port=%d family=%s errno=%d",
+                    "[TCP] listen failed listener=%s address=%s port=%d family=%s errno=%d error=%s",
                     name, BindAddress, port,
-                    socket_family_name(candidate->ai_family), errno);
+                    socket_family_name(candidate->ai_family), errno,
+                    strerror(errno));
             close(fd);
             fd = -1;
             continue;
@@ -1495,6 +1626,7 @@ static int mydaemon(void)
     }
     syslog(LOG_NOTICE, "[USB] libusb initialized");
     libusb_set_debug(UsbCtx, 3);
+    register_usb_hotplug_monitor();
 
 #if 0
     /* This function is not available in older versions of libusb-1.0 */
@@ -1643,7 +1775,8 @@ static int mydaemon(void)
                 syslog(LOG_DEBUG, "[SHUTDOWN] poll interrupted by signal");
                 continue;
             }
-            syslog(LEVEL, "[TCP] poll failed errno=%d; shutting down", errno);
+            syslog(LEVEL, "[TCP] poll failed errno=%d error=%s; shutting down",
+                    errno, strerror(errno));
             Do_exit = 2;
             break;
         }
@@ -1705,13 +1838,17 @@ static int mydaemon(void)
                     if (Pollfds[i].revents & (POLLIN|POLLERR)) {
                         if ((bytesIn = read(clifd, buf, sizeof(buf))) < 0) {
                             dbprintf("read err %d\n", errno);
-                            if (errno != ECONNRESET) {
-                                dbprintf("serious error %d\n", errno);
-                            }
+                            syslog(LOG_INFO,
+                                    "[CLIENT] read failed client_id=%u fd=%d errno=%d error=%s",
+                                    client_id_for_fd(clifd), clifd, errno,
+                                    strerror(errno));
                             del_client(clifd);
                         }
                         else if (bytesIn == 0) {
                             dbprintf("read EOF %d\n", bytesIn);
+                            syslog(LOG_NOTICE,
+                                    "[CLIENT] connection closed client_id=%u fd=%d",
+                                    client_id_for_fd(clifd), clifd);
                             del_client(clifd);
                         }
                         else {
@@ -1766,13 +1903,16 @@ out_deinit:
     if (Devh) {
         r = libusb_release_interface(Devh, 0);
         if (r < 0) {
-            syslog(LEVEL, "[SHUTDOWN] release interface failed rc=%d", r);
+            syslog(LEVEL,
+                    "[SHUTDOWN] release interface failed rc=%d error=%s",
+                    r, usb_error_name(r));
         }
         if (Reattach) {
             r = libusb_attach_kernel_driver(Devh, 0);
             if (r < 0) {
-                syslog(LEVEL, "[SHUTDOWN] kernel driver reattach failed rc=%d",
-                        r);
+                syslog(LEVEL,
+                        "[SHUTDOWN] kernel driver reattach failed rc=%d error=%s",
+                        r, usb_error_name(r));
             }
             else {
                 syslog(LOG_NOTICE, "[SHUTDOWN] kernel driver reattached");
@@ -1780,6 +1920,7 @@ out_deinit:
         }
     }
 out:
+    cleanup_usb_hotplug_monitor();
     if (Devh)
         libusb_close(Devh);
     if (UsbCtx) {
