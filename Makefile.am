@@ -35,6 +35,17 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		tools/stubs/libusb-1.0/libusb.h
 
 install-exec-hook:
+	if test "$$(id -u)" = "0" ; then \
+		if ! getent group mochad >/dev/null 2>&1 ; then \
+			groupadd --system mochad ; \
+		fi ; \
+		if ! getent group x10 >/dev/null 2>&1 ; then \
+			groupadd --system x10 ; \
+		fi ; \
+		if ! id -u mochad >/dev/null 2>&1 ; then \
+			useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin --gid mochad mochad ; \
+		fi ; \
+	fi ;
 	if test -d /lib/systemd/system -a -x /bin/systemctl ; then \
 				cp $(abs_top_srcdir)/systemd/mochad.service /etc/systemd/system ; \
 				cp $(abs_top_srcdir)/udev/91-usb-x10-controllers.rules-systemd /etc/udev/rules.d/91-usb-x10-controllers.rules ; \

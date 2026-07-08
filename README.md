@@ -112,6 +112,20 @@ Expected installed files include:
 /etc/systemd/system/mochad.service
 ```
 
+Native packages create a `mochad` service user, a `mochad` primary group, and an
+`x10` device-access group when installed as root. The systemd unit runs with:
+
+```text
+User=mochad
+Group=mochad
+SupplementaryGroups=x10
+UMask=0022
+```
+
+The udev rules do not execute the daemon directly. They assign supported X10
+USB nodes to `root:x10` with mode `0660`; the systemd udev rule then activates
+`mochad.service`.
+
 The service remains inactive until a supported CM15A or CM19A controller is
 connected. The installed `udev` rules handle service activation.
 

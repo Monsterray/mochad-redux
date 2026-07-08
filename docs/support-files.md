@@ -50,22 +50,21 @@ distribution-specific behavior here unless it is tested on that target.
 
 `udev/` contains USB device rules for Linux systems:
 
-- `91-usb-x10-controllers.rules` is the non-systemd rule set. It directly runs
-  `/usr/local/bin/mochad`.
-- `91-usb-x10-controllers.rules-systemd` starts `mochad.service` through
-  `systemctl --no-block`.
+- `91-usb-x10-controllers.rules` is the non-systemd rule set. It assigns
+  `root:x10` ownership and `0660` mode to supported X10 USB nodes.
+- `91-usb-x10-controllers.rules-systemd` assigns the same USB node ownership
+  and asks systemd to activate `mochad.service`.
 
 For modern Linux systems, the systemd rule is safer because udev should not run
-long-lived daemons directly. Keep the `--no-block` behavior so udev is not held
-up by service startup.
+long-lived daemons directly.
 
 ## systemd
 
-`systemd/mochad.service` is the native systemd service unit. It preserves
-upstream behavior by starting `/usr/local/bin/mochad` as a forking daemon.
+`systemd/mochad.service` is the native systemd service unit. It starts
+`/usr/local/bin/mochad -d` in the foreground as user `mochad`, group `mochad`,
+with supplementary group `x10` and `UMask=0022`.
 
-Potential future hardening includes adding clearer restart policy, explicit
-device dependencies, and optional service sandboxing. Those changes should be
-tested with real CM15A/CM19A hardware before becoming defaults, because USB
-device access and kernel-driver detaching can be sensitive to service
-permissions.
+Potential future hardening includes explicit device dependencies and optional
+service sandboxing. Those changes should be tested with real CM15A/CM19A
+hardware before becoming defaults, because USB device access and kernel-driver
+detaching can be sensitive to service permissions.
