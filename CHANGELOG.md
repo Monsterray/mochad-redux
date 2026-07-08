@@ -22,6 +22,7 @@ entry should link to validation evidence when available.
   command.
 - Sanitizer-backed unit tests for configuration, diagnostics, and socket
   output helpers.
+- Sanitizer-backed X10 output queue tests covering failed USB submissions.
 - JSON-validating loopback TCP diagnostics smoke test.
 - Design document for a future generic JSON-RPC API on an optional disabled-by-
   default listener.
@@ -37,6 +38,10 @@ entry should link to validation evidence when available.
 - Decoded X10 activity now routes through the internal event dispatcher before
   being rendered to existing legacy listener output.
 - The maintained redux version string now lives in one source header.
+- USB interrupt transfer lifecycle tracking now uses explicit submitted and
+  canceling flags instead of treating transfer pointers as activity state.
+- X10 output queue handling now preserves queued commands when USB submission
+  fails so the queue can retry instead of silently advancing past the command.
 
 ## v0.3.0
 

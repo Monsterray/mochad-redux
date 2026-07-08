@@ -17,7 +17,8 @@
  * along with mochad.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stddef.h>
+
 int send_next_x10out(void);
 
 int x10_write(unsigned char *buf, size_t buflen);
-

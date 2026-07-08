@@ -17,6 +17,8 @@
  * along with mochad.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stddef.h>
+
 struct SecEventRec {
     unsigned char funct;
     const char *name;

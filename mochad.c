@@ -103,6 +103,10 @@ uint8_t InEndpoint, OutEndpoint;
 static struct libusb_device_handle *Devh        = NULL;
 static struct libusb_transfer *IntrOut_transfer = NULL;
 static struct libusb_transfer *IntrIn_transfer  = NULL;
+static int IntrOut_submitted = 0;
+static int IntrOut_canceling = 0;
+static int IntrIn_submitted = 0;
+static int IntrIn_canceling = 0;
 
 static unsigned char IntrOutBuf[8];
 static unsigned char IntrInBuf[8];
@@ -183,7 +187,8 @@ static int endpoints_ready(void)
 
 static int transfers_ready(void)
 {
-    return IntrIn_transfer != NULL && IntrOut_transfer != NULL;
+    return IntrIn_transfer != NULL && IntrOut_transfer != NULL &&
+            IntrIn_submitted && !IntrIn_canceling && !IntrOut_canceling;
 }
 
 static void fill_diag_runtime(mochad_diag_runtime *runtime)
@@ -786,9 +791,124 @@ static int get_endpoint_address(libusb_device_handle *devh, uint8_t *inendpt, ui
     return 0;
 }
 
+static const char *transfer_status_name(int status)
+{
+    switch (status) {
+        case LIBUSB_TRANSFER_COMPLETED:
+            return "completed";
+        case LIBUSB_TRANSFER_ERROR:
+            return "error";
+        case LIBUSB_TRANSFER_TIMED_OUT:
+            return "timed_out";
+        case LIBUSB_TRANSFER_CANCELLED:
+            return "cancelled";
+        case LIBUSB_TRANSFER_STALL:
+            return "stall";
+        case LIBUSB_TRANSFER_NO_DEVICE:
+            return "no_device";
+        case LIBUSB_TRANSFER_OVERFLOW:
+            return "overflow";
+        default:
+            return "unknown";
+    }
+}
+
+static int transfer_is_active(int submitted, int canceling)
+{
+    return submitted || canceling;
+}
+
+static int cancel_transfer_if_active(const char *name,
+        struct libusb_transfer *transfer, int *submitted, int *canceling)
+{
+    int r;
+
+    if (transfer == NULL || !transfer_is_active(*submitted, *canceling))
+        return 0;
+
+    r = libusb_cancel_transfer(transfer);
+    if (r == LIBUSB_ERROR_NOT_FOUND) {
+        *submitted = 0;
+        *canceling = 0;
+        syslog(LOG_NOTICE,
+                "[USB] transfer already inactive name=%s action=cancel",
+                name);
+        return 0;
+    }
+    if (r < 0) {
+        syslog(LEVEL, "[USB] transfer cancel failed name=%s rc=%d",
+                name, r);
+        return r;
+    }
+
+    *canceling = 1;
+    syslog(LOG_NOTICE, "[USB] transfer cancel requested name=%s", name);
+    return 0;
+}
+
+static int drain_cancelled_transfers(int max_events)
+{
+    int r;
+
+    while (max_events-- > 0 &&
+            (transfer_is_active(IntrIn_submitted, IntrIn_canceling) ||
+             transfer_is_active(IntrOut_submitted, IntrOut_canceling))) {
+        r = libusb_handle_events(NULL);
+        if (r == LIBUSB_ERROR_INTERRUPTED)
+            continue;
+        if (r < 0) {
+            syslog(LEVEL, "[USB] cancellation drain failed rc=%d", r);
+            return r;
+        }
+    }
+
+    if (transfer_is_active(IntrIn_submitted, IntrIn_canceling) ||
+            transfer_is_active(IntrOut_submitted, IntrOut_canceling)) {
+        syslog(LEVEL,
+                "[USB] cancellation drain timed out in_active=%d out_active=%d",
+                transfer_is_active(IntrIn_submitted, IntrIn_canceling),
+                transfer_is_active(IntrOut_submitted, IntrOut_canceling));
+        return -ETIMEDOUT;
+    }
+
+    return 0;
+}
+
+static void free_transfer_if_inactive(const char *name,
+        struct libusb_transfer **transfer, int submitted, int canceling)
+{
+    if (*transfer == NULL)
+        return;
+
+    if (transfer_is_active(submitted, canceling)) {
+        syslog(LEVEL,
+                "[USB] refusing to free active transfer name=%s submitted=%d canceling=%d",
+                name, submitted, canceling);
+        return;
+    }
+
+    libusb_free_transfer(*transfer);
+    *transfer = NULL;
+}
+
 static void IntrOut_cb(struct libusb_transfer *transfer)
 {
-    /* dbprintf("IntrOut callback len %d\n", transfer->actual_length); */
+    IntrOut_submitted = 0;
+    IntrOut_canceling = 0;
+
+    if (transfer->status == LIBUSB_TRANSFER_COMPLETED) {
+        dbprintf("IntrOut callback len %d\n", transfer->actual_length);
+        return;
+    }
+
+    if (transfer->status == LIBUSB_TRANSFER_CANCELLED) {
+        syslog(LOG_NOTICE, "[USB] interrupt output transfer cancelled");
+        return;
+    }
+
+    syslog(LEVEL, "[USB] interrupt output transfer completed status=%s(%d)",
+            transfer_status_name(transfer->status), transfer->status);
+    Do_exit = 2;
 }
 
 static void IntrIn_cb(struct libusb_transfer *transfer)
@@ -797,11 +917,19 @@ static void IntrIn_cb(struct libusb_transfer *transfer)
     int fd, i;
 #endif
 
+    IntrIn_submitted = 0;
+
+    if (transfer->status == LIBUSB_TRANSFER_CANCELLED) {
+        IntrIn_canceling = 0;
+        syslog(LOG_NOTICE, "[USB] interrupt input transfer cancelled");
+        return;
+    }
+    IntrIn_canceling = 0;
+
     if (transfer->status != LIBUSB_TRANSFER_COMPLETED) {
-        dbprintf("IntrIn transfer status %d?\n", transfer->status);
+        syslog(LEVEL, "[USB] interrupt input transfer completed status=%s(%d)",
+                transfer_status_name(transfer->status), transfer->status);
         Do_exit = 2;
-        libusb_free_transfer(transfer);
-        IntrIn_transfer = NULL;
         return;
     }
 
@@ -823,16 +951,26 @@ static void IntrIn_cb(struct libusb_transfer *transfer)
 #else
     cm15a_decode(-1, transfer->buffer, transfer->actual_length);
 #endif
+    if (Do_exit)
+        return;
+
     if (libusb_submit_transfer(IntrIn_transfer) < 0) {
         syslog(LEVEL,
                 "[USB] interrupt input transfer resubmit failed; shutting down");
         Do_exit = 2;
+        return;
     }
+    IntrIn_submitted = 1;
 }
 
 static int start_transfers(void)
 {
     int r;
+
+    if (IntrIn_submitted) {
+        syslog(LEVEL, "[USB] interrupt input transfer already active");
+        return -EBUSY;
+    }
 
     r = libusb_submit_transfer(IntrIn_transfer);
     if (r < 0) {
@@ -841,6 +979,8 @@ static int start_transfers(void)
                 r);
         return r;
     }
+    IntrIn_submitted = 1;
+    IntrIn_canceling = 0;
     return 0;
 }
 
@@ -864,8 +1004,8 @@ static int alloc_transfers(void)
     IntrOut_transfer = libusb_alloc_transfer(0);
     if (!IntrOut_transfer) {
         syslog(LEVEL, "[USB] interrupt output transfer allocation failed");
-        libusb_free_transfer(IntrIn_transfer);
-        IntrIn_transfer = NULL;
+        free_transfer_if_inactive("input", &IntrIn_transfer,
+                IntrIn_submitted, IntrIn_canceling);
         return -ENOMEM;
     }
     return 0;
@@ -873,10 +1013,20 @@ static int alloc_transfers(void)
 
 int write_usb(unsigned char *buf, size_t len)
 {
-    int r, i;
+    int r;
 
     dbprintf("usb len %lu ", (unsigned long)len);
     hexdump(buf, len);
+    if (IntrOut_transfer == NULL || Devh == NULL) {
+        syslog(LEVEL, "[USB] interrupt output transfer is not available");
+        return -ENODEV;
+    }
+    if (IntrOut_submitted || IntrOut_canceling) {
+        syslog(LEVEL,
+                "[USB] refusing output submit while previous transfer is active submitted=%d canceling=%d",
+                IntrOut_submitted, IntrOut_canceling);
+        return -EBUSY;
+    }
     if (len > sizeof(IntrOutBuf)) {
         dbprintf("usb write too long %lu/%lu\n", (unsigned long)len,
                 (unsigned long)sizeof(IntrOutBuf));
@@ -887,13 +1037,12 @@ int write_usb(unsigned char *buf, size_t len)
             IntrOutBuf, len, IntrOut_cb, NULL, 0);
     r = libusb_submit_transfer(IntrOut_transfer);
     if (r < 0) {
-        libusb_cancel_transfer(IntrOut_transfer);
-        i = 100;
-        while (IntrOut_transfer && i--)
-            if (libusb_handle_events(NULL) < 0)
-                break;
+        syslog(LEVEL, "[USB] interrupt output transfer submit failed rc=%d",
+                r);
         return r;
     }
+    IntrOut_submitted = 1;
+    IntrOut_canceling = 0;
     return 0;
 }
 
@@ -1332,28 +1481,11 @@ static int mydaemon(void)
     syslog(LOG_NOTICE, "[SHUTDOWN] detaching controller model=%s",
             (Cm19a) ? "CM19A" : "CM15A");
 
-    if (IntrOut_transfer) {
-        r = libusb_cancel_transfer(IntrOut_transfer);
-        if (r < 0) {
-            syslog(LEVEL, "[SHUTDOWN] interrupt output transfer cancel failed rc=%d",
-                    r);
-            goto out_deinit;
-        }
-    }
-
-    if (IntrIn_transfer) {
-        r = libusb_cancel_transfer(IntrIn_transfer);
-        if (r < 0) {
-            syslog(LEVEL, "[SHUTDOWN] interrupt input transfer cancel failed rc=%d",
-                    r);
-            goto out_deinit;
-        }
-    }
-
-    i = 100;
-    while ((IntrOut_transfer || IntrIn_transfer) && i--)
-        if (libusb_handle_events(NULL) < 0)
-            break;
+    cancel_transfer_if_active("output", IntrOut_transfer,
+            &IntrOut_submitted, &IntrOut_canceling);
+    cancel_transfer_if_active("input", IntrIn_transfer,
+            &IntrIn_submitted, &IntrIn_canceling);
+    drain_cancelled_transfers(100);
 
     if (Do_exit == 1) {
         syslog(LOG_NOTICE, "[SHUTDOWN] requested by %s (%d)",
@@ -1370,8 +1502,10 @@ out_deinit:
     close_listener("xml", &flashxmlfd);
     close_listener("openremote", &or20fd);
     syslog(LOG_NOTICE, "[SHUTDOWN] releasing USB resources");
-    libusb_free_transfer(IntrIn_transfer);
-    libusb_free_transfer(IntrOut_transfer);
+    free_transfer_if_inactive("input", &IntrIn_transfer,
+            IntrIn_submitted, IntrIn_canceling);
+    free_transfer_if_inactive("output", &IntrOut_transfer,
+            IntrOut_submitted, IntrOut_canceling);
 /* out_release: */
     if (Devh) {
         r = libusb_release_interface(Devh, 0);

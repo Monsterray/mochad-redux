@@ -21,6 +21,7 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		scripts/validate/unit-tests.sh \
 		tests/test_config.c tests/test_diagnostics.c \
 		tests/test_mochad_event.c \
+		tests/test_x10_write.c \
 		tests/test_socket_io.c tests/test_tcp_diagnostics.c \
 		docs/generated-artifacts.md docs/hardware-validation.md \
 		docs/json-api.md docs/milestone-1.md docs/support-files.md \
