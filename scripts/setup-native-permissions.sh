@@ -91,36 +91,130 @@ require_command() {
     fi
 }
 
+have() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+require_one_of() {
+    label="$1"
+    shift
+
+    for candidate in "$@"; do
+        if have "$candidate"; then
+            return
+        fi
+    done
+
+    if [ "$DRY_RUN" = true ]; then
+        log "[DRY-RUN] none of these commands were found locally, but one would be required on target host for ${label}: $*"
+        return
+    fi
+
+    echo "Required command group not found for ${label}: $*" >&2
+    exit 69
+}
+
 systemd_available() {
     [ "$INSTALL_SERVICE" = true ] \
-        && command -v systemctl >/dev/null 2>&1 \
+        && have systemctl \
         && [ -d /etc/systemd/system ]
+}
+
+group_exists() {
+    group="$1"
+    if have getent; then
+        getent group "$group" >/dev/null 2>&1
+        return
+    fi
+    grep -q "^${group}:" /etc/group 2>/dev/null
+}
+
+user_exists() {
+    id -u "$1" >/dev/null 2>&1
+}
+
+create_system_group() {
+    group="$1"
+    if have groupadd; then
+        run groupadd --system "$group"
+    elif have addgroup; then
+        run addgroup -S "$group"
+    elif [ "$DRY_RUN" = true ]; then
+        run groupadd --system "$group"
+    else
+        echo "No group creation command found. Expected groupadd or addgroup." >&2
+        exit 69
+    fi
+}
+
+add_user_to_usb_group() {
+    if have usermod; then
+        run usermod -g "$SERVICE_GROUP" -a -G "$USB_GROUP" "$SERVICE_USER"
+    elif have addgroup; then
+        run addgroup "$SERVICE_USER" "$USB_GROUP"
+        log "[WARN] addgroup cannot change an existing user's primary group; verify ${SERVICE_USER} uses primary group ${SERVICE_GROUP}."
+    elif [ "$DRY_RUN" = true ]; then
+        run usermod -g "$SERVICE_GROUP" -a -G "$USB_GROUP" "$SERVICE_USER"
+    else
+        echo "No user group modification command found. Expected usermod or addgroup." >&2
+        exit 69
+    fi
+}
+
+create_system_user() {
+    if have useradd; then
+        run useradd \
+            --system \
+            --no-create-home \
+            --home-dir /nonexistent \
+            --shell /usr/sbin/nologin \
+            --gid "$SERVICE_GROUP" \
+            --groups "$USB_GROUP" \
+            "$SERVICE_USER"
+    elif have adduser; then
+        run adduser \
+            -S \
+            -D \
+            -H \
+            -h /nonexistent \
+            -s /sbin/nologin \
+            -G "$SERVICE_GROUP" \
+            "$SERVICE_USER"
+        if have addgroup; then
+            run addgroup "$SERVICE_USER" "$USB_GROUP"
+        fi
+    elif [ "$DRY_RUN" = true ]; then
+        run useradd \
+            --system \
+            --no-create-home \
+            --home-dir /nonexistent \
+            --shell /usr/sbin/nologin \
+            --gid "$SERVICE_GROUP" \
+            --groups "$USB_GROUP" \
+            "$SERVICE_USER"
+    else
+        echo "No user creation command found. Expected useradd or adduser." >&2
+        exit 69
+    fi
 }
 
 ensure_group() {
     group="$1"
-    if command -v getent >/dev/null 2>&1 && getent group "$group" >/dev/null 2>&1; then
+    if group_exists "$group"; then
         log "[OK] group exists: $group"
         return
     fi
-    run groupadd --system "$group"
+    create_system_group "$group"
 }
 
 ensure_user() {
-    if command -v id >/dev/null 2>&1 && id -u "$SERVICE_USER" >/dev/null 2>&1; then
+    if user_exists "$SERVICE_USER"; then
         log "[OK] user exists: $SERVICE_USER"
-        run usermod -g "$SERVICE_GROUP" -a -G "$USB_GROUP" "$SERVICE_USER"
+        add_user_to_usb_group
         return
     fi
 
-    run useradd \
-        --system \
-        --no-create-home \
-        --home-dir /nonexistent \
-        --shell /usr/sbin/nologin \
-        --gid "$SERVICE_GROUP" \
-        --groups "$USB_GROUP" \
-        "$SERVICE_USER"
+    create_system_user
 }
 
 install_udev_rule() {
@@ -132,7 +226,7 @@ install_udev_rule() {
         run install -m 0644 "$UDEV_GENERIC_SRC" "$UDEV_DEST"
     fi
 
-    if command -v udevadm >/dev/null 2>&1; then
+    if have udevadm; then
         run udevadm control --reload-rules
         run udevadm trigger --subsystem-match=usb --attr-match=idVendor=0bc7
     else
@@ -186,12 +280,11 @@ report_usb_nodes() {
 
 main() {
     require_root
-    require_command getent
-    require_command groupadd
     require_command id
     require_command install
-    require_command useradd
-    require_command usermod
+    require_one_of "group creation" groupadd addgroup
+    require_one_of "user creation" useradd adduser
+    require_one_of "user group membership" usermod addgroup
 
     log "[STARTUP] configuring native mochad permissions"
     log "[INFO] service user=${SERVICE_USER} service group=${SERVICE_GROUP} usb group=${USB_GROUP}"

@@ -36,15 +36,29 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		tools/stubs/libusb-1.0/libusb.h
 
 install-exec-hook:
-	if test "$$(id -u)" = "0" ; then \
-		if ! getent group mochad >/dev/null 2>&1 ; then \
-			groupadd --system mochad ; \
-		fi ; \
-		if ! getent group x10 >/dev/null 2>&1 ; then \
-			groupadd --system x10 ; \
-		fi ; \
-		if ! id -u mochad >/dev/null 2>&1 ; then \
-			useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin --gid mochad mochad ; \
+	if test -n "$(DESTDIR)" ; then \
+		echo "staged install: skipping host user/group setup" ; \
+	elif test "$$(id -u)" = "0" ; then \
+		group_exists() { if command -v getent >/dev/null 2>&1 ; then getent group "$$1" >/dev/null 2>&1 ; else grep -q "^$$1:" /etc/group ; fi ; } ; \
+		user_exists() { id -u "$$1" >/dev/null 2>&1 ; } ; \
+		create_group() { if command -v groupadd >/dev/null 2>&1 ; then groupadd --system "$$1" ; elif command -v addgroup >/dev/null 2>&1 ; then addgroup -S "$$1" ; else echo "warning: no groupadd/addgroup found; run scripts/setup-native-permissions.sh manually" ; fi ; } ; \
+		if ! group_exists mochad ; then create_group mochad ; fi ; \
+		if ! group_exists x10 ; then create_group x10 ; fi ; \
+		if ! user_exists mochad ; then \
+			if command -v useradd >/dev/null 2>&1 ; then \
+				useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin --gid mochad --groups x10 mochad ; \
+			elif command -v adduser >/dev/null 2>&1 ; then \
+				adduser -S -D -H -h /nonexistent -s /sbin/nologin -G mochad mochad ; \
+				if command -v addgroup >/dev/null 2>&1 ; then addgroup mochad x10 >/dev/null 2>&1 || true ; fi ; \
+			else \
+				echo "warning: no useradd/adduser found; run scripts/setup-native-permissions.sh manually" ; \
+			fi ; \
+		else \
+			if command -v usermod >/dev/null 2>&1 ; then \
+				usermod -g mochad -a -G x10 mochad ; \
+			elif command -v addgroup >/dev/null 2>&1 ; then \
+				addgroup mochad x10 >/dev/null 2>&1 || true ; \
+			fi ; \
 		fi ; \
 	fi ;
 	if test -d /lib/systemd/system -a -x /bin/systemctl ; then \
