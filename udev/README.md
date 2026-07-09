@@ -13,3 +13,11 @@ The service runs as user `mochad` with supplementary group `x10`.
 The non-systemd rule only assigns group and mode. It does not run `mochad`
 directly because long-running processes launched by udev can be killed by udev
 or block device processing.
+
+
+# Old udev rule (99-cm19a.rules)
+```
+SUBSYSTEM=="usb", ATTR{idVendor}=="0bc7", ATTR{idProduct}=="0002", GROUP="x10", MODE="0660"
+
+blacklist ati_remote
+```
