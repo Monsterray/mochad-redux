@@ -70,6 +70,8 @@ int mochad_diag_json_health(char *buffer, size_t buffer_len,
             "\"uptime_seconds\":%lu,\"usb_connected\":%s,"
             "\"controller\":\"%s\",\"endpoints_ready\":%s,"
             "\"transfers_ready\":%s,\"clients_total\":%lu,"
+            "\"usb_tx\":{\"out_completed\":%lu,\"ack_received\":%lu,"
+            "\"ack_timeout\":%lu,\"unexpected_one_byte\":%lu},"
             "\"bind_address\":\"%s\",\"listeners\":{\"main\":{\"enabled\":true,"
             "\"port\":%d},\"xml\":{\"enabled\":%s,\"port\":%d},"
             "\"openremote\":{\"enabled\":%s,\"port\":%d}}}",
@@ -79,6 +81,8 @@ int mochad_diag_json_health(char *buffer, size_t buffer_len,
             json_bool(runtime->transfers_ready),
             runtime->clients_main + runtime->clients_xml +
             runtime->clients_openremote,
+            runtime->usb_out_completed, runtime->usb_ack_received,
+            runtime->usb_ack_timeout, runtime->usb_unexpected_one_byte,
             runtime->config->bind_address, runtime->config->server_port,
             json_bool(runtime->config->xml_enabled), runtime->config->xml_port,
             json_bool(runtime->config->openremote_enabled),
