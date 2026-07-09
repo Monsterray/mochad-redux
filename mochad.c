@@ -63,6 +63,7 @@
 #include "global.h"
 #include "encode.h"
 #include "socket_io.h"
+#include "usb_endpoint_selection.h"
 #include "version.h"
 
 #define MAXCLISOCKETS   (32)
@@ -900,12 +901,8 @@ static int get_endpoint_address(libusb_device_handle *devh, uint8_t *inendpt, ui
 {
     int r;
     struct libusb_config_descriptor *config = NULL;
-    const struct libusb_interface *interfaces;
-    const struct libusb_interface_descriptor *interface_desc;
-    const struct libusb_endpoint_descriptor *endpoint_desc;
     struct libusb_device *uDevice;
     struct libusb_device_descriptor desc;
-    int i, j, k;
     unsigned int in_packet_size = 0;
     unsigned int out_packet_size = 0;
 
@@ -935,64 +932,16 @@ static int get_endpoint_address(libusb_device_handle *devh, uint8_t *inendpt, ui
         syslog(LEVEL, "[USB] active configuration descriptor missing");
         return -ENODEV;
     }
-    interfaces = config->interface;
-    for (i = 0; i < config->bNumInterfaces; i++) {
-        interface_desc = interfaces->altsetting;
-        for (j = 0; j < interfaces->num_altsetting; j++) {
-            endpoint_desc = interface_desc->endpoint;
-            for (k = 0; k < interface_desc->bNumEndpoints; k++) {
-                unsigned int packet_size;
-                int is_interrupt;
-
-                packet_size = endpoint_desc->wMaxPacketSize & 0x07ff;
-                is_interrupt = (endpoint_desc->bmAttributes &
-                        LIBUSB_TRANSFER_TYPE_MASK) ==
-                        LIBUSB_TRANSFER_TYPE_INTERRUPT;
-                if (!is_interrupt) {
-                    syslog(LOG_DEBUG,
-                            "[USB] endpoint skipped address=0x%02X reason=not_interrupt attributes=0x%02X",
-                            endpoint_desc->bEndpointAddress,
-                            endpoint_desc->bmAttributes);
-                }
-                else if ((endpoint_desc->bEndpointAddress &
-                            LIBUSB_ENDPOINT_IN) &&
-                        packet_size < sizeof(IntrInBuf)) {
-                    syslog(LEVEL,
-                            "[USB] endpoint skipped address=0x%02X direction=in reason=packet_too_small packet_size=%u required=%lu",
-                            endpoint_desc->bEndpointAddress, packet_size,
-                            (unsigned long)sizeof(IntrInBuf));
-                }
-                else if (!(endpoint_desc->bEndpointAddress &
-                            LIBUSB_ENDPOINT_IN) &&
-                        packet_size < sizeof(IntrOutBuf)) {
-                    syslog(LEVEL,
-                            "[USB] endpoint skipped address=0x%02X direction=out reason=packet_too_small packet_size=%u required=%lu",
-                            endpoint_desc->bEndpointAddress, packet_size,
-                            (unsigned long)sizeof(IntrOutBuf));
-                }
-                else if ((endpoint_desc->bEndpointAddress &
-                            LIBUSB_ENDPOINT_IN) && !*inendpt) {
-                    *inendpt = endpoint_desc->bEndpointAddress;
-                    in_packet_size = packet_size;
-                }
-                else if (!(endpoint_desc->bEndpointAddress &
-                            LIBUSB_ENDPOINT_IN) && !*outendpt) {
-                    *outendpt = endpoint_desc->bEndpointAddress;
-                    out_packet_size = packet_size;
-                }
-                endpoint_desc++;
-            }
-            interface_desc++;
-        }
-        interfaces++;
-    }
+    r = mochad_select_interrupt_endpoints(config, 0, 0,
+            sizeof(IntrInBuf), sizeof(IntrOutBuf),
+            inendpt, outendpt, &in_packet_size, &out_packet_size);
     libusb_free_config_descriptor(config);
 
-    if (!*inendpt || !*outendpt) {
+    if (r < 0) {
         syslog(LEVEL,
-                "[USB] interrupt endpoint discovery failed in=0x%02X out=0x%02X",
-                *inendpt, *outendpt);
-        return -ENODEV;
+                "[USB] interrupt endpoint discovery failed interface=0 altsetting=0 rc=%d error=%s in=0x%02X out=0x%02X",
+                r, usb_error_name(r), *inendpt, *outendpt);
+        return r;
     }
     syslog(LOG_NOTICE,
             "[USB] interrupt endpoints selected in=0x%02X in_packet=%u out=0x%02X out_packet=%u",

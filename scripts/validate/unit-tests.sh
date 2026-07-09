@@ -51,4 +51,11 @@ echo "+ diagnostics"
 echo "PASS: diagnostics"
 
 echo
+echo "+ usb_endpoint_selection"
+# shellcheck disable=SC2086
+"$CC" $CFLAGS tests/test_usb_endpoint_selection.c usb_endpoint_selection.c \
+    -Itools/stubs -o "$BUILD_DIR/test_usb_endpoint_selection" $LDFLAGS
+"$BUILD_DIR/test_usb_endpoint_selection"
+
+echo
 echo "PASS: unit tests completed"
