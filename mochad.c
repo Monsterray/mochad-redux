@@ -527,7 +527,9 @@ static void _hexdump(void *p, size_t len, char *outbuf, size_t outlen)
     unsigned char *ptr = (unsigned char*) p;
     size_t l, used = 0;
 
-    if ((len == 0) || (outlen == 0)) return;
+    if (outlen == 0) return;
+    outbuf[0] = '\0';
+    if (len == 0) return;
     if (len > ((outlen - 1) / 3))
         l = (outlen - 1) / 3;
     else
@@ -541,6 +543,9 @@ static void _hexdump(void *p, size_t len, char *outbuf, size_t outlen)
 void hexdump(void *p, size_t len)
 {
     char buf[(3*100)+1];
+
+    if (len == 0)
+        return;
 
     _hexdump(p, len, buf, sizeof(buf));
     puts(buf);
@@ -1634,7 +1639,7 @@ int write_usb(unsigned char *buf, size_t len)
 {
     int r;
 
-    dbprintf("usb len %lu ", (unsigned long)len);
+    dbprintf("usb len %lu\n", (unsigned long)len);
     hexdump(buf, len);
     if (IntrOut_transfer == NULL || Devh == NULL) {
         syslog(LEVEL, "[USB] interrupt output transfer is not available");
@@ -2123,7 +2128,7 @@ static int mydaemon(void)
                         }
                         else {
                             cm15a_encode_state_t *state;
-			    dbprintf("Input: %.*s", bytesIn, (char *)buf);
+                            dbprintf("Input bytes %d\n", bytesIn);
                             syslog(LOG_DEBUG,
                                     "[COMMAND] received client_id=%u fd=%d bytes=%d",
                                     client_id_for_fd(clifd), clifd, bytesIn);

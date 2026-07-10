@@ -83,7 +83,7 @@ void hua_sec_event(unsigned char *secaddr, unsigned int funcint,
     x10secsensor_t *sen;
 
     secaddr32 = (secaddr[0] << 16) | (secaddr[1] << 8) | secaddr[2] ;
-    /* dbprintf("secaddr32 %X func %X issecfunc %d\n\r", 
+    /* dbprintf("secaddr32 %X func %X issecfunc %d\n",
             secaddr32, funcint, issecfunc(funcint)); */
 
     for (i = 0; i < X10sensorcount; i++) {
@@ -123,7 +123,7 @@ unsigned char hua_getstatus_xdim(int house, int unit)
 
 void hua_setstatus_xdim(int house, int unit, int xdim)
 {
-    /* dbprintf("%s(%d,%d)\n\r", __func__, house, xdim); */
+    /* dbprintf("%s(%d,%d)\n", __func__, house, xdim); */
     hua_init(house);
     HouseUnitSelected[house][unit] = '1';
     X10protostate[house] = 1;
@@ -146,7 +146,7 @@ void hua_add(int house, int unit)
             X10protostate[house] = 0;
             break;
         default:
-            dbprintf("Invalid state\n\r");
+            dbprintf("Invalid state\n");
     }
     // hua_dbprint();
 }
@@ -180,7 +180,7 @@ static void hua_func(int house, unsigned char func)
 {
     int u;
 
-    /* dbprintf("%s(%d,%d)\n\r", __func__, house, func); */
+    /* dbprintf("%s(%d,%d)\n", __func__, house, func); */
     X10protostate[house] = 1;
     for (u = 0; u < 16; u++) {
         if (HouseUnitSelected[house][u]) {
@@ -191,7 +191,7 @@ static void hua_func(int house, unsigned char func)
                 HouseUnitDim[house][u] = 0;
         }
     }
-    /* dbprintf("%s exit\n\r", __func__); */
+    /* dbprintf("%s exit\n", __func__); */
 }
 
 void hua_func_on(int house)
@@ -209,11 +209,11 @@ int hua_getstatus_sec(int rf8bitaddr, unsigned long rfaddr)
     x10secsensor_t *sen;
     unsigned int sensor;
 
-    dbprintf("[STATUS] hua_getstatus_sec(%d,%X)\n\r", rf8bitaddr, rfaddr);
+    dbprintf("[STATUS] hua_getstatus_sec(%d,%X)\n", rf8bitaddr, rfaddr);
     for (sensor = 0; sensor < X10sensorcount; sensor++) {
         sen = &X10sensors[sensor];
 
-        dbprintf("[STATUS] hua_getstatus_sec addr8 %d addr %X status %X\n\r",
+        dbprintf("[STATUS] hua_getstatus_sec addr8 %d addr %X status %X\n",
                 sen->secaddr8, sen->secaddr, sen->sensorstatus);
         if (rf8bitaddr && sen->secaddr8 && (rfaddr == sen->secaddr)) {
             switch (sen->sensorstatus) {
