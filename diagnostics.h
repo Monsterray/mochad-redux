@@ -18,6 +18,10 @@ typedef struct mochad_diag_runtime {
     unsigned long clients_main;
     unsigned long clients_xml;
     unsigned long clients_openremote;
+    unsigned long usb_out_completed;
+    unsigned long usb_ack_received;
+    unsigned long usb_ack_timeout;
+    unsigned long usb_unexpected_one_byte;
     unsigned int max_clients;
     unsigned int next_client_id;
     const mochad_config *config;

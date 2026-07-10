@@ -65,6 +65,7 @@
 #include "socket_io.h"
 #include "usb_endpoint_selection.h"
 #include "version.h"
+#include "x10_write.h"
 
 #define MAXCLISOCKETS   (32)
 #define MAXSOCKETS      (1+MAXCLISOCKETS)
@@ -115,8 +116,15 @@ static struct libusb_transfer *IntrIn_transfer  = NULL;
 /* libusb transfer pointers remain allocated while callbacks are pending. */
 static int IntrOut_submitted = 0;
 static int IntrOut_canceling = 0;
+static int IntrOut_completed = 1;
 static int IntrIn_submitted = 0;
 static int IntrIn_canceling = 0;
+static int X10_ack_received = 0;
+static int X10_ack_timed_out = 0;
+static unsigned long UsbOutCompletedCount = 0;
+static unsigned long UsbAckReceivedCount = 0;
+static unsigned long UsbAckTimeoutCount = 0;
+static unsigned long UsbUnexpectedOneByteCount = 0;
 /* libusb owns the authoritative pollfd set and can change it at runtime. */
 static struct pollfd *UsbPollfds = NULL;
 static nfds_t NUsbPollfds = 0;
@@ -210,6 +218,18 @@ static int transfers_ready(void)
             IntrIn_submitted && !IntrIn_canceling && !IntrOut_canceling;
 }
 
+static void maybe_finish_x10_transmit(void)
+{
+    if (!IntrOut_completed)
+        return;
+    if (!X10_ack_received && !X10_ack_timed_out)
+        return;
+
+    X10_ack_received = 0;
+    X10_ack_timed_out = 0;
+    send_next_x10out();
+}
+
 static void fill_diag_runtime(mochad_diag_runtime *runtime)
 {
     runtime->uptime_seconds = uptime_seconds();
@@ -220,6 +240,10 @@ static void fill_diag_runtime(mochad_diag_runtime *runtime)
     runtime->clients_main = (unsigned long)NClients;
     runtime->clients_xml = (unsigned long)NxmlClients;
     runtime->clients_openremote = (unsigned long)Nor20Clients;
+    runtime->usb_out_completed = UsbOutCompletedCount;
+    runtime->usb_ack_received = UsbAckReceivedCount;
+    runtime->usb_ack_timeout = UsbAckTimeoutCount;
+    runtime->usb_unexpected_one_byte = UsbUnexpectedOneByteCount;
     runtime->max_clients = MAXCLISOCKETS;
     runtime->next_client_id = NextClientId;
     runtime->config = &MochadConfig;
@@ -1215,16 +1239,21 @@ static void IntrOut_cb(struct libusb_transfer *transfer)
 
     if (transfer->status == LIBUSB_TRANSFER_COMPLETED) {
         dbprintf("IntrOut callback len %d\n", transfer->actual_length);
+        IntrOut_completed = 1;
+        UsbOutCompletedCount++;
+        maybe_finish_x10_transmit();
         return;
     }
 
     if (transfer->status == LIBUSB_TRANSFER_CANCELLED) {
         syslog(LOG_NOTICE, "[USB] interrupt output transfer cancelled");
+        IntrOut_completed = 1;
         return;
     }
 
     syslog(LEVEL, "[USB] interrupt output transfer failed status=%s(%d)",
             transfer_status_name(transfer->status), transfer->status);
+    IntrOut_completed = 1;
     Do_exit = 2;
 }
 
@@ -1255,9 +1284,18 @@ static void IntrIn_cb(struct libusb_transfer *transfer)
     /* dbprintf("IntrIn callback len %d ", transfer->actual_length); */
     /* hexdump(transfer->buffer, transfer->actual_length); */
 
-/*        if ((transfer->actual_length == 1) && (*transfer->buffer == 0x55)) {  */
     if (transfer->actual_length == 1) {
-        send_next_x10out();
+        if (*transfer->buffer == 0x55) {
+            X10_ack_received = 1;
+            UsbAckReceivedCount++;
+            maybe_finish_x10_transmit();
+        }
+        else {
+            UsbUnexpectedOneByteCount++;
+            syslog(LOG_DEBUG,
+                    "[USB] ignoring non-ACK one-byte input value=0x%02X",
+                    *transfer->buffer);
+        }
     }
 
 #if 0
@@ -1359,8 +1397,12 @@ int write_usb(unsigned char *buf, size_t len)
     memcpy(IntrOutBuf, buf, len);
     libusb_fill_interrupt_transfer(IntrOut_transfer, Devh, OutEndpoint, 
             IntrOutBuf, len, IntrOut_cb, NULL, 0);
+    IntrOut_completed = 0;
+    X10_ack_received = 0;
+    X10_ack_timed_out = 0;
     r = libusb_submit_transfer(IntrOut_transfer);
     if (r < 0) {
+        IntrOut_completed = 1;
         syslog(LEVEL,
                 "[USB] interrupt output transfer submit failed rc=%d error=%s",
                 r, usb_error_name(r));
@@ -1739,7 +1781,11 @@ static int mydaemon(void)
         /**** Time out ****/
         if (nready == 0) {
             libusb_handle_events_timeout(UsbCtx, &timeout);
-            send_next_x10out();
+            X10_ack_timed_out = 1;
+            UsbAckTimeoutCount++;
+            syslog(LOG_INFO,
+                    "[USB] X10 ACK timeout; command outcome unknown, advancing queue without retransmit");
+            maybe_finish_x10_transmit();
         }
         else {
             /**** USB ****/
