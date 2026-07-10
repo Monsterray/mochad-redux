@@ -17,6 +17,8 @@
  * along with mochad.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stddef.h>
+
 struct SecEventRec {
     unsigned char funct;
     const char *name;
@@ -47,3 +49,10 @@ void mh_sockhexdump(int fd, void *p, size_t len);
 int or20client(int fd);
 
 int del_client(int fd);
+
+int mochad_diag_hello(int fd);
+int mochad_diag_capabilities(int fd);
+int mochad_diag_health(int fd);
+int mochad_diag_clients(int fd);
+int mochad_diag_config(int fd);
+int mochad_diag_version(int fd);

@@ -135,9 +135,13 @@ cleanup() {
 trap cleanup EXIT INT HUP TERM
 
 SOURCES="
+config.c
+diagnostics.c
 decode.c
 encode.c
 global.c
+mochad_event.c
+socket_io.c
 x10state.c
 x10_write.c
 "

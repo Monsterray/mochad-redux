@@ -83,6 +83,7 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include "global.h"
+#include "socket_io.h"
 #include "encode.h"
 #include "decode.h"
 #include "x10state.h"
@@ -632,12 +633,30 @@ int processcommandline(int fd, char *aLine)
     dbprintf("%lu:%s\n\r", (unsigned long)strlen(aLine), aLine);
     if (strcmp(aLine, "<POLICY-FILE-REQUEST/>") == 0) {
         /* Yes, this sends the '\0' terminator which is required. */
-        send(fd, DOMAINPOLICY, sizeof(DOMAINPOLICY), MSG_NOSIGNAL);
+        send_all(fd, DOMAINPOLICY, sizeof(DOMAINPOLICY));
         return 0;
     }
     command = strtok(aLine, " ");
     if (command) {
-        if (strcmp(command, "PL") == 0) {
+        if (strcmp(command, "HELLO") == 0) {
+            return mochad_diag_hello(fd);
+        }
+        else if (strcmp(command, "CAPABILITIES") == 0) {
+            return mochad_diag_capabilities(fd);
+        }
+        else if (strcmp(command, "HEALTH") == 0) {
+            return mochad_diag_health(fd);
+        }
+        else if (strcmp(command, "CLIENTS") == 0) {
+            return mochad_diag_clients(fd);
+        }
+        else if (strcmp(command, "CONFIG") == 0) {
+            return mochad_diag_config(fd);
+        }
+        else if (strcmp(command, "VERSION") == 0) {
+            return mochad_diag_version(fd);
+        }
+        else if (strcmp(command, "PL") == 0) {
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
             house = getdeviceaddr(&unit);
             dbprintf("house %d unit %d\n\r", house, unit);

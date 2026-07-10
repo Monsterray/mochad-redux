@@ -1,201 +1,368 @@
-# MOCHAD
+# mochad-redux
 
-`mochad` is a Linux TCP gateway daemon for the X10 CM15A RF (radio frequency) and
-PL (power line) and the CM19A RF controllers.
-<!-- TOC -->
+`mochad` is a Linux TCP gateway daemon for the X10 CM15A RF/power-line and
+CM19A RF controllers.
 
-- [1. Why this Fork ?](#1-why-this-fork-)
-- [2. Need for Changes](#2-need-for-changes)
-  - [2.1. Source](#21-source)
-  - [2.2. Configuration](#22-configuration)
-- [3. Patching Version 0.1.17 by mmauka](#3-patching-version-0117-by-mmauka)
-- [4. Installation of `mochad`](#4-installation-of-mochad)
-  - [4.1. Install prerequisite](#41-install-prerequisite)
-  - [4.2. Get the source](#42-get-the-source)
-    - [4.2.1. by cloning the repository](#421-by-cloning-the-repository)
-    - [4.2.2. by downloading the archive](#422-by-downloading-the-archive)
-  - [4.3. Enable IPV6 support (optional)](#43-enable-ipv6-support-optional)
-  - [4.4. Compile the source](#44-compile-the-source)
-  - [4.5. Install the package](#45-install-the-package)
-  - [4.6. Confirm the presence of installed files](#46-confirm-the-presence-of-installed-files)
-- [5. Test](#5-test)
-- [6. USB Interface Error](#6-usb-interface-error)
-- [7. Cleanup](#7-cleanup)
-- [8. More Information](#8-more-information)
-- [9. License](#9-license)
+`mochad-redux` is a maintenance-focused fork intended to preserve upstream
+behavior while improving build hygiene, diagnostics, safety, and long-term
+maintainability.
 
-<!-- /TOC -->
+## Project Background
 
-## 1. Why this Fork ?
+This fork descends from the [Neil Cherry linuxha fork](https://github.com/linuxha/mochad)
+and the original `mochad` 0.1.x releases by mmauka. The original code needed
+updates to compile and install cleanly on modern Linux distributions using
+`systemd`.
 
-Changes were needed to the [Neil Cherry (linuxha) fork](https://github.com/linuxha/mochad) to compile and install `mochad` on recent versions of Linux with the `systemd` init system. Specifically this fork has been tested on the following 64-bit systems.
+Project lineage:
+[bjonica/mochad](https://github.com/bjonica/mochad) to
+[linuxha/mochad](https://github.com/linuxha/mochad) to
+[sigmdel/mochad](https://github.com/sigmdel/mochad) to `mochad-redux`.
 
-- x86_64 GNU/Linux : Mint 20.1, Ubuntu 20.04 LTS (focal), Linux 5.4.0-124
+The earlier fork this work builds from was tested on:
 
-- aarch64 GNU/Linux : Armbian 22.05.3, Ubuntu 22.04.1 LTS (jammy), Linux 5.10.123-meson64
+- x86_64 GNU/Linux: Mint 20.1, Ubuntu 20.04 LTS, Linux 5.4.0-124
+- aarch64 GNU/Linux: Armbian 22.05.3, Ubuntu 22.04.1 LTS, Linux 5.10.123-meson64
+- aarch64 GNU/Linux: Raspberry Pi OS 2022-04-04, Debian 11.4, Linux 5.15.32-v8+
+- armv6l GNU/Linux: Raspberry Pi OS 2024-01-25, Debian 12.1, Linux 6.1.0
 
-- aarch64 GNU/Linux : Raspberry Pi OS 2022-04-04, Debian 11.4 (bullseye), Linux 5.15.32-v8+
+## Maintenance Goals
 
-Installation was also tested on the latest 32-bit version of Raspberry Pi OS for Arm V6 (for Raspberry Pi B and Raspberry Pi Zero)
+The first maintenance milestone is intentionally conservative:
 
-- armv6l GNU/Linux : Raspberry Pi OS 2024-01-25, Debian 12.1 (bookworm), Linux 6.1.0
+- Keep protocol behavior compatible with existing `mochad` users.
+- Improve compiler warning coverage and static analysis.
+- Fix concrete safety and ownership issues in small reviewable changes.
+- Improve diagnostics without changing the TCP protocol layout.
+- Treat the `v0.4.x` line as runtime hardening and observability work:
+  startup, shutdown, listener, USB, and client lifecycle logs come before new
+  protocol features.
+- Keep future rebases from upstream manageable.
 
-## 2. Need for Changes
+Broader protocol, USB, TCP, and state separation work is future work.
+Engineering principles are documented in [DESIGN.md](DESIGN.md).
 
-### 2.1. Source
+## Source Notes
 
-`mochad` could not be built because of the following linking errors
+Older `mochad` sources could fail to link with errors similar to:
 
-    /usr/bin/ld: decode.o:/home/hestia/mochad-master/global.h:31: multiple definition of `RfToRf16'; mochad.o:/home/hestia/mochad-master/global.h:31: first defined here
-    /usr/bin/ld: decode.o:/home/hestia/mochad-master/global.h:29: multiple definition of `RfToPl16'; mochad.o:/home/hestia/mochad-master/global.h:29: first defined here
-    /usr/bin/ld: decode.o:/home/hestia/mochad-master/global.h:26: multiple definition of `PollTimeOut'; mochad.o:/home/hestia/mochad-master/global.h:26: first defined here
-    /usr/bin/ld: decode.o:/home/hestia/mochad-master/global.h:25: multiple definition of `Cm19a'; mochad.o:/home/hestia/mochad-master/global.h:25: first defined here
-
-The problem was solved by declaring those variables as `extern` in `global.h` and defining `PollTimeOut` in `global.c`.
-
-### 2.2. Configuration
-
-The `mochad` service was not installed properly in `systemd` and it would stop functioning with a
-
-    usb_claim_interface failed -6
-
-error.
-
-The solution was to restore the `systemd` and `udev` directories found in the original [mochad-0.1.17](https://sourceforge.net/projects/mochad/files/) repository by mmauka. Modification of the `Makefile.am` was also necessary.
-
-## 3. Patching Version 0.1.17 by mmauka
-
-Instead of installing this fork, one could apply a couple of small patches to version 0.1.17 of `mochad` from the original author mmauka. The patches and details are in the [res directory](res/README.md).  
-
-If IPV6 support is needed then this fork will have to be installed as explained later.
-
-## 4. Installation of `mochad`
-
-**FR:** Il y a une [traduction en français de ces instructions](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_fr.html#installation).
-
-
-### 4.1. Install prerequisite
-
-The userspace USB programming library development files are needed to use the `libusb-1` library.
-
-    $ sudo apt install libusb-1.0-0-dev
-
-On the Raspberry Pi, it was also necessary to install `autoconf`.
-
-    $ sudo apt install autoconf
-
-While not strictly necessary, `netcat` is useful when testing the `mochad` deaemon. It was present on some test platforms but not all.    
-
-    $ sudo apt install netcat-openbsd
-
-### 4.2. Get the source
-
-The source code on GitHub can be obtained with any one of the usual methods. Notably
-
-#### 4.2.1. by cloning the repository
-
-    $ git clone https://github.com/sigmdel/mochad.git
-    $ cd mochad
-
-
-#### 4.2.2. by downloading the archive
-
-    $ wget https://github.com/sigmdel/mochad/archive/refs/heads/master.zip
-    $ unzip master.zip
-    $ cd mochad-master
-
-The current work directory should contain the source including `mochad.c`  and `autogen.sh`.
-
-### 4.3. Enable IPV6 support (optional)
-
-By default, IPV6 is not enabled until the value of the IPV6 macro at the very start of `mochad.c` is changed from 0 to 1.
-
-```c
-  #define IPV6    1
+```text
+/usr/bin/ld: decode.o: global.h: multiple definition of `RfToRf16'
+/usr/bin/ld: decode.o: global.h: multiple definition of `RfToPl16'
+/usr/bin/ld: decode.o: global.h: multiple definition of `PollTimeOut'
+/usr/bin/ld: decode.o: global.h: multiple definition of `Cm19a'
 ```
-I do not use IPV6 and have not tested that code at all. Any questions about that feature would have to be addressed to its author, [Neil Cherry](https://github.com/linuxha/mochad).
 
-### 4.4. Compile the source
+That issue was addressed by declaring shared variables as `extern` in
+`global.h` and defining storage in `global.c`.
 
-While it should be, make sure that `autogen.sh` is an executable.
+The `systemd` and `udev` directories were restored from the original
+[mochad-0.1.17](https://sourceforge.net/projects/mochad/files/) release so the
+service and device rules install correctly on modern systems.
 
-    $ chmod +x autogen.sh
+Legacy examples and service integration files are documented in
+[docs/support-files.md](docs/support-files.md).
 
-Run the script.
+## Installation
 
-    $ ./autogen.sh
+Install the userspace USB development library:
 
+```sh
+sudo apt install libusb-1.0-0-dev
+```
 
-This will create the `Makefile`, so now run `make`.
+On Raspberry Pi systems, `autoconf` may also be required:
 
-    $ make
+```sh
+sudo apt install autoconf
+```
 
-### 4.5. Install the package
+`netcat` is useful for manual testing:
 
-    $ sudo make install
+```sh
+sudo apt install netcat-openbsd
+```
 
-Again within the directory containing the source.
+Clone the source:
 
-### 4.6. Confirm the presence of installed files
+```sh
+git clone https://github.com/Monsterray/mochad-redux.git
+cd mochad-redux
+```
 
-     /usr/local/bin/mochad
-     /etc/udev/rules/91-usb-x10-controllers.rules
+Build the project:
 
-In `systemd` a service file is also installed.
+```sh
+chmod +x autogen.sh
+./autogen.sh
+make
+```
 
-     /etc/systemd/system/mochad.service
+Install the package:
 
-Note that the service will remain inactive until a CM1xA is connected to the system. That's the reason for the `udev` rules.
+```sh
+sudo make install
+```
 
-## 5. Test
+To prepare a native Linux host for the new non-root service permissions without
+running the full install target, use:
 
-First connect a CM15A or CM19A to a USB port. Test the service by connecting to `mochad` using `netcat` and pressing buttons of an X10 RF remote. Hopefully, something similar to this will occur.
+```sh
+sudo scripts/setup-native-permissions.sh
+```
 
-    $  nc localhost 1099
-    02/03 19:27:40 Rx RF HouseUnit: K4 Func: On
-    02/03 19:27:44 Rx RF HouseUnit: K6 Func: Off
-    02/03 19:27:46 Rx RF House: K Func: Dim
+Preview the operations first with:
 
-Use the `Ctrl+C` keyboard combination to close `netcat`.
+```sh
+scripts/setup-native-permissions.sh --dry-run
+```
 
-## 6. USB Interface Error
+Expected installed files include:
 
-If nothing happened when pressing a button on the remote, look at the status of `mochad`.
+```text
+/usr/local/bin/mochad
+/etc/udev/rules.d/91-usb-x10-controllers.rules
+/etc/systemd/system/mochad.service
+```
 
-    $ systemctl status mochad.service
-    ● mochad.service - Mochad a TCP gateway service for X10-RF (CM15A/CM15Pro/CM19A)
-        Loaded: loaded (/etc/systemd/system/mochad.service; disabled; preset: enabled)
-      ...
-      ...  mochad[739]: usb_claim_interface failed -6
-      ...
+Native packages create a `mochad` service user, a `mochad` primary group, and an
+`x10` device-access group when installed as root. The systemd unit runs with:
 
-Should a **`usb_claim_interface failed -6`**  error be present as shown above, check if the `ati_remote` driver is running.
+```text
+User=mochad
+Group=mochad
+SupplementaryGroups=x10
+UMask=0022
+```
 
-    $ lsmod | grep ati_remote
-    ati_remote              9260  0   
+The udev rules do not execute the daemon directly. They assign supported X10
+USB nodes to `root:x10` with mode `0660`; the systemd udev rule then activates
+`mochad.service`.
 
-The Lola remote for ATI All-In-Wonder video card has the same `0x0bc7:0x002` id as the CM19A. Because of that, the [ati_remote](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/drivers/media/rc/ati_remote.c) driver will be loaded. Blacklist the module and the problem should be solved.
+The service remains inactive until a supported CM15A or CM19A controller is
+connected. The installed `udev` rules handle service activation.
 
-     $ echo "blacklist ati_remote" | sudo tee /usr/lib/modprobe.d/ati-remote-blacklist.conf
+## Testing
 
-Simply trying to unload the module with a `sudo modprobe -r ati_remote` will probably not work; blacklisting and rebooting will be necessary.
+Connect a CM15A or CM19A to USB, then connect to `mochad` with `netcat` and
+press buttons on an X10 RF remote:
 
-## 7. Cleanup
+```sh
+nc localhost 1099
+```
 
-Once the installation is completed, the `mochad` source directory can be deleted if desired. The archive `master.zip` can also be erased if it was downloaded to obtain the source code.
+Example output:
 
-## 8. More Information
+```text
+02/03 19:27:40 Rx RF HouseUnit: K4 Func: On
+02/03 19:27:44 Rx RF HouseUnit: K6 Func: Off
+02/03 19:27:46 Rx RF House: K Func: Dim
+```
 
-The [original README](README) text file contains much more information.
+Use `Ctrl+C` to close `netcat`.
 
-The version of `mochad.service` found in this fork comes from Andreas's [2021-09-07 post](https://sourceforge.net/p/mochad/discussion/1320002/thread/764dd1ce44/#76e9) on the flimsy grounds that the unit file looks more sophisticated. Compare it with [another version](https://github.com/ermshiperete/mochad/blob/master/systemd/mochad.service) by Eberhard Beilharz (ermshiperete).
+For build-only checks that do not require `libusb`, use:
 
-Steve Porter provides a fork of the mmauka 0.0.17 version which he presents as [mochad-0.1.21](https://sourceforge.net/p/mochad/discussion/1320002/thread/9e758b6afc/7c52/attachment/mochad-0.1.21.tgz). It is a different solution to the compilation problem. See details [here](https://sourceforge.net/p/mochad/discussion/1320002/thread/9e758b6afc/). Casey Langen (clangen) has incorporated the changes by Steve Porter into another [mochad](https://github.com/clangen/mochad) GitHub repository.
+```sh
+sh tools/compile_without_libusb.sh --strict
+```
 
-More information about this fork in excruciating details at [Mochad on Recent Linux Distributions](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_en.html).
+To syntax-check the USB-facing source on a development machine without real
+libusb headers installed, use the checked-in development stub:
 
-**FR:** Il a plus de détails au sujet de cette fourche dans un billet intitulé [Mochad sur les distributions Linux récentes](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_fr.html).
+```sh
+scripts/validate/libusb-stub-syntax-check.sh
+```
 
-## 9. License
+This does not replace a real Linux/libusb build. It only keeps maintainers from
+missing ordinary C syntax or include errors in `mochad.c` while working on
+machines such as macOS.
 
-GNU General Public License version 3.0 (GPLv3) according to the [original project page on SourceForge](https://sourceforge.net/projects/mochad/).
+To run sanitizer-backed unit tests and validate diagnostic JSON over a loopback
+TCP socket:
+
+```sh
+scripts/validate/unit-tests.sh
+scripts/validate/tcp-diagnostics-smoke-test.sh
+```
+
+To remove ignored build artifacts before validating, use:
+
+```sh
+scripts/validate/clean-build-test.sh
+```
+
+In environments without libusb headers, run the clean libusb-free validation:
+
+```sh
+scripts/validate/clean-build-test.sh --libusb-free-only
+```
+
+Optional analyzer modes are documented in [MAINTAINING.md](MAINTAINING.md).
+Real controller testing is documented in
+[docs/hardware-validation.md](docs/hardware-validation.md).
+Release evidence is documented in [validation/README.md](validation/README.md).
+Supported platform expectations are documented in
+[docs/supported-platforms.md](docs/supported-platforms.md).
+
+## Runtime Options
+
+By default, `mochad-redux` listens on `0.0.0.0:1099`, with auxiliary legacy
+listeners on `1100` and `1101`.
+
+```sh
+mochad -d \
+  --bind 0.0.0.0 \
+  --port 1099 \
+  --enable-xml \
+  --xml-port 1100 \
+  --enable-openremote \
+  --openremote-port 1101
+```
+
+The XML and OpenRemote listeners are enabled by default for backward
+compatibility. Use `--disable-xml` or `--disable-openremote` to turn off either
+auxiliary listener while keeping the main TCP listener on. Enabled listener
+ports must be distinct TCP ports from `1` to `65535`. Invalid bind addresses or
+ports fail at startup with a clear error.
+
+A future generic JSON-RPC API is documented in
+[docs/json-api.md](docs/json-api.md). It is not implemented in the current
+runtime. The proposed listener is optional, disabled by default while
+experimental, and intended to use port `1102` without changing the existing
+`1099`, `1100`, or `1101` listener contracts.
+
+Configuration is applied in a predictable order:
+
+1. compiled defaults
+2. optional config file from `MOCHAD_CONFIG` or `--config FILE`
+3. environment variables
+4. command-line options
+
+Useful configuration commands:
+
+```sh
+mochad --check-config
+mochad --print-config
+```
+
+Supported environment variables:
+
+```text
+MOCHAD_CONFIG
+MOCHAD_BIND or MOCHAD_BIND_ADDRESS
+MOCHAD_PORT or MOCHAD_SERVER_PORT
+MOCHAD_XML_ENABLED
+MOCHAD_XML_PORT
+MOCHAD_OPENREMOTE_ENABLED
+MOCHAD_OPENREMOTE_PORT
+MOCHAD_FOREGROUND
+MOCHAD_RAW_DATA
+MOCHAD_DUAL_STACK
+MOCHAD_LOG_LEVEL
+```
+
+## IPv6
+
+IPv6 is configured at runtime with `--bind`; no source edit or rebuild is
+required.
+
+Common bind addresses:
+
+```text
+0.0.0.0    all IPv4 interfaces, default
+127.0.0.1  IPv4 loopback only
+::         all IPv6 interfaces, with dual-stack IPv4-mapped connections when
+           the operating system allows them
+::1        IPv6 loopback only
+```
+
+Examples:
+
+```sh
+mochad -d --bind ::
+mochad -d --bind ::1 --port 1099 --xml-port 1100 --openremote-port 1101
+```
+
+When bound to `::`, `mochad-redux` asks the operating system for a dual-stack
+listener by disabling `IPV6_V6ONLY`. Some systems may still restrict this by
+sysctl or kernel policy; in that case use an explicit IPv4 bind address for
+IPv4 clients or an explicit IPv6 bind address for IPv6 clients.
+
+Startup logs show the chosen address family, bind address, port, and
+dual-stack result for each listener:
+
+```text
+[TCP] listener ready name=main address=:: port=1099 family=ipv6 dual_stack=enabled
+[TCP] listener ready name=xml address=:: port=1100 family=ipv6 dual_stack=enabled
+[TCP] listener ready name=openremote address=:: port=1101 family=ipv6 dual_stack=enabled
+```
+
+If the host or container runtime blocks IPv4-mapped IPv6 sockets, the log may
+show `dual_stack=failed`. In that case, keep the default `--bind 0.0.0.0` for
+IPv4-only service or explicitly use `--bind ::` for IPv6-only validation.
+
+## TCP Diagnostics
+
+The main TCP listener accepts backward-compatible diagnostic commands. These
+commands return one JSON object per line and do not change legacy command
+behavior.
+
+```sh
+printf 'hello\n' | nc localhost 1099
+printf 'capabilities\n' | nc localhost 1099
+printf 'health\n' | nc localhost 1099
+printf 'clients\n' | nc localhost 1099
+printf 'config\n' | nc localhost 1099
+printf 'version\n' | nc localhost 1099
+```
+
+These commands are intended for health checks, MQTT bridge integration, and
+release validation.
+
+## Troubleshooting
+
+If no RF activity appears when pressing remote buttons, check the service:
+
+```sh
+systemctl status mochad.service
+```
+
+If the output contains this error:
+
+```text
+usb_claim_interface failed -6
+```
+
+check whether the `ati_remote` kernel module is loaded:
+
+```sh
+lsmod | grep ati_remote
+```
+
+The ATI All-In-Wonder Lola remote uses the same `0x0bc7:0x002` USB ID as the
+CM19A, so Linux may load `ati_remote` for the controller. Blacklist the module
+and reboot:
+
+```sh
+echo "blacklist ati_remote" | sudo tee /usr/lib/modprobe.d/ati-remote-blacklist.conf
+```
+
+Trying to unload the module with `sudo modprobe -r ati_remote` may not be
+enough if the device is already claimed.
+
+## More Information
+
+- [Original README](README)
+- [Mochad on Recent Linux Distributions](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_en.html)
+- [French installation notes](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_fr.html)
+- [Andreas's systemd unit discussion](https://sourceforge.net/p/mochad/discussion/1320002/thread/764dd1ce44/#76e9)
+- [Steve Porter's mochad-0.1.21 discussion](https://sourceforge.net/p/mochad/discussion/1320002/thread/9e758b6afc/)
+- [clangen/mochad](https://github.com/clangen/mochad)
+
+## License
+
+GNU General Public License version 3.0 or later (GPL-3.0-or-later), according
+to the source file headers and the
+[original project page on SourceForge](https://sourceforge.net/projects/mochad/).
+See [LICENSE.md](LICENSE.md).

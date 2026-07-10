@@ -73,6 +73,8 @@ static int add_x10out(unsigned char *buf, size_t buflen)
 int send_next_x10out(void)
 {
     x10out_t *outrec;
+    int next;
+    int r;
 
     if (Outbusy) {
         dbprintf("Outhead Outtail %d/%d\n", Outhead, Outtail);
@@ -82,9 +84,15 @@ int send_next_x10out(void)
             PollTimeOut = -1;
         }
         else {
-            Outhead = next_index(Outhead);
-            outrec = &Outrecs[Outhead];
-            write_usb(outrec->outdata, outrec->outlen);
+            next = next_index(Outhead);
+            outrec = &Outrecs[next];
+            r = write_usb(outrec->outdata, outrec->outlen);
+            if (r < 0) {
+                dbprintf("queued USB write failed %d\n", r);
+                PollTimeOut = 2*1000;
+                return r;
+            }
+            Outhead = next;
         }
     }
     return 0;
@@ -92,6 +100,8 @@ int send_next_x10out(void)
 
 int x10_write(unsigned char *buf, size_t buflen)
 {
+    int r;
+
     dbprintf("Outbusy=%d\n", Outbusy);
     if (buflen > sizeof(Outrecs[0].outdata)) {
         dbprintf("x10 write too long %lu/%lu\n", (unsigned long)buflen,
@@ -103,8 +113,13 @@ int x10_write(unsigned char *buf, size_t buflen)
     }
     else {
         Outbusy = 1;
+        r = write_usb(buf, buflen);
+        if (r < 0) {
+            Outbusy = 0;
+            PollTimeOut = -1;
+            return r;
+        }
         PollTimeOut = 2*1000;   /* 2 seconds */
-        write_usb(buf, buflen);
     }
     return buflen;
 }

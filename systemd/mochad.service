@@ -4,10 +4,13 @@ Requires=systemd-udevd.service
 After=systemd-udevd.service
 
 [Service]
-Type=forking
-GuessMainPID=yes
-ExecStart=/usr/local/bin/mochad
-Restart=on-abort
+Type=simple
+ExecStart=/usr/local/bin/mochad -d
+User=mochad
+Group=mochad
+SupplementaryGroups=x10
+UMask=0022
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target

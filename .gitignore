@@ -31,6 +31,7 @@ Makefile
 !opkg/Makefile
 Makefile.in
 config.h*
+!/config.h
 configure
 build/
 build-*/

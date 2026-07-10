@@ -30,6 +30,7 @@
 #include "x10state.h"
 #include "x10_write.h"
 #include "encode.h"
+#include "mochad_event.h"
 
 union x10addr {
     unsigned char houseunit;    // Normalized codes 7..4 house 3..0 unit
@@ -181,6 +182,153 @@ static int hufc_decode(unsigned char houseunit, unsigned char unitfunc,
     }
 }
 
+static mochad_event_direction_t pl_direction(unsigned char marker)
+{
+    return marker == 0x5a ? MOCHAD_EVENT_DIRECTION_RX :
+            MOCHAD_EVENT_DIRECTION_TX;
+}
+
+static mochad_event_direction_t rf_direction(unsigned char marker)
+{
+    return marker == 0x5d ? MOCHAD_EVENT_DIRECTION_RX :
+            MOCHAD_EVENT_DIRECTION_TX;
+}
+
+static void dispatch_pl_houseunit(int fd, unsigned char marker, char house,
+        int unit, const char *function)
+{
+    mochad_event_t event;
+
+    memset(&event, 0, sizeof(event));
+    event.direction = pl_direction(marker);
+    event.transport = MOCHAD_EVENT_TRANSPORT_PL;
+    event.detail = MOCHAD_EVENT_DETAIL_HOUSE_UNIT;
+    event.house = house;
+    event.unit = unit;
+    event.function = function;
+    mochad_dispatch_event(fd, &event);
+}
+
+static void dispatch_pl_house(int fd, unsigned char marker, char house,
+        const char *function)
+{
+    mochad_event_t event;
+
+    memset(&event, 0, sizeof(event));
+    event.direction = pl_direction(marker);
+    event.transport = MOCHAD_EVENT_TRANSPORT_PL;
+    event.detail = MOCHAD_EVENT_DETAIL_HOUSE;
+    event.house = house;
+    event.function = function;
+    mochad_dispatch_event(fd, &event);
+}
+
+static void dispatch_pl_house_level(int fd, unsigned char marker, char house,
+        const char *function, int level)
+{
+    mochad_event_t event;
+
+    memset(&event, 0, sizeof(event));
+    event.direction = pl_direction(marker);
+    event.transport = MOCHAD_EVENT_TRANSPORT_PL;
+    event.detail = MOCHAD_EVENT_DETAIL_HOUSE;
+    event.house = house;
+    event.function = function;
+    event.has_level = 1;
+    event.level = level;
+    mochad_dispatch_event(fd, &event);
+}
+
+static void dispatch_pl_extended(int fd, unsigned char marker, char house,
+        int unit, const char *function, unsigned int data,
+        unsigned int command)
+{
+    mochad_event_t event;
+
+    memset(&event, 0, sizeof(event));
+    event.direction = pl_direction(marker);
+    event.transport = MOCHAD_EVENT_TRANSPORT_PL;
+    event.detail = MOCHAD_EVENT_DETAIL_HOUSE_UNIT;
+    event.house = house;
+    event.unit = unit;
+    event.function = function;
+    event.has_extended_data = 1;
+    event.extended_data = data;
+    event.extended_command = command;
+    mochad_dispatch_event(fd, &event);
+}
+
+static void dispatch_rf_houseunit(int fd, unsigned char marker, char house,
+        int unit, const char *function)
+{
+    mochad_event_t event;
+
+    memset(&event, 0, sizeof(event));
+    event.direction = rf_direction(marker);
+    event.transport = MOCHAD_EVENT_TRANSPORT_RF;
+    event.detail = MOCHAD_EVENT_DETAIL_HOUSE_UNIT;
+    event.house = house;
+    event.unit = unit;
+    event.function = function;
+    mochad_dispatch_event(fd, &event);
+}
+
+static void dispatch_rf_house(int fd, unsigned char marker, char house,
+        const char *function)
+{
+    mochad_event_t event;
+
+    memset(&event, 0, sizeof(event));
+    event.direction = rf_direction(marker);
+    event.transport = MOCHAD_EVENT_TRANSPORT_RF;
+    event.detail = MOCHAD_EVENT_DETAIL_HOUSE;
+    event.house = house;
+    event.function = function;
+    mochad_dispatch_event(fd, &event);
+}
+
+static void dispatch_rfsec_short(int fd, unsigned char marker,
+        unsigned int address, const char *function)
+{
+    mochad_event_t event;
+
+    memset(&event, 0, sizeof(event));
+    event.direction = rf_direction(marker);
+    event.transport = MOCHAD_EVENT_TRANSPORT_RFSEC;
+    event.detail = MOCHAD_EVENT_DETAIL_RFSEC_SHORT;
+    event.security_short_addr = address;
+    event.function = function;
+    mochad_dispatch_event(fd, &event);
+}
+
+static void dispatch_rfsec_long(int fd, unsigned char marker,
+        const unsigned char address[3], const char *function)
+{
+    mochad_event_t event;
+
+    memset(&event, 0, sizeof(event));
+    event.direction = rf_direction(marker);
+    event.transport = MOCHAD_EVENT_TRANSPORT_RFSEC;
+    event.detail = MOCHAD_EVENT_DETAIL_RFSEC_LONG;
+    event.security_long_addr[0] = address[0];
+    event.security_long_addr[1] = address[1];
+    event.security_long_addr[2] = address[2];
+    event.function = function;
+    mochad_dispatch_event(fd, &event);
+}
+
+static void dispatch_rfcam(int fd, unsigned char marker, const char *command)
+{
+    mochad_event_t event;
+
+    memset(&event, 0, sizeof(event));
+    event.direction = rf_direction(marker);
+    event.transport = MOCHAD_EVENT_TRANSPORT_RFCAM;
+    event.detail = MOCHAD_EVENT_DETAIL_RFCAM;
+    event.camera_command = command;
+    mochad_dispatch_event(fd, &event);
+}
+
 
 /* PLC A1 ON
  * 5A 02 00 66
@@ -218,7 +366,7 @@ void cm15a_decode_plc(int fd, unsigned char *buf, size_t len)
     /* End this log line before hexdump output so later daemon logs do not
      * appear glued to decode traces.
      */
-    dbprintf("%s(%d,%u)\n", __func__, fd, len);
+    dbprintf("[PL] %s(%d,%u)\n", __func__, fd, len);
     hexdump(buf, len);
     // new event
     // ev->evint = EV_RX_PLC;
@@ -241,9 +389,7 @@ void cm15a_decode_plc(int fd, unsigned char *buf, size_t len)
             }
             unitint = huc_decode(buf[3], &housechar);
             hua_add(housechar-'A', unitint-1);
-            sockprintf(fd, "%cx PL HouseUnit: %c%d\n", 
-                    (buf[0] == 0x5a) ? 'R' : 'T',
-                    housechar, unitint);
+            dispatch_pl_houseunit(fd, buf[0], housechar, unitint, NULL);
             break;
         case 0x01:  // house/function code follows
             codelen = buf[1];
@@ -297,9 +443,7 @@ void cm15a_decode_plc(int fd, unsigned char *buf, size_t len)
                 default:
                     break;
             }
-            sockprintf(fd, "%cx PL House: %c Func: %s\n",
-                    (buf[0] == 0x5a) ? 'R' : 'T',
-                    housechar, Funcname[funcint]);
+            dispatch_pl_house(fd, buf[0], housechar, Funcname[funcint]);
             dbprintf("exit case 0x01\n");
             break;
         case 0x02:  // dim/bright code follows
@@ -310,9 +454,8 @@ void cm15a_decode_plc(int fd, unsigned char *buf, size_t len)
             }
             dims = (buf[3] & 0xF8) >> 3;
             funcint = hfc_decode(buf[4], &housechar);
-            sockprintf(fd, "%cx PL House: %c Func: %s(%d)\n",
-                    (buf[0] == 0x5a) ? 'R' : 'T',
-                    housechar, Funcname[funcint], dims);
+            dispatch_pl_house_level(fd, buf[0], housechar,
+                    Funcname[funcint], dims);
             break;
         case 0x07:  /* Extended transmission follows */
             /* This is never received from the CM51A but is here to decode Tx. */
@@ -333,9 +476,8 @@ void cm15a_decode_plc(int fd, unsigned char *buf, size_t len)
             }
             funcint = hfc_decode(buf[3], &housechar);
             unitint = uc_decode(buf[4]);
-            sockprintf(fd, "%cx PL HouseUnit: %c%d Func: %s Data: %02X Command: %02X\n",
-                    (buf[0] == 0x5a) ? 'R' : 'T',
-                    housechar, unitint, Funcname[funcint], buf[5], buf[6]);
+            dispatch_pl_extended(fd, buf[0], housechar, unitint,
+                    Funcname[funcint], buf[5], buf[6]);
             hua_setstatus_xdim(housechar-'A', unitint-1, buf[5]);
             break;
         case 0x08:  /* Extended receive follows */
@@ -361,9 +503,8 @@ void cm15a_decode_plc(int fd, unsigned char *buf, size_t len)
             }
             funcint = hfc_decode(buf[6], &housechar);
             unitint = uc_decode(buf[5]);
-            sockprintf(fd, "%cx PL HouseUnit: %c%d Func: %s Data: %02X Command: %02X\n",
-                    (buf[0] == 0x5a) ? 'R' : 'T',
-                    housechar, unitint, Funcname[funcint], buf[4], buf[3]);
+            dispatch_pl_extended(fd, buf[0], housechar, unitint,
+                    Funcname[funcint], buf[4], buf[3]);
             hua_setstatus_xdim(housechar-'A', unitint-1, buf[4]);
             break;
         default:
@@ -747,7 +888,7 @@ void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len)
     /* End this log line before hexdump output so later daemon logs do not
      * appear glued to decode traces.
      */
-    dbprintf("%s(%d,%u)\n", __func__, fd, len);
+    dbprintf("[RF] %s(%d,%u)\n", __func__, fd, len);
     hexdump(buf, len);
     /* CM19A packets are normalized by prepending 0x5D before this decoder.
      * Some RF packets already contain that prefix, so only trim duplicate
@@ -776,8 +917,7 @@ void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len)
             commandp = findCamRemoteName(&buf[1], len-1);
             if (commandp) {
                 if (dup_filter(buf, len)) return;
-                sockprintf(fd, "%cx RFCAM %s\n", (buf[0] == 0x5d) ? 'R' : 'T',
-                       commandp);
+                dispatch_rfcam(fd, buf[0], commandp);
                 repeatRF(fd, buf, len);
             }
             else {
@@ -804,9 +944,8 @@ void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len)
                 secaddr[1] = 0;
                 secaddr[2] = buf[2];
                 hua_sec_event(secaddr, buf[4], 1);
-                sockprintf(fd, "%cx RFSEC Addr: 0x%02X Func: %s\n",
-                       (buf[0] == 0x5d) ? 'R' : 'T',
-                        buf[2], findSecRemoteKeyName(buf[4]));
+                dispatch_rfsec_short(fd, buf[0], buf[2],
+                        findSecRemoteKeyName(buf[4]));
                 repeatRF(fd, buf, len);
             }
             else if (chksum == 0xff) {
@@ -827,9 +966,8 @@ void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len)
                 unitint = hufc_decode(buf[2], buf[4], &housechar, &funcint);
                 /* dbprintf("h %c func %d\n", housechar, funcint); */
                 if (funcint > 1) {  // Dim or Bright
-                    sockprintf(fd, "%cx RF House: %c Func: %s\n", 
-                            (buf[0] == 0x5d) ? 'R' : 'T',
-                            housechar, Funcname[funcint+2]);
+                    dispatch_rf_house(fd, buf[0], housechar,
+                            Funcname[funcint+2]);
                     repeatRF(fd, buf, len);
                     if (!Cm19a && (RfToPl16 & (1 << (housechar - 'A')))) {
                         rc = snprintf(cmdbuf, sizeof(cmdbuf), "PL %c %s",
@@ -848,9 +986,8 @@ void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len)
                         hua_func_off(housechar-'A');
                     else
                         hua_func_on(housechar-'A');
-                    sockprintf(fd, "%cx RF HouseUnit: %c%d Func: %s\n", 
-                            (buf[0] == 0x5d) ? 'R' : 'T',
-                            housechar, unitint, Funcname[funcint+2]);
+                    dispatch_rf_houseunit(fd, buf[0], housechar, unitint,
+                            Funcname[funcint+2]);
                     repeatRF(fd, buf, len);
                     if (!Cm19a && (RfToPl16 & (1 << (housechar - 'A')))) {
                         rc = snprintf(cmdbuf, sizeof(cmdbuf), "PL %c%d %s",
@@ -875,9 +1012,7 @@ void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len)
                 case 0:
                     if (dup_filter(buf, len)) return;
                     hua_sec_event(secaddr, funcint, 0);
-                    sockprintf(fd, "%cx RFSEC Addr: %02X:%02X:%02X Func: %s\n", 
-                            (buf[0] == 0x5d) ? 'R' : 'T',
-                            secaddr[0], secaddr[1], secaddr[2],
+                    dispatch_rfsec_long(fd, buf[0], secaddr,
                             findSecEventName(funcint));
                     repeatRF(fd, buf, len);
                     break;

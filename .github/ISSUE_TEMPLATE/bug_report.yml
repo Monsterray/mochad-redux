@@ -1,0 +1,82 @@
+name: Bug report
+description: Report a reproducible mochad-redux problem.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve mochad-redux. Please include enough detail to reproduce the issue without guessing about your hardware or runtime.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag, commit SHA, or Docker image tag.
+      placeholder: v0.4.x release, develop, or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: controller
+    attributes:
+      label: X10 controller
+      options:
+        - CM19A
+        - CM15A
+        - Other / unsure
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS, architecture, and whether this is Docker or native.
+      placeholder: Raspberry Pi OS 64-bit, Docker, arm64
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should mochad-redux have done?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: List the smallest set of steps that trigger the problem.
+      placeholder: |
+        1. Start mochad with ...
+        2. Connect with nc ...
+        3. Press ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: affected_area
+    attributes:
+      label: Affected area
+      options:
+        - label: Startup
+        - label: USB controller detection
+        - label: TCP connection on port 1099
+        - label: RF receive output
+        - label: Command input
+        - label: Shutdown or restart
+        - label: Docker USB passthrough
+        - label: Native systemd service
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste startup, shutdown, USB, or TCP logs. Remove private information first.
+      render: text
+    validations:
+      required: true

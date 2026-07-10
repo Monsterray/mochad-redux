@@ -26,10 +26,16 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Compile libusb-free sources
         run: sh tools/compile_without_libusb.sh --strict --asan --ubsan
+
+      - name: Run sanitizer unit tests
+        run: scripts/validate/unit-tests.sh
+
+      - name: Validate diagnostic JSON over TCP
+        run: scripts/validate/tcp-diagnostics-smoke-test.sh
 
       - name: Install build dependencies
         run: |
@@ -40,7 +46,8 @@ jobs:
             build-essential \
             libtool \
             libusb-1.0-0-dev \
-            pkg-config
+            pkg-config \
+            python3
 
       - name: Generate autotools files
         run: ./autogen.sh
@@ -51,13 +58,16 @@ jobs:
       - name: Compile
         run: make
 
+      - name: Run native command-line smoke test
+        run: scripts/validate/native-smoke-test.sh
+
   debian-stable:
     name: Debian Stable
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build in Debian stable container
         run: |
@@ -74,11 +84,15 @@ jobs:
                 build-essential \
                 libtool \
                 libusb-1.0-0-dev \
-                pkg-config
+                pkg-config \
+                python3
               sh tools/compile_without_libusb.sh --strict --asan --ubsan
+              scripts/validate/unit-tests.sh
+              scripts/validate/tcp-diagnostics-smoke-test.sh
               ./autogen.sh
               ./configure
               make
+              scripts/validate/native-smoke-test.sh
             '
 
   raspberry-pi-cross:
@@ -87,7 +101,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install ARM cross compiler
         run: |

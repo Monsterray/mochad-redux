@@ -19,13 +19,41 @@ git remote set-url --push upstream DISABLED
 
 ## Branches
 
-- `master` should stay close to the public release baseline and upstream sync
-  points.
+- `master` is the stable release branch.
 - `develop` is the integration branch for ongoing work.
 - Feature branches should branch from `develop` and merge back through review.
+- Future releases should be prepared by opening a pull request from `develop`
+  into `master`.
+- Release tags should be created from `master` after the release pull request
+  has been reviewed and merged.
 
 Avoid mixing upstream synchronization with feature work in the same commit.
 Small, single-purpose commits will make future rebases and reviews easier.
+
+## Release Flow
+
+`v0.3.0` is the current baseline release. The active milestone is the `v0.4.x`
+runtime-hardening and observability line.
+
+For `v0.4.x`, prioritize clear startup, shutdown, listener, USB, and client
+lifecycle diagnostics before adding protocol features. New commands and larger
+modernization work should wait until runtime logs are strong enough for users
+to diagnose common deployment failures from the daemon output.
+
+For each release:
+
+1. Finish integration work on `develop`.
+2. Run CI and the local checks documented below.
+3. Fill out release evidence from
+   [validation/release-evidence-template.md](validation/release-evidence-template.md).
+4. Complete [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+5. Open a pull request from `develop` into `master`.
+6. Review the release diff for scope, documentation, compatibility, generated
+   artifacts, and validation evidence.
+7. Merge into `master`.
+8. Tag the release from `master`.
+
+Do not tag releases from `develop`.
 
 ## Syncing upstream
 
@@ -41,6 +69,12 @@ git rebase master
 
 If `develop` has fork-specific commits, resolve conflicts during the rebase and
 keep the conflict resolutions scoped to the upstream change being replayed.
+
+## Source Tree Hygiene
+
+Generated autotools files and local build outputs should not obscure source
+review. Follow [docs/generated-artifacts.md](docs/generated-artifacts.md) when
+deciding whether generated files belong in a change.
 
 ## Local build check
 
@@ -112,6 +146,22 @@ The CI workflow covers:
 - Ubuntu Latest
 - Debian Stable
 - Raspberry Pi ARM cross compile for the libusb-free source files
+
+Supported platform expectations are documented in
+[docs/supported-platforms.md](docs/supported-platforms.md).
+
+## v0.4.x Quality Focus
+
+After logging and diagnostics are in good shape, focus on:
+
+- Sanitizer compile coverage through `--asan` and `--ubsan`.
+- Static analysis coverage through cppcheck and clang-tidy.
+- Compatibility documentation for Linux, Docker, Raspberry Pi, IPv4 defaults,
+  and explicit IPv6 opt-in.
+- Repeatable hardware validation notes for CM19A and CM15A.
+
+Do not add new protocol features merely to expose diagnostics until the current
+daemon lifecycle logs are clear and consistent.
 
 ## Safety Fix Verification
 
