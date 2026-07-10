@@ -7,6 +7,10 @@ entry should link to validation evidence when available.
 
 ## Unreleased
 
+## v0.4.0-rc1
+
+Release candidate for the v0.4.x runtime-hardening and stewardship milestone.
+
 ### Added
 
 - Lightweight validation framework under `validation/`.

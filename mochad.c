@@ -344,7 +344,8 @@ int mochad_diag_hello(int fd)
     char json[1024];
 
     return send_diag_json(fd,
-            mochad_diag_json_hello(json, sizeof(json), PACKAGE_STRING), json);
+            mochad_diag_json_hello(json, sizeof(json), MOCHAD_UPSTREAM_BASE),
+            json);
 }
 
 int mochad_diag_capabilities(int fd)
@@ -364,7 +365,7 @@ int mochad_diag_health(int fd)
 
     fill_diag_runtime(&runtime);
     return send_diag_json(fd,
-            mochad_diag_json_health(json, sizeof(json), PACKAGE_STRING,
+            mochad_diag_json_health(json, sizeof(json), MOCHAD_UPSTREAM_BASE,
                     &runtime),
             json);
 }
@@ -392,7 +393,8 @@ int mochad_diag_version(int fd)
     char json[1024];
 
     return send_diag_json(fd,
-            mochad_diag_json_version(json, sizeof(json), PACKAGE_STRING), json);
+            mochad_diag_json_version(json, sizeof(json), MOCHAD_UPSTREAM_BASE),
+            json);
 }
 
 static int xmlclient(int fd)
@@ -2234,14 +2236,14 @@ int main(int argc, char *argv[])
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0) {
             printf("%s\n", MOCHAD_REDUX_VERSION);
-            printf("upstream base: %s\n", PACKAGE_STRING);
+            printf("upstream base: %s\n", MOCHAD_UPSTREAM_BASE);
             printcopy();
             return 0;
         }
         if (strcmp(argv[i], "-h") == 0 ||
                 strcmp(argv[i], "--help") == 0) {
             printf("%s\n", MOCHAD_REDUX_VERSION);
-            printf("upstream base: %s\n", PACKAGE_STRING);
+            printf("upstream base: %s\n", MOCHAD_UPSTREAM_BASE);
             help();
             return 0;
         }
@@ -2255,14 +2257,14 @@ int main(int argc, char *argv[])
 
     if (MochadConfig.show_version) {
         printf("%s\n", MOCHAD_REDUX_VERSION);
-        printf("upstream base: %s\n", PACKAGE_STRING);
+        printf("upstream base: %s\n", MOCHAD_UPSTREAM_BASE);
         printcopy();
         return 0;
     }
 
     if (MochadConfig.show_help) {
         printf("%s\n", MOCHAD_REDUX_VERSION);
-        printf("upstream base: %s\n", PACKAGE_STRING);
+        printf("upstream base: %s\n", MOCHAD_UPSTREAM_BASE);
         help();
         return 0;
     }
@@ -2288,7 +2290,7 @@ int main(int argc, char *argv[])
     setlogmask(LOG_UPTO(MochadConfig.log_level));
     syslog(LOG_NOTICE,
             "[STARTUP] %s starting (upstream_base=\"%s\", foreground=%s, raw_data=%s, log_level=%s)",
-            MOCHAD_REDUX_VERSION, PACKAGE_STRING,
+            MOCHAD_REDUX_DISPLAY_VERSION, MOCHAD_UPSTREAM_BASE,
             MochadConfig.foreground ? "yes" : "no",
             raw_data ? "yes" : "no",
             mochad_config_log_level_name(MochadConfig.log_level));
