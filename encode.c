@@ -89,6 +89,14 @@
 #include "x10state.h"
 #include "x10_write.h"
 
+#define MAX_COMMAND_TOKENS 16
+
+typedef struct command_tokens {
+    int argc;
+    int pos;
+    char *argv[MAX_COMMAND_TOKENS];
+} command_tokens_t;
+
 static void strupper(char *buf)
 {
     while (*buf) {
@@ -97,21 +105,96 @@ static void strupper(char *buf)
     }
 }
 
-static int gethexdata(unsigned char buf8[])
+static char *next_token(command_tokens_t *tokens)
+{
+    if (tokens->pos >= tokens->argc)
+        return NULL;
+    return tokens->argv[tokens->pos++];
+}
+
+static int tokenize_command(char *line, command_tokens_t *tokens)
+{
+    char *p = line;
+
+    tokens->argc = 0;
+    tokens->pos = 0;
+    while (*p) {
+        while (*p && isspace((unsigned char)*p))
+            *p++ = '\0';
+        if (!*p)
+            break;
+        if (tokens->argc >= MAX_COMMAND_TOKENS)
+            return -1;
+        tokens->argv[tokens->argc++] = p;
+        while (*p && !isspace((unsigned char)*p))
+            p++;
+    }
+    return 0;
+}
+
+static int no_more_tokens(const command_tokens_t *tokens)
+{
+    return tokens->pos == tokens->argc;
+}
+
+static int parse_decimal_int(const char *text, int min, int max, int *value)
+{
+    char *endptr;
+    long parsed;
+
+    if (text == NULL || *text == '\0')
+        return -1;
+    errno = 0;
+    parsed = strtol(text, &endptr, 10);
+    if (errno || *endptr != '\0' || parsed < min || parsed > max)
+        return -1;
+    *value = (int)parsed;
+    return 0;
+}
+
+static int parse_hex_ulong(const char *text, int digits, unsigned long *value)
+{
+    char *endptr;
+    unsigned long parsed;
+    const char *p = text;
+    int count = 0;
+
+    if (text == NULL || *text == '\0')
+        return -1;
+    if (p[0] == '0' && p[1] == 'X')
+        p += 2;
+    for (; p[count]; count++) {
+        if (!isxdigit((unsigned char)p[count]))
+            return -1;
+    }
+    if (digits >= 0 && count != digits)
+        return -1;
+
+    errno = 0;
+    parsed = strtoul(text, &endptr, 16);
+    if (errno || *endptr != '\0')
+        return -1;
+    *value = parsed;
+    return 0;
+}
+
+static int gethexdata(command_tokens_t *tokens, unsigned char buf8[])
 {
     char *parm;
     unsigned char *ptr = buf8;
     unsigned char *endbuf = buf8 + 8;
+    unsigned long parsed;
 
-    while ((parm = strtok(NULL, " ")) && (ptr < endbuf)) {
+    while ((parm = next_token(tokens)) && (ptr < endbuf)) {
         dbprintf("parm %s\n\r", parm);
-        errno = 0;
-        *ptr++ = (unsigned char)strtoul(parm, NULL, 16);
-        if (errno) {
+        if (parse_hex_ulong(parm, -1, &parsed) < 0 || parsed > 0xff) {
             dbprintf("Hex digit conversion problem %d\n\r", errno);
             return -1;
         }
+        *ptr++ = (unsigned char)parsed;
     }
+    if (parm != NULL)
+        return -1;
     return (ptr - buf8);
 }
 
@@ -192,12 +275,12 @@ static const unsigned char x10housecoderf[] = {
     0x03,   /* House code P */
 };
 
-static int getfunc(void)
+static int getfunc(command_tokens_t *tokens)
 {
     char *command;
     size_t i;
 
-    command = strtok(NULL, " ");
+    command = next_token(tokens);
     if (!command) return -1;
     for (i = 0; i < (sizeof(funccommands)/sizeof(funccommands[0])); i++)
     {
@@ -242,12 +325,12 @@ static const struct SecEventRec SecRemoteKeyNames8bitaddr[] = {
     {0x00, NULL},
 };
 
-static int getrffunc(int rf8bitaddr)
+static int getrffunc(command_tokens_t *tokens, int rf8bitaddr)
 {
     char *command;
     int i;
 
-    command = strtok(NULL, " ");
+    command = next_token(tokens);
     if (!command) return -1;
 
     if (rf8bitaddr == 1) {
@@ -271,13 +354,16 @@ static int getrffunc(int rf8bitaddr)
 }
 
 
-static int getparam(void)
+static int getparam(command_tokens_t *tokens)
 {
     char *param;
+    int value;
 
-    param = strtok(NULL, " ");
+    param = next_token(tokens);
     if (!param) return -1;
-    return strtol(param, NULL, 10);
+    if (parse_decimal_int(param, 0, 255, &value) < 0)
+        return -1;
+    return value;
 }
 
 static int ishouse(char h)
@@ -292,71 +378,65 @@ static int ishouse(char h)
  * A1           house=0  *unit=0
  * P15          house=15 *unit=14
  */
-static int getdeviceaddr(int *unit)
+static int getdeviceaddr(command_tokens_t *tokens, int *unit)
 {
-    char *parm, c;
+    char *parm;
+    int parsed_unit;
 
     int house=-1;
 
     *unit=-1;
 
-    parm = strtok(NULL, " ");
+    parm = next_token(tokens);
     if (!parm || (strlen(parm) > 3)) return house;
 
     dbprintf("deviceaddr %s\n\r", parm);
 
-    c = *parm++;
-    if (!ishouse(c)) return house;
-    house = c - 'A';
+    if (!ishouse(parm[0])) return house;
+    house = parm[0] - 'A';
     dbprintf("house %d\n\r", house);
 
-    c = *parm++;
-    if (!isdigit(c)) return house;
-    *unit = c - '0';
-    dbprintf("*unit %d\n\r", *unit);
+    if (parm[1] == '\0')
+        return house;
 
-    c = *parm++;
-    if (!isdigit(c)) {
-        (*unit)--;
-        dbprintf("*unit %d\n\r", *unit);
+    if (parse_decimal_int(parm + 1, 1, 16, &parsed_unit) < 0) {
+        house = -1;
         return house;
     }
-    *unit = (*unit * 10) + (c - '0');
-    if (*unit > 16) {
-        *unit = -1;
-        return house;
-    }
-    (*unit)--;
+    *unit = parsed_unit - 1;
+    dbprintf("*unit %d\n\r", *unit);
     return house;
 }
 
-static int getrfaddr(unsigned long *rfaddr)
+static int getrfaddr(command_tokens_t *tokens, unsigned long *rfaddr)
 {
     char *parm;
 
-    parm = strtok(NULL, " ");
+    parm = next_token(tokens);
     if (!parm) return -1;
 
     dbprintf("rfaddr %s\n\r", parm);
 
     if ((strncmp(parm, "0x", 2) == 0) || (strncmp(parm, "0X", 2) == 0)) {
         /* 8 bit RF address starts with 0x or 0X */
-        *rfaddr = strtoul(parm+2, NULL, 16);
+        if (parse_hex_ulong(parm, -1, rfaddr) < 0 || *rfaddr > 0xff)
+            return -1;
         return 1;
     }
 
     /* Long RF address must be 6 hex digits */
-    *rfaddr = strtoul(parm, NULL, 16);
+    if (parse_hex_ulong(parm, 6, rfaddr) < 0)
+        return -1;
     return 0;
 }
 
-static unsigned short gethousecodes(void)
+static unsigned short gethousecodes(command_tokens_t *tokens)
 {
     char *parm;
     unsigned char house;
     unsigned short rc = 0;
 
-    parm = strtok(NULL, " ");
+    parm = next_token(tokens);
     /* No parameter means turn off all house codes */
     if (!parm || *parm == '\0') return 0;
 
@@ -623,6 +703,7 @@ static const char DOMAINPOLICY[] =
 int processcommandline(int fd, char *aLine)
 {
     char *command, *arg1;
+    command_tokens_t tokens;
     int house, unit, func, param;
     unsigned char x10bytes8[8];
     size_t len;
@@ -636,7 +717,12 @@ int processcommandline(int fd, char *aLine)
         send_all(fd, DOMAINPOLICY, sizeof(DOMAINPOLICY));
         return 0;
     }
-    command = strtok(aLine, " ");
+    if (tokenize_command(aLine, &tokens) < 0) {
+        sockprintf(fd, "Invalid command: too many arguments\n\r");
+        return -1;
+    }
+
+    command = next_token(&tokens);
     if (command) {
         if (strcmp(command, "HELLO") == 0) {
             return mochad_diag_hello(fd);
@@ -658,15 +744,15 @@ int processcommandline(int fd, char *aLine)
         }
         else if (strcmp(command, "PL") == 0) {
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
-            house = getdeviceaddr(&unit);
+            house = getdeviceaddr(&tokens, &unit);
             dbprintf("house %d unit %d\n\r", house, unit);
             if (house < 0) return -1;
             if (unit < 0) {
                 /* Unit code is 0 but house code != 0 */
-                func = getfunc();
+                func = getfunc(&tokens);
                 if (func < 0 || func == FUNC_EXTENDED_DIM) return -1;
                 if (func == FUNC_DIM || func == FUNC_BRIGHT) {
-                    param = getparam();
+                    param = getparam(&tokens);
                     if (param == -1) param = 1;
                     pl_tx_housefunc(fd, house, func, param);
                 }
@@ -674,30 +760,30 @@ int processcommandline(int fd, char *aLine)
                     pl_tx_housefunc(fd, house, func, 0);
             }
             else {
-                func = getfunc();
+                func = getfunc(&tokens);
                 if (func < 0) {
                     pl_tx_houseunit(fd, house, unit);
                     return -1;
                 }
                 dbprintf("func %d\n\r", func);
                 if (func == FUNC_EXTENDED_DIM) {
-                    param = getparam();
+                    param = getparam(&tokens);
                     if (param == -1) param = 1; /* default is 1 dim */
                     pl_tx_extended_code_1(fd, house, unit, 3, 1, param);
                 }
                 else if (func == FUNC_DIM || func == FUNC_BRIGHT) {
-                    param = getparam();
+                    param = getparam(&tokens);
                     if (param == -1) param = 1;
                     pl_tx_houseunit(fd, house, unit);
                     pl_tx_housefunc(fd, house, func, param);
                 }
                 else if (func == FUNC_EXTENDED_CODE_1) {
                     int extcommand, subcmd, data;
-                    extcommand = getparam();
+                    extcommand = getparam(&tokens);
                     if (extcommand == -1) extcommand = 0;
-                    subcmd = getparam();
+                    subcmd = getparam(&tokens);
                     if (subcmd == -1) subcmd = 0;
-                    data = getparam();
+                    data = getparam(&tokens);
                     if (data == -1) data = 0;
                     pl_tx_extended_code_1(fd, house, unit, extcommand, subcmd, data);
                 }
@@ -709,20 +795,20 @@ int processcommandline(int fd, char *aLine)
         }
         else if (strcmp(command, "RF") == 0) {
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
-            house = getdeviceaddr(&unit);
+            house = getdeviceaddr(&tokens, &unit);
             dbprintf("house %d unit %d\n\r", house, unit);
             if (house < 0) return -1;
-            func = getfunc();
+            func = getfunc(&tokens);
             if (func < 0) return -1;
             rf_tx_houseunitfunc(fd, house, unit, func);
         }
         else if (strcmp(command, "RFSEC") == 0) {
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
             rfaddr = 0;
-            rf8bitaddr = getrfaddr(&rfaddr);
+            rf8bitaddr = getrfaddr(&tokens, &rfaddr);
             dbprintf("rfaddr 8bit: %d %X\n\r", rf8bitaddr, rfaddr);
             if (rf8bitaddr < 0) return -1;
-            func = getrffunc(rf8bitaddr);
+            func = getrffunc(&tokens, rf8bitaddr);
             dbprintf("rf func %X\n\r", func);
             if (func < 0) return -1;
             rfsec_tx(fd, rf8bitaddr, rfaddr, func);
@@ -730,9 +816,9 @@ int processcommandline(int fd, char *aLine)
         else if (strcmp(command, "RFCAM") == 0) {
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
             /* Unit number is ignored */
-            house = getdeviceaddr(&unit);
+            house = getdeviceaddr(&tokens, &unit);
             if (house < 0) return -1;
-            arg1 = strtok(NULL, " ");
+            arg1 = next_token(&tokens);
             if (arg1 == NULL || *arg1 == '\0') return -1;
             dbprintf("rfcam house keyname %d %s\n\r", house, arg1);
 
@@ -757,7 +843,8 @@ int processcommandline(int fd, char *aLine)
         }
         else if (strcmp(command, "PT") == 0) {
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
-            len = gethexdata(x10bytes8);
+            len = gethexdata(&tokens, x10bytes8);
+            if (len == 0 || len == (size_t)-1) return -1;
             hexdump (x10bytes8, len);
             if (len > 0) x10_write(x10bytes8, len);
         }
@@ -767,7 +854,7 @@ int processcommandline(int fd, char *aLine)
         /* bb 40 51 05  00 14 20 28 */
         else if (strcmp(command, "RFTOPL") == 0) {
             unsigned short bitmap16;
-            bitmap16 = gethousecodes();
+            bitmap16 = gethousecodes(&tokens);
             x10_write("\xdb\x1f\xf0", 3);
             x10_write("\xfb\x20\x00\x02", 4);
             memcpy(x10bytes8, "\xbb\x00\x00\x05\x00\x14\x20\x28", 8);
@@ -785,17 +872,22 @@ int processcommandline(int fd, char *aLine)
 #endif
         else if (strcmp(command, "RFTOPL") == 0) {
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
-            RfToPl16 = gethousecodes();
+            RfToPl16 = gethousecodes(&tokens);
             sockprintf(fd, "RfToPl %04X\n\r", RfToPl16);
         }
         else if (strcmp(command, "RFTORF") == 0) {
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
-            arg1 = strtok(NULL, " ");
-            if (arg1) RfToRf16 = (unsigned short)strtoul(arg1, NULL, 10);
+            arg1 = next_token(&tokens);
+            if (arg1) {
+                int value;
+                if (parse_decimal_int(arg1, 0, 65535, &value) < 0)
+                    return -1;
+                RfToRf16 = (unsigned short)value;
+            }
             sockprintf(fd, "RfToRf %04X\n\r", RfToRf16);
         }
         else if (strcmp(command, "ST") == 0) {
-            arg1 = strtok(NULL, " ");
+            arg1 = next_token(&tokens);
             dbprintf("st arg1 %s\n\r", arg1);
             if (arg1 && (strcmp(arg1, "0") == 0))
                 hua_sec_init();
@@ -824,14 +916,16 @@ int processcommandline(int fd, char *aLine)
 	}
         else if (strcmp(command, "HEX") == 0) {
 	    // translate the ASCII to Hex and send it to the CM15A
-	    command = strtok(NULL, " ");
+	    command = next_token(&tokens);
+            if (command == NULL)
+                return -1;
 	    sockprintf(fd, "Hex %s\r\n\0", command);
 	    return 0;
 	}
         else if (strcmp(command, "GETSTATUS") == 0) {
-            house = getdeviceaddr(&unit);
+            house = getdeviceaddr(&tokens, &unit);
             if ((house >= 0) && (unit >= 0)) {
-                arg1 = strtok(NULL, " ");
+                arg1 = next_token(&tokens);
                 if (arg1) {
                     if (strcmp(arg1, "XDIM") == 0) {    /* getstatus a1 xdim */
                         statusprintf(fd,"%d\n\r",hua_getstatus_xdim(house, unit));
@@ -850,13 +944,17 @@ int processcommandline(int fd, char *aLine)
         }
         else if (strcmp(command, "GETSTATUSSEC") == 0) {
             rfaddr = 0;
-            rf8bitaddr = getrfaddr(&rfaddr);
+            rf8bitaddr = getrfaddr(&tokens, &rfaddr);
             if (rf8bitaddr < 0) return -1;
             statusprintf(fd, "%s\n\r",
                     (hua_getstatus_sec(rf8bitaddr, rfaddr) == 1) ? "on": "off");
         }
         else {
             dbprintf("Unknown command: %s\n\r", command);
+            return -1;
+        }
+        if (!no_more_tokens(&tokens)) {
+            sockprintf(fd, "Invalid command: unexpected argument\n\r");
             return -1;
         }
     }
