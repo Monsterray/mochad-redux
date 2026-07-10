@@ -19,6 +19,9 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		scripts/validate/full-libusb-build.sh \
 		scripts/validate/libusb-stub-syntax-check.sh \
 		scripts/validate/native-smoke-test.sh \
+		scripts/validate/release-evidence.sh \
+		scripts/validate/repository-hygiene.sh \
+		scripts/validate/source-archive-validation.sh \
 		scripts/validate/strict-libusb-free-compile.sh \
 		scripts/validate/tcp-diagnostics-smoke-test.sh \
 		scripts/validate/unit-tests.sh \
@@ -32,7 +35,7 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		docs/supported-platforms.md \
 		validation/README.md validation/compiler.md validation/hardware.md \
 		validation/regression.md validation/release-evidence-template.md \
-		validation/releases/README.md \
+		validation/releases/README.md validation/releases/v0.4.0-rc1.md \
 		ARCHITECTURE.md CHANGELOG.md CONTRIBUTING.md DESIGN.md \
 		MAINTAINING.md PROJECT.md README.md RELEASE_CHECKLIST.md \
 		ROADMAP.md SECURITY.md LICENSE.md \

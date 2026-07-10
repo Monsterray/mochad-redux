@@ -15,6 +15,9 @@ ship releases with evidence, not just a changelog.
 ## Source Hygiene
 
 - [ ] Review `git status --short`.
+- [ ] `scripts/validate/repository-hygiene.sh`
+- [ ] `scripts/validate/source-archive-validation.sh`
+- [ ] `scripts/validate/release-evidence.sh <release-or-candidate>`
 - [ ] Review generated artifacts against
   [docs/generated-artifacts.md](docs/generated-artifacts.md).
 - [ ] Confirm no local build outputs, credentials, private paths, or hardware
