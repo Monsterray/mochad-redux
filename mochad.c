@@ -1954,7 +1954,11 @@ static int mydaemon(void)
 
     init_client();
 
-    PollTimeOut = -1;
+    /*
+     * initcm1Xa() may have queued startup writes. Keep the x10_write timeout
+     * armed so CM19A startup and later RF writes can advance even when the
+     * controller does not produce the same 0x55 ACK behavior as a CM15A.
+     */
     syslog(LOG_NOTICE,
             "[TCP] services configured address=%s main=enabled:%d xml=%s:%d openremote=%s:%d dual_stack=%s",
             BindAddress, ServerPort, XmlEnabled ? "enabled" : "disabled",
