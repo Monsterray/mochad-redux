@@ -1,10 +1,13 @@
 /*
- * Single source for the maintained mochad-redux version string.
+ * Maintained project version definitions. Keep this file synchronized with
+ * VERSION using scripts/validate/version-consistency.sh.
  */
 
 #ifndef MOCHAD_REDUX_VERSION_H
 #define MOCHAD_REDUX_VERSION_H
 
-#define MOCHAD_REDUX_VERSION "mochad-redux v0.3.0"
+#define MOCHAD_REDUX_VERSION "0.4.0-rc1"
+#define MOCHAD_REDUX_DISPLAY_VERSION "mochad-redux 0.4.0-rc1"
+#define MOCHAD_UPSTREAM_BASE "mochad 0.1.18"
 
 #endif

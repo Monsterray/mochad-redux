@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.61])
-AC_INIT([mochad], [0.1.18], [ncherry@linuxha.com])
+AC_INIT([mochad-redux], m4_esyscmd_s([cat VERSION]), [https://github.com/Monsterray/mochad-redux/issues])
 #AC_CONFIG_SRCDIR([mochad.c])
 AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 

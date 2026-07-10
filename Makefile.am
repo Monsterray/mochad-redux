@@ -22,6 +22,7 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		scripts/validate/strict-libusb-free-compile.sh \
 		scripts/validate/tcp-diagnostics-smoke-test.sh \
 		scripts/validate/unit-tests.sh \
+		scripts/validate/version-consistency.sh \
 		tests/test_config.c tests/test_diagnostics.c \
 		tests/test_mochad_event.c \
 		tests/test_x10_write.c \
@@ -35,7 +36,7 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		validation/releases/README.md \
 		ARCHITECTURE.md CHANGELOG.md CONTRIBUTING.md DESIGN.md \
 		MAINTAINING.md PROJECT.md README.md RELEASE_CHECKLIST.md \
-		ROADMAP.md SECURITY.md LICENSE.md \
+		ROADMAP.md SECURITY.md LICENSE.md VERSION \
 		tools/stubs/libusb-1.0/libusb.h
 
 install-exec-hook:
