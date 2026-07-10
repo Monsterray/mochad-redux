@@ -16,8 +16,9 @@ This project is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE.
 
-The full GPLv3 license text is available from the Free Software Foundation:
+The full GPLv3 license text is included in [COPYING](COPYING).
 
-https://www.gnu.org/licenses/gpl-3.0.txt
+Additional attribution and provenance notes are recorded in [NOTICE](NOTICE) and
+[docs/source-lineage.md](docs/source-lineage.md).
 
 SPDX-License-Identifier: GPL-3.0-or-later

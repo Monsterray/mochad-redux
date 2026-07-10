@@ -1,0 +1,24 @@
+mochad-redux
+=============
+
+mochad-redux is a maintained fork of mochad for X10 CM15A/CM19A USB
+controllers.
+
+Primary upstream copyright notices in inherited source files include:
+
+- Copyright 2010-2011 Brian Uechi <buasst@gmail.com>
+- Copyright 2014 Neil Cherry, where present in runtime copyright output
+
+The project is distributed under GPL-3.0-or-later unless an individual file
+states different terms.
+
+Bundled third-party component:
+
+- cgi/cgi-lib.pl is cgi-lib.pl 2.18 by Steven E. Brenner, copyright
+  1993-1999. Its embedded notice grants permission to use and modify the
+  library as long as the copyright is maintained, modifications are documented,
+  and credit is given.
+
+Some legacy support files came from the inherited mochad tree or historical
+community maintenance context. See docs/source-lineage.md for the current
+provenance record and uncertainty notes.

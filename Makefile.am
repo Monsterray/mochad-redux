@@ -28,14 +28,14 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		tests/test_socket_io.c tests/test_tcp_diagnostics.c \
 		tests/test_usb_endpoint_selection.c \
 		docs/generated-artifacts.md docs/hardware-validation.md \
-		docs/json-api.md docs/milestone-1.md docs/support-files.md \
-		docs/supported-platforms.md \
+		docs/json-api.md docs/milestone-1.md docs/source-lineage.md \
+		docs/support-files.md docs/supported-platforms.md \
 		validation/README.md validation/compiler.md validation/hardware.md \
 		validation/regression.md validation/release-evidence-template.md \
 		validation/releases/README.md \
 		ARCHITECTURE.md CHANGELOG.md CONTRIBUTING.md DESIGN.md \
 		MAINTAINING.md PROJECT.md README.md RELEASE_CHECKLIST.md \
-		ROADMAP.md SECURITY.md LICENSE.md \
+		ROADMAP.md SECURITY.md COPYING LICENSE.md NOTICE \
 		tools/stubs/libusb-1.0/libusb.h
 
 install-exec-hook:
