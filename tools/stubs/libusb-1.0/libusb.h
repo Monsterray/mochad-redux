@@ -39,6 +39,7 @@
 
 #define LIBUSB_ENDPOINT_IN 0x80
 #define LIBUSB_TRANSFER_TYPE_MASK 0x03
+#define LIBUSB_TRANSFER_TYPE_BULK 0x02
 #define LIBUSB_TRANSFER_TYPE_INTERRUPT 0x03
 
 #define LIBUSB_CAP_HAS_HOTPLUG 0x00000001
@@ -64,6 +65,8 @@ struct libusb_endpoint_descriptor {
 };
 
 struct libusb_interface_descriptor {
+    uint8_t bInterfaceNumber;
+    uint8_t bAlternateSetting;
     uint8_t bNumEndpoints;
     const struct libusb_endpoint_descriptor *endpoint;
 };

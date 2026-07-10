@@ -1,8 +1,10 @@
 bin_PROGRAMS = mochad
 mochad_SOURCES = mochad.c config.c decode.c diagnostics.c encode.c global.c \
-		mochad_event.c socket_io.c x10state.c x10_write.c \
+		mochad_event.c socket_io.c usb_endpoint_selection.c \
+		x10state.c x10_write.c \
 		config.h decode.h diagnostics.h encode.h global.h \
-		mochad_event.h socket_io.h version.h x10state.h x10_write.h
+		mochad_event.h socket_io.h usb_endpoint_selection.h \
+		version.h x10state.h x10_write.h
 EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules-systemd \
 		udev/README.md \
 		hotplug2/20-usb-x10 hotplug2/mochad systemd/mochad.service \
@@ -24,6 +26,7 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		tests/test_mochad_event.c \
 		tests/test_x10_write.c \
 		tests/test_socket_io.c tests/test_tcp_diagnostics.c \
+		tests/test_usb_endpoint_selection.c \
 		docs/generated-artifacts.md docs/hardware-validation.md \
 		docs/json-api.md docs/milestone-1.md docs/support-files.md \
 		docs/supported-platforms.md \
