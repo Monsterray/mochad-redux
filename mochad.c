@@ -303,6 +303,20 @@ static void maybe_finish_x10_transmit(void)
 {
     if (!IntrOut_completed)
         return;
+
+    /*
+     * CM19A is RF-only and does not provide the same powerline transmit ACK
+     * behavior as CM15A. Once libusb reports that the interrupt OUT transfer
+     * completed, release the next queued RF write immediately so rapid
+     * commands are not artificially paced by the ACK timeout.
+     */
+    if (Cm19a) {
+        X10_ack_received = 0;
+        X10_ack_timed_out = 0;
+        send_next_x10out();
+        return;
+    }
+
     if (!X10_ack_received && !X10_ack_timed_out)
         return;
 
