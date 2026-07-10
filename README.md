@@ -104,6 +104,10 @@ Install the package:
 sudo make install
 ```
 
+The Autotools install target only copies files into the configured prefix and
+honors `DESTDIR` for package builds. It does not create users, modify live
+`/etc`, reload udev, invoke systemd, or start services.
+
 To prepare a native Linux host for the new non-root service permissions without
 running the full install target, use:
 
@@ -141,6 +145,8 @@ USB nodes to `root:x10` with mode `0660`; the systemd udev rule then activates
 
 The service remains inactive until a supported CM15A or CM19A controller is
 connected. The installed `udev` rules handle service activation.
+Rollback steps are documented in
+[docs/native-install-rollback.md](docs/native-install-rollback.md).
 
 ## Testing
 
