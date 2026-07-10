@@ -39,6 +39,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 /**** system log ****/
 #include <syslog.h>
@@ -68,6 +69,9 @@
 #define MAXCLISOCKETS   (32)
 #define MAXSOCKETS      (1+MAXCLISOCKETS)
 				/* first socket=listen socket, 32 client sockets */
+#define CLIENT_OUTPUT_QUEUE_SIZE (16U * 1024U)
+#define CLIENT_WRITE_BUDGET_PER_LOOP (64U * 1024U)
+#define CLIENT_STALLED_TIMEOUT_SECONDS (30)
 #define X10_VENDOR_ID   0x0bc7
 #define CM15A_PRODUCT_ID 0x0001
 #define CM19A_PRODUCT_ID 0x0002
@@ -85,6 +89,15 @@ static cm15a_encode_state_t Clientor20states[MAXCLISOCKETS];
 static unsigned int Clientids[MAXCLISOCKETS];
 static unsigned int Clientxmlids[MAXCLISOCKETS];
 static unsigned int Clientor20ids[MAXCLISOCKETS];
+struct client_output_queue {
+    unsigned char data[CLIENT_OUTPUT_QUEUE_SIZE];
+    size_t head;
+    size_t len;
+    time_t stalled_since;
+};
+static struct client_output_queue Clientoutputs[MAXCLISOCKETS];
+static struct client_output_queue Clientxmloutputs[MAXCLISOCKETS];
+static struct client_output_queue Clientor20outputs[MAXCLISOCKETS];
 
 static size_t NClients;     /* # of valid entries in Clientsocks     */
 static size_t NxmlClients;  /* # of valid entries in Clientxmlsocks  */
@@ -131,6 +144,74 @@ static unsigned char IntrInBuf[8];
 
 extern int raw_data;
 
+int del_client(int fd);
+static int queue_client_bytes(int fd, const void *buffer, size_t length);
+static int set_fd_nonblocking(int fd);
+
+static void client_output_init(struct client_output_queue *queue)
+{
+    queue->head = 0;
+    queue->len = 0;
+    queue->stalled_since = 0;
+}
+
+static size_t client_output_space(const struct client_output_queue *queue)
+{
+    return sizeof(queue->data) - queue->len;
+}
+
+static int client_output_enqueue(struct client_output_queue *queue,
+        const void *buffer, size_t length)
+{
+    const unsigned char *src = buffer;
+    size_t tail;
+    size_t first;
+
+    if (length > client_output_space(queue))
+        return -ENOBUFS;
+
+    tail = (queue->head + queue->len) % sizeof(queue->data);
+    first = sizeof(queue->data) - tail;
+    if (first > length)
+        first = length;
+    memcpy(queue->data + tail, src, first);
+    if (first < length)
+        memcpy(queue->data, src + first, length - first);
+    queue->len += length;
+    return 0;
+}
+
+static size_t client_output_peek(const struct client_output_queue *queue,
+        const unsigned char **buffer)
+{
+    size_t available;
+
+    if (queue->len == 0) {
+        *buffer = NULL;
+        return 0;
+    }
+
+    *buffer = queue->data + queue->head;
+    available = sizeof(queue->data) - queue->head;
+    if (available > queue->len)
+        available = queue->len;
+    return available;
+}
+
+static void client_output_consume(struct client_output_queue *queue,
+        size_t length)
+{
+    if (length >= queue->len) {
+        client_output_init(queue);
+        return;
+    }
+
+    queue->head = (queue->head + length) % sizeof(queue->data);
+    queue->len -= length;
+    if (queue->len == 0)
+        queue->stalled_since = 0;
+}
+
 static int format_bounded(char *buffer, size_t buffer_len,
         const char *fmt, va_list args)
 {
@@ -168,7 +249,7 @@ int statusprintf(int fd, const char *fmt, ...)
     if (buflen < 0)
         return -1;
 
-    return send_all(fd, buf, (size_t)buflen);
+    return queue_client_bytes(fd, buf, (size_t)buflen);
 }
 
 static unsigned long uptime_seconds(void)
@@ -367,14 +448,14 @@ int sockprintf(int fd, const char *fmt, ...)
         if (buflen > 0 && xmlclient(fd) && (aLine[buflen-1] == '\n')) {
             aLine[buflen-1] = '\0';
         }
-        return send_all(fd, aLine, buflen);
+        return queue_client_bytes(fd, aLine, buflen);
     }
 
     /* Send to all socket clients */
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if ((fd = Clientsocks[i].fd) > 0) {
             dbprintf("%s i %d fd %d\n", __func__, i, fd);
-            bytesOut = send_all(fd, aLine, buflen);
+            bytesOut = queue_client_bytes(fd, aLine, buflen);
             dbprintf("bytesOut %d\n", bytesOut);
             if (bytesOut != (int)buflen)
                 dbprintf("%s: %d/%d\n", __func__, bytesOut, errno);
@@ -391,7 +472,7 @@ int sockprintf(int fd, const char *fmt, ...)
         if ((fd = Clientxmlsocks[i].fd) > 0) {
             dbprintf("%s i %d fd %d\n", __func__, i, fd);
             /* NOTE: Send xml including trailing NUL '\0' */
-            bytesOut = send_all(fd, aLine, buflen);
+            bytesOut = queue_client_bytes(fd, aLine, buflen);
             dbprintf("bytesOut %d\n", bytesOut);
             if (bytesOut != (int)buflen)
                 dbprintf("%s: %d/%d\n", __func__, bytesOut, errno);
@@ -463,6 +544,9 @@ static void init_client(void)
         cm15a_encode_state_init(&Clientstates[i]);
         cm15a_encode_state_init(&Clientxmlstates[i]);
         cm15a_encode_state_init(&Clientor20states[i]);
+        client_output_init(&Clientoutputs[i]);
+        client_output_init(&Clientxmloutputs[i]);
+        client_output_init(&Clientor20outputs[i]);
     }
     NClients = NxmlClients = Nor20Clients = 0;
 }
@@ -475,11 +559,18 @@ static int add_client(int fd)
     dbprintf("add_client(%d)\n", fd);
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if (Clientsocks[i].fd == -1) {
+            if (set_fd_nonblocking(fd) < 0) {
+                syslog(LOG_INFO,
+                        "[CLIENT] failed to set nonblocking mode type=main fd=%d errno=%d error=%s",
+                        fd, errno, strerror(errno));
+                return -1;
+            }
             Clientsocks[i].fd = fd;
             Clientsocks[i].events = POLLIN;
             Clientsocks[i].revents = 0;
             Clientids[i] = next_client_id();
             cm15a_encode_state_init(&Clientstates[i]);
+            client_output_init(&Clientoutputs[i]);
             NClients++;
             dbprintf("add_client: i %d NClients %d\n", i, NClients);
             syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=main fd=%d",
@@ -501,11 +592,18 @@ static int add_xmlclient(int fd)
     dbprintf("add_xmlclient(%d)\n", fd);
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if (Clientxmlsocks[i].fd == -1) {
+            if (set_fd_nonblocking(fd) < 0) {
+                syslog(LOG_INFO,
+                        "[CLIENT] failed to set nonblocking mode type=xml fd=%d errno=%d error=%s",
+                        fd, errno, strerror(errno));
+                return -1;
+            }
             Clientxmlsocks[i].fd = fd;
             Clientxmlsocks[i].events = POLLIN;
             Clientxmlsocks[i].revents = 0;
             Clientxmlids[i] = next_client_id();
             cm15a_encode_state_init(&Clientxmlstates[i]);
+            client_output_init(&Clientxmloutputs[i]);
             NxmlClients++;
             dbprintf("add_xmlclient: i %d NxmlClients %d\n", i, NxmlClients);
             syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=xml fd=%d",
@@ -527,11 +625,18 @@ static int add_or20client(int fd)
     dbprintf("add_or20client(%d)\n", fd);
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if (Clientor20socks[i].fd == -1) {
+            if (set_fd_nonblocking(fd) < 0) {
+                syslog(LOG_INFO,
+                        "[CLIENT] failed to set nonblocking mode type=openremote fd=%d errno=%d error=%s",
+                        fd, errno, strerror(errno));
+                return -1;
+            }
             Clientor20socks[i].fd = fd;
             Clientor20socks[i].events = POLLIN;
             Clientor20socks[i].revents = 0;
             Clientor20ids[i] = next_client_id();
             cm15a_encode_state_init(&Clientor20states[i]);
+            client_output_init(&Clientor20outputs[i]);
             Nor20Clients++;
             dbprintf("add_or20client: i %d Nor20Clients %d\n", i, Nor20Clients);
             syslog(LOG_NOTICE,
@@ -571,6 +676,136 @@ static unsigned int client_id_for_fd(int fd)
     return 0;
 }
 
+static struct client_output_queue *client_output_for_fd(int fd)
+{
+    int i;
+
+    for (i = 0; i < MAXCLISOCKETS; i++) {
+        if (Clientsocks[i].fd == fd) return &Clientoutputs[i];
+        if (Clientxmlsocks[i].fd == fd) return &Clientxmloutputs[i];
+        if (Clientor20socks[i].fd == fd) return &Clientor20outputs[i];
+    }
+    return NULL;
+}
+
+static int set_fd_nonblocking(int fd)
+{
+    int flags;
+
+    flags = fcntl(fd, F_GETFL, 0);
+    if (flags < 0)
+        return -1;
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
+        return -1;
+    return 0;
+}
+
+static int queue_client_bytes(int fd, const void *buffer, size_t length)
+{
+    struct client_output_queue *queue;
+    int r;
+
+    if (length == 0)
+        return 0;
+
+    queue = client_output_for_fd(fd);
+    if (queue == NULL) {
+        return send_all(fd, buffer, length);
+    }
+
+    r = client_output_enqueue(queue, buffer, length);
+    if (r < 0) {
+        syslog(LOG_INFO,
+                "[CLIENT] output queue overflow client_id=%u fd=%d bytes=%lu capacity=%lu; disconnecting slow client",
+                client_id_for_fd(fd), fd, (unsigned long)length,
+                (unsigned long)sizeof(queue->data));
+        del_client(fd);
+        return -1;
+    }
+    return (int)length;
+}
+
+static int flush_client_output(int fd, struct client_output_queue *queue,
+        size_t *write_budget)
+{
+    while (queue->len > 0 && *write_budget > 0) {
+        const unsigned char *chunk;
+        size_t available;
+        size_t wanted;
+        ssize_t written;
+
+        available = client_output_peek(queue, &chunk);
+        wanted = available;
+        if (wanted > *write_budget)
+            wanted = *write_budget;
+
+        written = send(fd, chunk, wanted, 0);
+        if (written < 0) {
+            if (errno == EINTR)
+                continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                if (queue->stalled_since == 0)
+                    queue->stalled_since = time(NULL);
+                return 0;
+            }
+            syslog(LOG_INFO,
+                    "[CLIENT] write failed client_id=%u fd=%d errno=%d error=%s; disconnecting",
+                    client_id_for_fd(fd), fd, errno, strerror(errno));
+            del_client(fd);
+            return -1;
+        }
+        if (written == 0) {
+            if (queue->stalled_since == 0)
+                queue->stalled_since = time(NULL);
+            return 0;
+        }
+
+        queue->stalled_since = 0;
+        client_output_consume(queue, (size_t)written);
+        *write_budget -= (size_t)written;
+    }
+
+    return 0;
+}
+
+static void disconnect_stalled_clients(time_t now)
+{
+    int i;
+
+    for (i = 0; i < MAXCLISOCKETS; i++) {
+        if (Clientsocks[i].fd != -1 && Clientoutputs[i].len > 0 &&
+                Clientoutputs[i].stalled_since != 0 &&
+                now - Clientoutputs[i].stalled_since >=
+                CLIENT_STALLED_TIMEOUT_SECONDS) {
+            syslog(LOG_INFO,
+                    "[CLIENT] output stalled client_id=%u type=main fd=%d seconds=%d; disconnecting",
+                    Clientids[i], Clientsocks[i].fd,
+                    CLIENT_STALLED_TIMEOUT_SECONDS);
+            del_client(Clientsocks[i].fd);
+        }
+        if (Clientxmlsocks[i].fd != -1 && Clientxmloutputs[i].len > 0 &&
+                Clientxmloutputs[i].stalled_since != 0 &&
+                now - Clientxmloutputs[i].stalled_since >=
+                CLIENT_STALLED_TIMEOUT_SECONDS) {
+            syslog(LOG_INFO,
+                    "[CLIENT] output stalled client_id=%u type=xml fd=%d seconds=%d; disconnecting",
+                    Clientxmlids[i], Clientxmlsocks[i].fd,
+                    CLIENT_STALLED_TIMEOUT_SECONDS);
+            del_client(Clientxmlsocks[i].fd);
+        }
+        if (Clientor20socks[i].fd != -1 && Clientor20outputs[i].len > 0 &&
+                Clientor20outputs[i].stalled_since != 0 &&
+                now - Clientor20outputs[i].stalled_since >=
+                CLIENT_STALLED_TIMEOUT_SECONDS) {
+            syslog(LOG_INFO,
+                    "[CLIENT] output stalled client_id=%u type=openremote fd=%d seconds=%d; disconnecting",
+                    Clientor20ids[i], Clientor20socks[i].fd,
+                    CLIENT_STALLED_TIMEOUT_SECONDS);
+            del_client(Clientor20socks[i].fd);
+        }
+    }
+}
+
 static void log_accept_result(const char *name, int fd)
 {
     /* errno is meaningful only when accept() fails. Logging it after a
@@ -601,6 +836,7 @@ int del_client(int fd)
             Clientsocks[i].fd = -1;
             Clientids[i] = 0;
             cm15a_encode_state_init(&Clientstates[i]);
+            client_output_init(&Clientoutputs[i]);
             NClients--;
             dbprintf("del_client: i %d NClients %d\n", i, NClients);
             return 0;
@@ -613,6 +849,7 @@ int del_client(int fd)
             Clientxmlsocks[i].fd = -1;
             Clientxmlids[i] = 0;
             cm15a_encode_state_init(&Clientxmlstates[i]);
+            client_output_init(&Clientxmloutputs[i]);
             NxmlClients--;
             dbprintf("del_client: i %d NxmlClients %d\n", i, NxmlClients);
             return 0;
@@ -626,6 +863,7 @@ int del_client(int fd)
             Clientor20socks[i].fd = -1;
             Clientor20ids[i] = 0;
             cm15a_encode_state_init(&Clientor20states[i]);
+            client_output_init(&Clientor20outputs[i]);
             Nor20Clients--;
             dbprintf("del_client: i %d Nor20Clients %d\n", i, Nor20Clients);
             return 0;
@@ -643,12 +881,18 @@ static int copy_clients(struct pollfd *Clients)
     dbprintf("copy_clients\n");
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if (Clientsocks[i].fd != -1) {
+            Clientsocks[i].events = POLLIN |
+                    (Clientoutputs[i].len > 0 ? POLLOUT : 0);
             *Clients++ = Clientsocks[i];
         }
         if (Clientxmlsocks[i].fd != -1) {
+            Clientxmlsocks[i].events = POLLIN |
+                    (Clientxmloutputs[i].len > 0 ? POLLOUT : 0);
             *Clients++ = Clientxmlsocks[i];
         }
         if (Clientor20socks[i].fd != -1) {
+            Clientor20socks[i].events = POLLIN |
+                    (Clientor20outputs[i].len > 0 ? POLLOUT : 0);
             *Clients++ = Clientor20socks[i];
         }
     }
@@ -1780,6 +2024,7 @@ static int mydaemon(void)
             Do_exit = 2;
             break;
         }
+        disconnect_stalled_clients(time(NULL));
 #if 0
         dbprintf("poll() %d\n", nready);
         for (i = 0; i < npollfds; i++) {
@@ -1834,6 +2079,16 @@ static int mydaemon(void)
 
             for (i = 3 + (int)NUsbPollfds; i < npollfds; i++) {
                 if ((clifd = Pollfds[i].fd) >= 0) {
+                    if (Pollfds[i].revents & POLLOUT) {
+                        struct client_output_queue *queue;
+                        size_t write_budget = CLIENT_WRITE_BUDGET_PER_LOOP;
+
+                        queue = client_output_for_fd(clifd);
+                        if (queue != NULL)
+                            flush_client_output(clifd, queue, &write_budget);
+                        if (client_output_for_fd(clifd) == NULL)
+                            continue;
+                    }
                     /* dbprintf("client %d revents 0x%X\n", i, Clients[i].revents); */
                     if (Pollfds[i].revents & (POLLIN|POLLERR)) {
                         if ((bytesIn = read(clifd, buf, sizeof(buf))) < 0) {
