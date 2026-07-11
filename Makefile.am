@@ -37,6 +37,7 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		scripts/validate/version-consistency.sh \
 		tests/test_config.c tests/test_diagnostics.c \
 		tests/test_mochad_event.c \
+		tests/test_encode_rf.c \
 		tests/test_x10_write.c \
 		tests/test_socket_io.c tests/test_tcp_diagnostics.c \
 		tests/test_usb_endpoint_selection.c \

@@ -122,6 +122,68 @@ Record:
 - Exact `nc` output
 - Whether repeated button presses are consistently received
 
+## CM19A RF Transmit to SC546A Chime
+
+This check validates the generic `rf <house><unit> on` transmit path with an
+SC546A chime as the receiving load. It does not add or require an
+SC546A-specific protocol mode in `mochad-redux`.
+
+Required hardware:
+
+- CM19A connected to the host running `mochad-redux`.
+- TM751 or compatible X10 RF transceiver on the same house code.
+- SC546A chime set to the test house/unit address.
+
+Example assumes the SC546A is set to `A2`. Adjust the address to match the
+physical dials before recording evidence.
+
+Start `mochad-redux` in the foreground:
+
+```sh
+./mochad -d
+```
+
+In another terminal, connect to the main TCP listener:
+
+```sh
+nc localhost 1099
+```
+
+Run and record each command:
+
+```text
+rf A2 on
+rf A2 on
+rf A2 off
+rf A3 on
+rf B2 on
+```
+
+Expected physical behavior:
+
+- `rf A2 on`: SC546A chimes.
+- Repeated `rf A2 on`: SC546A chimes again for each intentional command.
+- `rf A2 off`: ignored by the SC546A.
+- `rf A3 on`: ignored when the SC546A unit dial is set to A2.
+- `rf B2 on`: ignored when the SC546A house dial is set to A.
+
+Expected daemon behavior:
+
+- The TCP stream may report transmitted RF activity such as
+  `Tx RF HouseUnit: A2 Func: On`.
+- A successful CM19A USB transmit means the command was handed to the
+  controller for RF transmission. It is transmitted, not physically confirmed.
+- The daemon must not claim that the SC546A chimed unless the tester records
+  that physical observation.
+
+Record:
+
+- CM19A model detection logs.
+- TM751 and SC546A house/unit settings.
+- Exact TCP commands sent.
+- Exact TCP output and daemon logs.
+- Physical result for each command: chime heard, ignored, or uncertain.
+
 ## Shutdown Test
 
 Stop the foreground process with `Ctrl+C`.
