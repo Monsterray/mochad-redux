@@ -55,7 +55,7 @@ Run in the foreground so startup logs are visible:
 Expected startup milestones:
 
 ```text
-[STARTUP] mochad-redux v0.3.0 starting
+[STARTUP] mochad-redux v0.4.0 starting
 [STARTUP] TCP configuration bind=0.0.0.0 main=enabled:1099 xml=enabled:1100 openremote=enabled:1101
 [USB] initializing libusb
 [USB] libusb initialized

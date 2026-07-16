@@ -7,9 +7,9 @@ entry should link to validation evidence when available.
 
 ## Unreleased
 
-## v0.4.0-rc1
+## v0.4.0
 
-Release candidate for the v0.4.x runtime-hardening and stewardship milestone.
+Runtime-hardening and stewardship milestone for the maintained v0.4.x line.
 
 ### Added
 
@@ -57,6 +57,14 @@ Release candidate for the v0.4.x runtime-hardening and stewardship milestone.
   details in older failure paths.
 - Fixed the autotools source list so `decode.c` is linked into the `mochad`
   binary.
+- Hardened legacy command parsing with bounded tokenization and strict numeric,
+  address, argument-count, and trailing-input validation.
+- Moved client output to bounded nonblocking queues so slow clients cannot
+  block the daemon; stalled clients and queue overflows are disconnected.
+- Separated USB OUT completion from CM15A ACK handling and advanced CM19A RF
+  writes on USB OUT completion, preserving the startup timeout needed to drain
+  queued writes. Added a focused regression for the `rf A2 on` transmit bytes;
+  physical RF delivery still requires hardware validation.
 
 ## v0.3.0
 

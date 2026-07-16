@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+# The POSIX C locale is available on every supported validation host. Using it
+# keeps Autotools and tar output deterministic on systems without C.UTF-8.
+export LC_ALL=C
+export LANG=C
+
+source_dir="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+cd "$source_dir"
 
 echo "== mochad-redux validation: staged install contract =="
 echo "Working directory: $PWD"
@@ -15,9 +21,26 @@ cleanup() {
 }
 trap cleanup EXIT INT HUP TERM
 
-# Copy tracked source files from the current worktree so maintainers can run
-# this validator before committing the install-contract changes.
-git ls-files -z | tar --null -T - -cf - | tar -x -C "$build_dir"
+# Prefer version-controlled source candidates so maintainers validate
+# uncommitted edits, additions, and renames without copying ignored build
+# output. Exported archives have no Git metadata, so copy their complete source
+# tree instead.
+if command -v git >/dev/null 2>&1 &&
+        git -C "$source_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 &&
+        [ "$(git -C "$source_dir" rev-parse --show-toplevel)" = "$source_dir" ]; then
+    (
+        cd "$source_dir"
+        git ls-files -z --cached --others --exclude-standard |
+            while IFS= read -r -d '' path; do
+                if [ -e "$path" ] || [ -L "$path" ]; then
+                    printf '%s\0' "$path"
+                fi
+            done |
+            tar --null -T - -cf -
+    ) | tar -x -C "$build_dir"
+else
+    tar --exclude='./.git' -C "$source_dir" -cf - . | tar -x -C "$build_dir"
+fi
 cd "$build_dir"
 
 ./autogen.sh >/dev/null
@@ -46,7 +69,7 @@ test -f "$dest_dir/usr/lib/udev/rules.d/91-usb-x10-controllers.rules" || {
     echo "FAIL: staged udev rule missing" >&2
     exit 1
 }
-test -f "$dest_dir/usr/share/mochad/hotplug2/20-usb-x10" || {
+test -f "$dest_dir/usr/share/mochad-redux/hotplug2/20-usb-x10" || {
     echo "FAIL: staged hotplug file missing" >&2
     exit 1
 }

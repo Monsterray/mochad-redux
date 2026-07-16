@@ -359,7 +359,7 @@ enough if the device is already claimed.
 
 ## More Information
 
-- [Original README](README)
+- [Source lineage and upstream baseline](docs/source-lineage.md)
 - [Mochad on Recent Linux Distributions](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_en.html)
 - [French installation notes](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_fr.html)
 - [Andreas's systemd unit discussion](https://sourceforge.net/p/mochad/discussion/1320002/thread/764dd1ce44/#76e9)

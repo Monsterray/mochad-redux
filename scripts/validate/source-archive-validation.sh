@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+# The POSIX C locale is available on every supported validation host. Using it
+# keeps Autotools and tar output deterministic on systems without C.UTF-8.
+export LC_ALL=C
+export LANG=C
+
+source_dir="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+cd "$source_dir"
 
 echo "== mochad-redux validation: source archive =="
 echo "Working directory: $PWD"
@@ -14,7 +20,24 @@ cleanup() {
 }
 trap cleanup EXIT INT HUP TERM
 
-git archive HEAD | tar -x -C "$archive_dir"
+if command -v git >/dev/null 2>&1 &&
+        git -C "$source_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 &&
+        [ "$(git -C "$source_dir" rev-parse --show-toplevel)" = "$source_dir" ]; then
+    echo "+ export source candidates from worktree"
+    (
+        cd "$source_dir"
+        git ls-files -z --cached --others --exclude-standard |
+            while IFS= read -r -d '' path; do
+                if [ -e "$path" ] || [ -L "$path" ]; then
+                    printf '%s\0' "$path"
+                fi
+            done |
+            tar --null -T - -cf -
+    ) | tar -x -C "$archive_dir"
+else
+    echo "+ export source tree (Git metadata not available)"
+    tar --exclude='./.git' -C "$source_dir" -cf - . | tar -x -C "$archive_dir"
+fi
 
 cd "$archive_dir"
 
