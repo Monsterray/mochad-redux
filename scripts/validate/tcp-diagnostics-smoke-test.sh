@@ -28,11 +28,12 @@ echo "+ run TCP diagnostics harness"
 "$BUILD_DIR/test_tcp_diagnostics" > "$OUTPUT"
 
 echo "+ validate JSON lines"
-python3 - "$OUTPUT" <<'PY'
+python3 - "$OUTPUT" "$(tr -d '\n' < VERSION)" <<'PY'
 import json
 import sys
 
 path = sys.argv[1]
+version = sys.argv[2]
 with open(path, "r", encoding="utf-8") as handle:
     lines = [line.strip() for line in handle if line.strip()]
 
@@ -45,8 +46,15 @@ for index, obj in enumerate(objects, 1):
     if obj.get("ok") is not True:
         raise SystemExit(f"diagnostic line {index} did not report ok=true")
 
+for index in (0, 2, 4):
+    if objects[index].get("name") != "mochad-redux":
+        raise SystemExit(f"diagnostic line {index + 1} missing name identity")
+    if objects[index].get("version") != version:
+        raise SystemExit(f"diagnostic line {index + 1} has unexpected version")
+    if objects[index].get("upstream_base") != "mochad 0.1.18":
+        raise SystemExit(f"diagnostic line {index + 1} missing upstream base")
 if objects[0].get("daemon") != "mochad-redux":
-    raise SystemExit("hello response missing daemon identity")
+    raise SystemExit("hello response missing legacy daemon identity")
 if "health" not in objects[1].get("commands", []):
     raise SystemExit("capabilities response missing health command")
 if "listeners" not in objects[2]:

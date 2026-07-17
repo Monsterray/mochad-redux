@@ -42,7 +42,8 @@ int mochad_diag_json_hello(char *buffer, size_t buffer_len,
         const char *upstream_base)
 {
     return checked_snprintf(buffer, buffer_len,
-            "{\"ok\":true,\"daemon\":\"mochad-redux\",\"version\":\"%s\","
+            "{\"ok\":true,\"name\":\"mochad-redux\","
+            "\"daemon\":\"mochad-redux\",\"version\":\"%s\","
             "\"upstream_base\":\"%s\",\"diagnostics\":true}",
             MOCHAD_REDUX_VERSION, safe_string(upstream_base));
 }
@@ -66,7 +67,8 @@ int mochad_diag_json_health(char *buffer, size_t buffer_len,
         return -1;
 
     return checked_snprintf(buffer, buffer_len,
-            "{\"ok\":true,\"version\":\"%s\",\"upstream_base\":\"%s\","
+            "{\"ok\":true,\"name\":\"mochad-redux\",\"version\":\"%s\","
+            "\"upstream_base\":\"%s\","
             "\"uptime_seconds\":%lu,\"usb_connected\":%s,"
             "\"controller\":\"%s\",\"endpoints_ready\":%s,"
             "\"transfers_ready\":%s,\"clients_total\":%lu,"
@@ -119,7 +121,8 @@ int mochad_diag_json_version(char *buffer, size_t buffer_len,
         const char *upstream_base)
 {
     return checked_snprintf(buffer, buffer_len,
-            "{\"ok\":true,\"daemon\":\"mochad-redux\",\"version\":\"%s\","
+            "{\"ok\":true,\"name\":\"mochad-redux\","
+            "\"daemon\":\"mochad-redux\",\"version\":\"%s\","
             "\"upstream_base\":\"%s\"}",
             MOCHAD_REDUX_VERSION, safe_string(upstream_base));
 }

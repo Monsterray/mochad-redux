@@ -42,6 +42,16 @@ The first maintenance milestone is intentionally conservative:
 Broader protocol, USB, TCP, and state separation work is future work.
 Engineering principles are documented in [DESIGN.md](DESIGN.md).
 
+## Versioning
+
+The root [VERSION](VERSION) file is the maintained project version source.
+Version files use plain semantic versions such as `0.4.0`, `0.5.0-dev`, or
+`0.5.0-rc1`; Git tags add the leading `v`. The upstream baseline remains the
+separate identity `mochad 0.1.18`.
+
+See [compatibility and versioning](docs/compatibility.md) for the maintained
+version mapping and the small, manual-friendly release preparation workflow.
+
 ## Source Notes
 
 Older `mochad` sources could fail to link with errors similar to:
@@ -190,6 +200,7 @@ TCP socket:
 ```sh
 scripts/validate/unit-tests.sh
 scripts/validate/tcp-diagnostics-smoke-test.sh
+scripts/validate/version-consistency.sh
 ```
 
 To remove ignored build artifacts before validating, use:
