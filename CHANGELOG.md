@@ -5,9 +5,8 @@ All notable changes to `mochad-redux` should be recorded here.
 This project values release evidence over broad release claims. Each release
 entry should link to validation evidence when available.
 
-## Unreleased
 
-## v0.4.0
+## [0.4.0] - 07/16/2026
 
 Runtime-hardening and stewardship milestone for the maintained v0.4.x line.
 
@@ -66,7 +65,7 @@ Runtime-hardening and stewardship milestone for the maintained v0.4.x line.
   queued writes. Added a focused regression for the `rf A2 on` transmit bytes;
   physical RF delivery still requires hardware validation.
 
-## v0.3.0
+## [0.3.0]
 
 Baseline maintained release for runtime configuration and Docker-focused
 deployment work.
