@@ -100,7 +100,7 @@ or encoding integration-specific concepts into the daemon.
 
 Status: design only. See [docs/json-api.md](docs/json-api.md).
 
-* [ ] Introduce a normalized internal `mochad_event_t`.
+* [x] Introduce a normalized internal `mochad_event_t`.
 * [ ] Route legacy text, XMLSocket, OpenRemote, and JSON output through event
   formatters.
 * [ ] Add persistent `instance_id` and per-start `session_id`.

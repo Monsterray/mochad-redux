@@ -44,11 +44,25 @@ echo "+ x10_write"
 "$BUILD_DIR/test_x10_write"
 
 echo
+echo "+ encode_rf"
+# shellcheck disable=SC2086
+"$CC" $CFLAGS tests/test_encode_rf.c encode.c \
+    -o "$BUILD_DIR/test_encode_rf" $LDFLAGS
+"$BUILD_DIR/test_encode_rf"
+
+echo
 echo "+ diagnostics"
 # shellcheck disable=SC2086
 "$CC" $CFLAGS tests/test_diagnostics.c diagnostics.c config.c -o "$BUILD_DIR/test_diagnostics" $LDFLAGS
 "$BUILD_DIR/test_diagnostics" >/dev/null
 echo "PASS: diagnostics"
+
+echo
+echo "+ usb_endpoint_selection"
+# shellcheck disable=SC2086
+"$CC" $CFLAGS tests/test_usb_endpoint_selection.c usb_endpoint_selection.c \
+    -Itools/stubs -o "$BUILD_DIR/test_usb_endpoint_selection" $LDFLAGS
+"$BUILD_DIR/test_usb_endpoint_selection"
 
 echo
 echo "PASS: unit tests completed"

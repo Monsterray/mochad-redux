@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SERVICE_USER="${MOCHAD_SERVICE_USER:-mochad}"
-SERVICE_GROUP="${MOCHAD_SERVICE_GROUP:-mochad}"
-USB_GROUP="${MOCHAD_USB_GROUP:-x10}"
+SERVICE_USER="mochad"
+SERVICE_GROUP="mochad"
+USB_GROUP="x10"
 INSTALL_SERVICE=true
 DRY_RUN=false
 
@@ -26,10 +26,13 @@ Creates the native Linux permission model used by mochad-redux:
   USB group: ${USB_GROUP}
   udev:      root:${USB_GROUP} mode 0660 for CM15A/CM19A USB nodes
 
-Environment overrides:
-  MOCHAD_SERVICE_USER   default: mochad
-  MOCHAD_SERVICE_GROUP  default: mochad
-  MOCHAD_USB_GROUP      default: x10
+The native setup contract intentionally uses fixed names:
+  service user:  mochad
+  service group: mochad
+  USB group:     x10
+
+Environment overrides are not supported. Keeping these names fixed prevents
+the systemd unit, udev rules, and account setup from drifting apart.
 
 Options:
   --dry-run     Show the operations without changing the host.
@@ -228,7 +231,11 @@ install_udev_rule() {
 
     if have udevadm; then
         run udevadm control --reload-rules
-        run udevadm trigger --subsystem-match=usb --attr-match=idVendor=0bc7
+        run udevadm trigger --action=add --subsystem-match=usb \
+            --attr-match=idVendor=0bc7 --attr-match=idProduct=0001
+        run udevadm trigger --action=add --subsystem-match=usb \
+            --attr-match=idVendor=0bc7 --attr-match=idProduct=0002
+        run udevadm settle
     else
         log "[WARN] udevadm not found; reload udev rules manually or replug the controller."
     fi
@@ -242,6 +249,18 @@ install_systemd_service() {
 
     run install -m 0644 "$SYSTEMD_SERVICE_SRC" "$SYSTEMD_SERVICE_DEST"
     run systemctl daemon-reload
+    if [ "$DRY_RUN" = false ]; then
+        actual_user="$(systemctl show mochad.service -p User --value)"
+        actual_group="$(systemctl show mochad.service -p Group --value)"
+        actual_supplementary="$(systemctl show mochad.service -p SupplementaryGroups --value)"
+        if [ "$actual_user" != "$SERVICE_USER" ] ||
+                [ "$actual_group" != "$SERVICE_GROUP" ] ||
+                ! printf '%s\n' "$actual_supplementary" | grep -Eq "(^| )${USB_GROUP}( |$)"; then
+            echo "systemd properties do not match expected permissions: User=${actual_user} Group=${actual_group} SupplementaryGroups=${actual_supplementary}" >&2
+            exit 1
+        fi
+        log "[OK] systemd properties verified: User=${actual_user} Group=${actual_group} SupplementaryGroups=${actual_supplementary}"
+    fi
     log "[INFO] mochad.service installed. It will be activated by udev when a supported controller is connected."
 }
 
@@ -278,6 +297,43 @@ report_usb_nodes() {
     fi
 }
 
+verify_usb_nodes() {
+    if [ ! -d /dev/bus/usb ]; then
+        return
+    fi
+
+    found=false
+    for sysdev in /sys/bus/usb/devices/*; do
+        [ -r "$sysdev/idVendor" ] || continue
+        [ -r "$sysdev/idProduct" ] || continue
+        vendor="$(cat "$sysdev/idVendor")"
+        product="$(cat "$sysdev/idProduct")"
+        case "${vendor}:${product}" in
+            0bc7:0001|0bc7:0002)
+                found=true
+                busnum="$(cat "$sysdev/busnum")"
+                devnum="$(cat "$sysdev/devnum")"
+                node="$(printf '/dev/bus/usb/%03d/%03d' "$busnum" "$devnum")"
+                if [ ! -e "$node" ]; then
+                    echo "Expected USB node missing after udev settle: $node" >&2
+                    exit 1
+                fi
+                owner="$(stat -c '%U:%G' "$node" 2>/dev/null || stat -f '%Su:%Sg' "$node")"
+                mode="$(stat -c '%a' "$node" 2>/dev/null || stat -f '%Lp' "$node")"
+                if [ "$owner" != "root:${USB_GROUP}" ] || [ "$mode" != "660" ]; then
+                    echo "USB node permissions are not ready: $node owner=$owner mode=$mode expected=root:${USB_GROUP} 660" >&2
+                    exit 1
+                fi
+                log "[OK] USB node permissions verified: $node owner=$owner mode=$mode"
+                ;;
+        esac
+    done
+
+    if [ "$found" = false ]; then
+        log "[INFO] No connected CM15A/CM19A nodes to verify."
+    fi
+}
+
 main() {
     require_root
     require_command id
@@ -295,6 +351,7 @@ main() {
     install_udev_rule
     install_systemd_service
     report_usb_nodes
+    verify_usb_nodes
 
     log "[DONE] native mochad permissions are configured"
 }

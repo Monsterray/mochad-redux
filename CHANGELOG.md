@@ -5,7 +5,10 @@ All notable changes to `mochad-redux` should be recorded here.
 This project values release evidence over broad release claims. Each release
 entry should link to validation evidence when available.
 
-## Unreleased
+
+## [0.4.0] - 07/16/2026
+
+Runtime-hardening and stewardship milestone for the maintained v0.4.x line.
 
 ### Added
 
@@ -53,8 +56,16 @@ entry should link to validation evidence when available.
   details in older failure paths.
 - Fixed the autotools source list so `decode.c` is linked into the `mochad`
   binary.
+- Hardened legacy command parsing with bounded tokenization and strict numeric,
+  address, argument-count, and trailing-input validation.
+- Moved client output to bounded nonblocking queues so slow clients cannot
+  block the daemon; stalled clients and queue overflows are disconnected.
+- Separated USB OUT completion from CM15A ACK handling and advanced CM19A RF
+  writes on USB OUT completion, preserving the startup timeout needed to drain
+  queued writes. Added a focused regression for the `rf A2 on` transmit bytes;
+  physical RF delivery still requires hardware validation.
 
-## v0.3.0
+## [0.3.0]
 
 Baseline maintained release for runtime configuration and Docker-focused
 deployment work.

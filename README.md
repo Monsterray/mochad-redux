@@ -104,6 +104,10 @@ Install the package:
 sudo make install
 ```
 
+The Autotools install target only copies files into the configured prefix and
+honors `DESTDIR` for package builds. It does not create users, modify live
+`/etc`, reload udev, invoke systemd, or start services.
+
 To prepare a native Linux host for the new non-root service permissions without
 running the full install target, use:
 
@@ -141,6 +145,8 @@ USB nodes to `root:x10` with mode `0660`; the systemd udev rule then activates
 
 The service remains inactive until a supported CM15A or CM19A controller is
 connected. The installed `udev` rules handle service activation.
+Rollback steps are documented in
+[docs/native-install-rollback.md](docs/native-install-rollback.md).
 
 ## Testing
 
@@ -353,7 +359,7 @@ enough if the device is already claimed.
 
 ## More Information
 
-- [Original README](README)
+- [Source lineage and upstream baseline](docs/source-lineage.md)
 - [Mochad on Recent Linux Distributions](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_en.html)
 - [French installation notes](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_fr.html)
 - [Andreas's systemd unit discussion](https://sourceforge.net/p/mochad/discussion/1320002/thread/764dd1ce44/#76e9)
@@ -362,7 +368,6 @@ enough if the device is already claimed.
 
 ## License
 
-GNU General Public License version 3.0 or later (GPL-3.0-or-later), according
-to the source file headers and the
-[original project page on SourceForge](https://sourceforge.net/projects/mochad/).
-See [LICENSE.md](LICENSE.md).
+GNU General Public License version 3.0 or later (GPL-3.0-or-later). See
+[LICENSE.md](LICENSE.md), [COPYING](COPYING), [NOTICE](NOTICE), and
+[docs/source-lineage.md](docs/source-lineage.md).

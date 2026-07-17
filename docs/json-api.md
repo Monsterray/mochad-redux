@@ -131,6 +131,8 @@ typedef struct {
     char house;
     int unit;
     char address[4];
+    char addresses[16][4];
+    size_t address_count;
     char function[32];
     char transport[16];
     char raw_text[256];
@@ -140,6 +142,13 @@ typedef struct {
 The exact fields can evolve during implementation, but the invariant is more
 important than the initial shape: parsing and controller code should produce an
 internal event once, then formatters should render that event for each listener.
+
+Product-model behavior belongs in clients, not in `mochad-redux`. The normalized
+event model should preserve protocol facts such as multiple accumulated
+addresses before one function, house/function events, direction, transport, and
+raw text. It should also keep standard RF identities separate from RF security
+identities so bridges can distinguish normal HouseUnit activity from security
+sensor events without relying on product names.
 
 ## Sequencing
 

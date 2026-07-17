@@ -186,9 +186,9 @@ static int gethexdata(command_tokens_t *tokens, unsigned char buf8[])
     unsigned long parsed;
 
     while ((parm = next_token(tokens)) && (ptr < endbuf)) {
-        dbprintf("parm %s\n\r", parm);
+        dbprintf("parm %s\n", parm);
         if (parse_hex_ulong(parm, -1, &parsed) < 0 || parsed > 0xff) {
-            dbprintf("Hex digit conversion problem %d\n\r", errno);
+            dbprintf("Hex digit conversion problem %d\n", errno);
             return -1;
         }
         *ptr++ = (unsigned char)parsed;
@@ -390,11 +390,11 @@ static int getdeviceaddr(command_tokens_t *tokens, int *unit)
     parm = next_token(tokens);
     if (!parm || (strlen(parm) > 3)) return house;
 
-    dbprintf("deviceaddr %s\n\r", parm);
+    dbprintf("deviceaddr %s\n", parm);
 
     if (!ishouse(parm[0])) return house;
     house = parm[0] - 'A';
-    dbprintf("house %d\n\r", house);
+    dbprintf("house %d\n", house);
 
     if (parm[1] == '\0')
         return house;
@@ -404,7 +404,7 @@ static int getdeviceaddr(command_tokens_t *tokens, int *unit)
         return house;
     }
     *unit = parsed_unit - 1;
-    dbprintf("*unit %d\n\r", *unit);
+    dbprintf("*unit %d\n", *unit);
     return house;
 }
 
@@ -415,7 +415,7 @@ static int getrfaddr(command_tokens_t *tokens, unsigned long *rfaddr)
     parm = next_token(tokens);
     if (!parm) return -1;
 
-    dbprintf("rfaddr %s\n\r", parm);
+    dbprintf("rfaddr %s\n", parm);
 
     if ((strncmp(parm, "0x", 2) == 0) || (strncmp(parm, "0X", 2) == 0)) {
         /* 8 bit RF address starts with 0x or 0X */
@@ -444,12 +444,12 @@ static unsigned short gethousecodes(command_tokens_t *tokens)
     if (strcmp(parm, "*") == 0) return 0xFFFF;
 
     while ((house = *parm++)) {
-        dbprintf("house %c\n\r", house);
+        dbprintf("house %c\n", house);
         if (ishouse(house)) {
             house -= 'A';
-            dbprintf("house %d\n\r", house);
+            dbprintf("house %d\n", house);
             rc |= (1 << house);
-            dbprintf("rc %04X\n\r", rc);
+            dbprintf("rc %04X\n", rc);
         }
     }
     return rc;
@@ -495,7 +495,7 @@ static int pl_tx_extended_code_1(int fd, int house, int unit, int command,
     size_t nbuf;
     unsigned char *xmitptr;
 
-    dbprintf("%s(%d,%d,%d,%d,%d,%d)\n\r", __func__, fd, house, unit, command,
+    dbprintf("%s(%d,%d,%d,%d,%d,%d)\n", __func__, fd, house, unit, command,
             subcmd, param);
     /* Make buffer as if received so decoder prints */
     buf[0] = 0x00;
@@ -508,7 +508,8 @@ static int pl_tx_extended_code_1(int fd, int house, int unit, int command,
     buf[6] = ((command & 0x0F) << 4) | (subcmd & 0x0F);
     xmitptr = &buf[2];
     cm15a_decode_plc(-1, buf, nbuf);
-    dbprintf("%d:", nbuf); hexdump(buf, nbuf);
+    dbprintf("decoded PLC buffer len %d\n", nbuf);
+    hexdump(buf, nbuf);
 
     /* Transmit only requires last 5 bytes */
     hexdump(xmitptr, 5);
@@ -522,7 +523,7 @@ static int pl_tx_housefunc(int fd, int house, int func, int param)
     size_t nbuf;
     unsigned char *xmitptr;
 
-    dbprintf("%s(%d,%d,%d,%d)\n\r", __func__, fd, house, func, param);
+    dbprintf("%s(%d,%d,%d,%d)\n", __func__, fd, house, func, param);
     /* Make buffer as if received so decoder prints */
     buf[0] = 0x00;
     switch (func) {
@@ -536,7 +537,8 @@ static int pl_tx_housefunc(int fd, int house, int func, int param)
             buf[4] = x10housecode[house] << 4 | func;
             xmitptr = &buf[2];
             cm15a_decode_plc(-1, buf, nbuf);
-            dbprintf("%d:", nbuf); hexdump(buf, nbuf);
+            dbprintf("decoded PLC buffer len %d\n", nbuf);
+            hexdump(buf, nbuf);
 
             /* Transmit using the 0x06 prefix just like AHP */
             /* The remaining two bytes are reversed */
@@ -557,7 +559,8 @@ static int pl_tx_housefunc(int fd, int house, int func, int param)
             buf[6] = 0x31;  /* Dim/Bright */
             xmitptr = &buf[2];
             cm15a_decode_plc(-1, buf, nbuf);
-            dbprintf("%d:", nbuf); hexdump(buf, nbuf);
+            dbprintf("decoded PLC buffer len %d\n", nbuf);
+            hexdump(buf, nbuf);
 
             /* Transmit only requires last 5 bytes */
             hexdump(xmitptr, 5);
@@ -569,7 +572,8 @@ static int pl_tx_housefunc(int fd, int house, int func, int param)
             buf[3] = x10housecode[house] << 4 | func;
             xmitptr = &buf[2];
             cm15a_decode_plc(-1, buf, nbuf);
-            dbprintf("%d:", nbuf); hexdump(buf, nbuf);
+            dbprintf("decoded PLC buffer len %d\n", nbuf);
+            hexdump(buf, nbuf);
 
             /* Transmit only requires last 2 bytes */
             *xmitptr = 0x06;
@@ -675,7 +679,7 @@ static int rf_tx_houseunitfunc(int fd, int house, int unit, int func)
             break;
             /* X10 SECURITY RF */
         default:
-            dbprintf("Invalid function\n\r");
+            dbprintf("Invalid function\n");
             return -1;
     }
     buf[3] = ~buf[2];     // add check bytes
@@ -711,7 +715,7 @@ int processcommandline(int fd, char *aLine)
     int rf8bitaddr, rfcamkey;
 
     strupper(aLine);
-    dbprintf("%lu:%s\n\r", (unsigned long)strlen(aLine), aLine);
+    dbprintf("%lu:%s\n", (unsigned long)strlen(aLine), aLine);
     if (strcmp(aLine, "<POLICY-FILE-REQUEST/>") == 0) {
         /* Yes, this sends the '\0' terminator which is required. */
         send_all(fd, DOMAINPOLICY, sizeof(DOMAINPOLICY));
@@ -745,7 +749,7 @@ int processcommandline(int fd, char *aLine)
         else if (strcmp(command, "PL") == 0) {
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
             house = getdeviceaddr(&tokens, &unit);
-            dbprintf("house %d unit %d\n\r", house, unit);
+            dbprintf("house %d unit %d\n", house, unit);
             if (house < 0) return -1;
             if (unit < 0) {
                 /* Unit code is 0 but house code != 0 */
@@ -765,7 +769,7 @@ int processcommandline(int fd, char *aLine)
                     pl_tx_houseunit(fd, house, unit);
                     return -1;
                 }
-                dbprintf("func %d\n\r", func);
+                dbprintf("func %d\n", func);
                 if (func == FUNC_EXTENDED_DIM) {
                     param = getparam(&tokens);
                     if (param == -1) param = 1; /* default is 1 dim */
@@ -796,7 +800,7 @@ int processcommandline(int fd, char *aLine)
         else if (strcmp(command, "RF") == 0) {
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
             house = getdeviceaddr(&tokens, &unit);
-            dbprintf("house %d unit %d\n\r", house, unit);
+            dbprintf("house %d unit %d\n", house, unit);
             if (house < 0) return -1;
             func = getfunc(&tokens);
             if (func < 0) return -1;
@@ -806,10 +810,10 @@ int processcommandline(int fd, char *aLine)
             if (or20client(fd)) statusprintf(fd, "ok\n\r");
             rfaddr = 0;
             rf8bitaddr = getrfaddr(&tokens, &rfaddr);
-            dbprintf("rfaddr 8bit: %d %X\n\r", rf8bitaddr, rfaddr);
+            dbprintf("rfaddr 8bit: %d %X\n", rf8bitaddr, rfaddr);
             if (rf8bitaddr < 0) return -1;
             func = getrffunc(&tokens, rf8bitaddr);
-            dbprintf("rf func %X\n\r", func);
+            dbprintf("rf func %X\n", func);
             if (func < 0) return -1;
             rfsec_tx(fd, rf8bitaddr, rfaddr, func);
         }
@@ -820,7 +824,7 @@ int processcommandline(int fd, char *aLine)
             if (house < 0) return -1;
             arg1 = next_token(&tokens);
             if (arg1 == NULL || *arg1 == '\0') return -1;
-            dbprintf("rfcam house keyname %d %s\n\r", house, arg1);
+            dbprintf("rfcam house keyname %d %s\n", house, arg1);
 
             rfcamkey = findCamRemoteCommand(arg1);
             if (rfcamkey > 0) {
@@ -862,7 +866,7 @@ int processcommandline(int fd, char *aLine)
             x10_write(x10bytes8, 8);
         }
         else if (strcmp(command, "CMINIT") == 0) {
-            dbprintf("Disabling internal RF to PL repeater\n\r");
+            dbprintf("Disabling internal RF to PL repeater\n");
             x10_write((unsigned char *)"\x9b\x00\x09\x07\x43\x04\xe0\x03", 8);
             x10_write((unsigned char *)"\x8b", 1);
             x10_write((unsigned char *)"\xdb\x1f\xf0", 3);
@@ -888,7 +892,7 @@ int processcommandline(int fd, char *aLine)
         }
         else if (strcmp(command, "ST") == 0) {
             arg1 = next_token(&tokens);
-            dbprintf("st arg1 %s\n\r", arg1);
+            dbprintf("st arg1 %s\n", arg1 ? arg1 : "(none)");
             if (arg1 && (strcmp(arg1, "0") == 0))
                 hua_sec_init();
             else
@@ -950,7 +954,7 @@ int processcommandline(int fd, char *aLine)
                     (hua_getstatus_sec(rf8bitaddr, rfaddr) == 1) ? "on": "off");
         }
         else {
-            dbprintf("Unknown command: %s\n\r", command);
+            dbprintf("Unknown command: %s\n", command);
             return -1;
         }
         if (!no_more_tokens(&tokens)) {
@@ -977,9 +981,9 @@ void cm15a_encode_with_state(int fd, cm15a_encode_state_t *state,
 {
     char *remptr;
 
-    dbprintf("buflen %lu\n\r", (unsigned long)buflen);
+    dbprintf("buflen %lu\n", (unsigned long)buflen);
     hexdump(buf, buflen);
-    dbprintf("remlen %lu\n\r", (unsigned long)state->remlen);
+    dbprintf("remlen %lu\n", (unsigned long)state->remlen);
     hexdump(state->remainder, state->remlen);
 
     /* Break the input stream into \n or \r terminated lines. The stream is not
@@ -996,7 +1000,7 @@ void cm15a_encode_with_state(int fd, cm15a_encode_state_t *state,
             continue;
         }
         if (remptr >= state->remainder + sizeof(state->remainder) - 1) {
-            dbprintf("command line too long; dropping partial input\n\r");
+            dbprintf("command line too long; dropping partial input\n");
             state->remainder[0] = '\0';
             state->remlen = 0;
             state->discarding = 1;
