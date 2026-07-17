@@ -20,6 +20,9 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		apps/mochamon.pl apps/simplemon.pl apps/bash.sh \
 		apps/rfsectopl3.pl apps/x10-tk.py apps/mochad.scr \
 		scripts/setup-native-permissions.sh \
+		scripts/release/prepare-next-dev.sh \
+		scripts/release/prepare-release.sh \
+		scripts/release/update-version-files.sh \
 		scripts/validate/cm19a-hardware-validation.sh \
 		scripts/validate/clean-build-test.sh \
 		scripts/validate/docker-build.sh \
@@ -41,7 +44,7 @@ EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules
 		tests/test_x10_write.c \
 		tests/test_socket_io.c tests/test_tcp_diagnostics.c \
 		tests/test_usb_endpoint_selection.c \
-		docs/generated-artifacts.md docs/hardware-validation.md \
+		docs/compatibility.md docs/generated-artifacts.md docs/hardware-validation.md \
 		docs/json-api.md docs/milestone-1.md docs/source-lineage.md \
 		docs/support-files.md docs/supported-platforms.md \
 		docs/native-install-rollback.md \

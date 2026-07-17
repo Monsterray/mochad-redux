@@ -1,6 +1,6 @@
 /*
- * Maintained project version definitions. Keep this file synchronized with
- * VERSION using scripts/validate/version-consistency.sh.
+ * Generated from VERSION by scripts/release/update-version-files.sh.
+ * Do not edit the version strings here by hand.
  */
 
 #ifndef MOCHAD_REDUX_VERSION_H

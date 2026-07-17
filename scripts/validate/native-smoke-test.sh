@@ -17,7 +17,12 @@ if [ ! -x "$MOCHAD_BIN" ]; then
 fi
 
 echo "+ $MOCHAD_BIN --version"
-"$MOCHAD_BIN" --version
+version_output="$("$MOCHAD_BIN" --version)"
+printf '%s\n' "$version_output"
+if [ "$(printf '%s\n' "$version_output" | sed -n '1p')" != "$(tr -d '\n' < VERSION)" ]; then
+    echo "FAIL: --version does not match VERSION" >&2
+    exit 1
+fi
 
 echo
 echo "+ $MOCHAD_BIN --help"
