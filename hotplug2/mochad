@@ -1,4 +1,6 @@
 #!/bin/sh /etc/rc.common
+# ShellCheck cannot see hotplug2 reading this ordering contract.
+# shellcheck disable=SC2034
 START=50
 
 SSD=start-stop-daemon
@@ -13,4 +15,3 @@ start() {
 stop() {
 	$SSD -K -p $PIDF
 }
-
