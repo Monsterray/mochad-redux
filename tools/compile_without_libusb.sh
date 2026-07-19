@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$SCRIPT_DIR/.."
+
 CC=${CC:-cc}
 CFLAGS=${CFLAGS:-}
 BUILD_DIR=${BUILD_DIR:-}
@@ -201,7 +204,7 @@ if [ "$RUN_CPPCHECK" -eq 1 ]; then
         CPPCHECK_ENABLE="$CPPCHECK_ENABLE,style"
     fi
     # shellcheck disable=SC2086
-    cppcheck --enable="$CPPCHECK_ENABLE" --error-exitcode=1 \
+    cppcheck --check-level=exhaustive --enable="$CPPCHECK_ENABLE" --error-exitcode=1 \
         --inline-suppr --quiet -I. $SOURCES
 fi
 
