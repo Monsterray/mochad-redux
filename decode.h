@@ -26,8 +26,7 @@ const char *findSecRemoteKeyName(unsigned char secev);
 int findCamRemoteCommand(const char *keyname);
 
 void cm15a_decode_plc(int fd, unsigned char *buf, size_t len);
-    
+
 void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len);
 
 void cm15a_decode(int fd, unsigned char *buf, unsigned int len);
-

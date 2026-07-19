@@ -9,15 +9,13 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-static int send_json_line(int fd, const char *json)
-{
+static int send_json_line(int fd, const char *json) {
     if (send_all(fd, json, strlen(json)) < 0)
         return -1;
     return send_all(fd, "\n", 1);
 }
 
-static int build_listener(int *port)
-{
+static int build_listener(int *port) {
     struct sockaddr_in address;
     socklen_t address_len;
     int fd;
@@ -61,8 +59,7 @@ static int build_listener(int *port)
     return fd;
 }
 
-static int connect_client(int port)
-{
+static int connect_client(int port) {
     struct sockaddr_in address;
     int fd;
 
@@ -87,15 +84,13 @@ static int connect_client(int port)
     return fd;
 }
 
-static int emit_diagnostic_lines(int fd)
-{
+static int emit_diagnostic_lines(int fd) {
     char json[2048];
     mochad_config config;
     mochad_diag_runtime runtime;
 
     mochad_config_defaults(&config);
-    snprintf(config.bind_address, sizeof(config.bind_address), "%s",
-            "127.0.0.1");
+    snprintf(config.bind_address, sizeof(config.bind_address), "%s", "127.0.0.1");
 
     memset(&runtime, 0, sizeof(runtime));
     runtime.uptime_seconds = 7;
@@ -105,26 +100,24 @@ static int emit_diagnostic_lines(int fd)
     runtime.config = &config;
 
     if (mochad_diag_json_hello(json, sizeof(json), "mochad 0.1.18") < 0 ||
-            send_json_line(fd, json) < 0)
+        send_json_line(fd, json) < 0)
         return -1;
     if (mochad_diag_json_capabilities(json, sizeof(json), config.raw_data) < 0 ||
-            send_json_line(fd, json) < 0)
+        send_json_line(fd, json) < 0)
         return -1;
-    if (mochad_diag_json_health(json, sizeof(json), "mochad 0.1.18",
-                &runtime) < 0 || send_json_line(fd, json) < 0)
+    if (mochad_diag_json_health(json, sizeof(json), "mochad 0.1.18", &runtime) < 0 ||
+        send_json_line(fd, json) < 0)
         return -1;
-    if (mochad_diag_json_config(json, sizeof(json), &config) < 0 ||
-            send_json_line(fd, json) < 0)
+    if (mochad_diag_json_config(json, sizeof(json), &config) < 0 || send_json_line(fd, json) < 0)
         return -1;
     if (mochad_diag_json_version(json, sizeof(json), "mochad 0.1.18") < 0 ||
-            send_json_line(fd, json) < 0)
+        send_json_line(fd, json) < 0)
         return -1;
 
     return 0;
 }
 
-int main(void)
-{
+int main(void) {
     char buffer[4096];
     int listen_fd;
     int client_fd;

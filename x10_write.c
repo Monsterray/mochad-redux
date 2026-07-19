@@ -30,32 +30,27 @@
 #include "global.h"
 #include "x10_write.h"
 
-
 typedef struct x10out {
     size_t outlen;
     unsigned char outdata[8];
 } x10out_t;
 
 static x10out_t Outrecs[256];
-#define OUTPTRSSIZE             (sizeof(Outrecs)/sizeof(Outrecs[0]))
+#define OUTPTRSSIZE (sizeof(Outrecs) / sizeof(Outrecs[0]))
 static int Outhead = 0;
 static int Outtail = 0;
 static int Outbusy = 0;
 
-static int next_index(int idx)
-{
-    return ((idx + 1) % OUTPTRSSIZE);
-}
+static int next_index(int idx) { return ((idx + 1) % OUTPTRSSIZE); }
 
-static int add_x10out(unsigned char *buf, size_t buflen)
-{
+static int add_x10out(unsigned char *buf, size_t buflen) {
     int nxt;
     x10out_t *nxtrec;
 
     dbprintf("len %lu\n", buflen);
     if (buflen > sizeof(Outrecs[0].outdata)) {
         dbprintf("x10 output too long %lu/%lu\n", (unsigned long)buflen,
-                (unsigned long)sizeof(Outrecs[0].outdata));
+                 (unsigned long)sizeof(Outrecs[0].outdata));
         return -1;
     }
     if ((nxt = next_index(Outtail)) == Outhead) {
@@ -70,8 +65,7 @@ static int add_x10out(unsigned char *buf, size_t buflen)
     return buflen;
 }
 
-int send_next_x10out(void)
-{
+int send_next_x10out(void) {
     x10out_t *outrec;
     int next;
     int r;
@@ -82,14 +76,13 @@ int send_next_x10out(void)
             /* Empty */
             Outbusy = 0;
             PollTimeOut = -1;
-        }
-        else {
+        } else {
             next = next_index(Outhead);
             outrec = &Outrecs[next];
             r = write_usb(outrec->outdata, outrec->outlen);
             if (r < 0) {
                 dbprintf("queued USB write failed %d\n", r);
-                PollTimeOut = 2*1000;
+                PollTimeOut = 2 * 1000;
                 return r;
             }
             Outhead = next;
@@ -98,20 +91,18 @@ int send_next_x10out(void)
     return 0;
 }
 
-int x10_write(unsigned char *buf, size_t buflen)
-{
+int x10_write(unsigned char *buf, size_t buflen) {
     int r;
 
     dbprintf("Outbusy=%d\n", Outbusy);
     if (buflen > sizeof(Outrecs[0].outdata)) {
         dbprintf("x10 write too long %lu/%lu\n", (unsigned long)buflen,
-                (unsigned long)sizeof(Outrecs[0].outdata));
+                 (unsigned long)sizeof(Outrecs[0].outdata));
         return -1;
     }
     if (Outbusy) {
         return add_x10out(buf, buflen);
-    }
-    else {
+    } else {
         Outbusy = 1;
         r = write_usb(buf, buflen);
         if (r < 0) {
@@ -119,7 +110,7 @@ int x10_write(unsigned char *buf, size_t buflen)
             PollTimeOut = -1;
             return r;
         }
-        PollTimeOut = 2*1000;   /* 2 seconds */
+        PollTimeOut = 2 * 1000; /* 2 seconds */
     }
     return buflen;
 }

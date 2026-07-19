@@ -31,17 +31,15 @@ unsigned short RfToPl16 = 0xFFFF;
 
 unsigned short RfToRf16 = 0;
 
-
 /* #define dbprintf(fmt,...) fprintf(stderr, "%s:%d:" fmt, __FILE__,__LINE__,__VA_ARGS__) */
-#define dbprintf(fmt, ...) _dbprintf(fmt, __FILE__,__LINE__, ## __VA_ARGS__)
-int _dbprintf(const char *fmt, ...)
-{
+#define dbprintf(fmt, ...) _dbprintf(fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+int _dbprintf(const char *fmt, ...) {
     va_list args;
     const char *file;
     int line;
     int prefixlen, msglen;
 
-    va_start(args,fmt);
+    va_start(args, fmt);
     file = va_arg(args, const char *);
     line = va_arg(args, int);
     prefixlen = fprintf(stderr, "%s:%d:", file, line);

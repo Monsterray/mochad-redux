@@ -43,14 +43,11 @@ typedef struct mochad_config {
 extern mochad_config MochadConfig;
 
 void mochad_config_defaults(mochad_config *config);
-int mochad_config_load(mochad_config *config, int argc, char **argv,
-        char *error, size_t error_len);
-int mochad_config_validate(const mochad_config *config,
-        char *error, size_t error_len);
+int mochad_config_load(mochad_config *config, int argc, char **argv, char *error, size_t error_len);
+int mochad_config_validate(const mochad_config *config, char *error, size_t error_len);
 const char *mochad_config_dual_stack_name(mochad_dual_stack_policy policy);
 const char *mochad_config_log_level_name(int level);
-int mochad_config_snprint_json(char *buffer, size_t buffer_len,
-        const mochad_config *config);
+int mochad_config_snprint_json(char *buffer, size_t buffer_len, const mochad_config *config);
 void mochad_config_print(FILE *stream, const mochad_config *config);
 
 #endif

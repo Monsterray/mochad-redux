@@ -32,18 +32,18 @@
  */
 typedef unsigned char houseunitaddrs_t[16][16];
 
-/* For X10 security sensors such as MS10A motion sensor and DS10A 
+/* For X10 security sensors such as MS10A motion sensor and DS10A
  * door/window sensor
  */
 typedef struct _x10secsensor {
     unsigned long secaddr;
-    time_t        lastupdate;
-    unsigned char secaddr8;     /* 0 17 bit addr, 1 8 bit addr */
+    time_t lastupdate;
+    unsigned char secaddr8; /* 0 17 bit addr, 1 8 bit addr */
     unsigned char sensorstatus;
 } x10secsensor_t;
 
 static x10secsensor_t X10sensors[512];
-static unsigned int  X10sensorcount = 0;
+static unsigned int X10sensorcount = 0;
 
 /* 0x00 = unknown, '1' = ON, '0' = OFF */
 static houseunitaddrs_t HouseUnitState;
@@ -61,8 +61,7 @@ static int X10protostate[16];
  * pl b on  # Turn on b3 and b4
  */
 
-void hua_sec_init(void) 
-{
+void hua_sec_init(void) {
     memset(HouseUnitState, 0, sizeof(HouseUnitState));
     memset(HouseUnitSelected, 0, sizeof(HouseUnitSelected));
     memset(HouseUnitDim, 0, sizeof(HouseUnitDim));
@@ -75,14 +74,12 @@ void hua_sec_init(void)
 #define issecfunc(x) (((x & 0xF0) == 0x80) || ((x & 0xF0) == 0x00))
 
 /* Remember RF security event */
-void hua_sec_event(unsigned char *secaddr, unsigned int funcint, 
-        unsigned int secaddr8)
-{
+void hua_sec_event(unsigned char *secaddr, unsigned int funcint, unsigned int secaddr8) {
     unsigned int i;
     unsigned long secaddr32;
     x10secsensor_t *sen;
 
-    secaddr32 = (secaddr[0] << 16) | (secaddr[1] << 8) | secaddr[2] ;
+    secaddr32 = (secaddr[0] << 16) | (secaddr[1] << 8) | secaddr[2];
     /* dbprintf("secaddr32 %X func %X issecfunc %d\n",
             secaddr32, funcint, issecfunc(funcint)); */
 
@@ -96,7 +93,7 @@ void hua_sec_event(unsigned char *secaddr, unsigned int funcint,
     }
 
     /* Add new device */
-    if ((X10sensorcount + 1) >= (sizeof(X10sensors)/sizeof(x10secsensor_t)))
+    if ((X10sensorcount + 1) >= (sizeof(X10sensors) / sizeof(x10secsensor_t)))
         return;
     sen = &X10sensors[X10sensorcount];
     sen->secaddr = secaddr32;
@@ -106,23 +103,15 @@ void hua_sec_event(unsigned char *secaddr, unsigned int funcint,
     X10sensorcount++;
 }
 
-static void hua_init(int house)
-{
-    memset(&HouseUnitSelected[house], 0, sizeof(HouseUnitSelected)/16);
+static void hua_init(int house) {
+    memset(&HouseUnitSelected[house], 0, sizeof(HouseUnitSelected) / 16);
 }
 
-unsigned char hua_getstatus(int house, int unit)
-{
-    return HouseUnitState[house][unit];
-}
+unsigned char hua_getstatus(int house, int unit) { return HouseUnitState[house][unit]; }
 
-unsigned char hua_getstatus_xdim(int house, int unit)
-{
-    return HouseUnitDim[house][unit];
-}
+unsigned char hua_getstatus_xdim(int house, int unit) { return HouseUnitDim[house][unit]; }
 
-void hua_setstatus_xdim(int house, int unit, int xdim)
-{
+void hua_setstatus_xdim(int house, int unit, int xdim) {
     /* dbprintf("%s(%d,%d)\n", __func__, house, xdim); */
     hua_init(house);
     HouseUnitSelected[house][unit] = '1';
@@ -134,25 +123,23 @@ void hua_setstatus_xdim(int house, int unit, int xdim)
         HouseUnitState[house][unit] = '0';
 }
 
-void hua_add(int house, int unit)
-{
+void hua_add(int house, int unit) {
     switch (X10protostate[house]) {
-        case 0:
-            HouseUnitSelected[house][unit] = '1';
-            break;
-        case 1:
-            hua_init(house);
-            HouseUnitSelected[house][unit] = '1';
-            X10protostate[house] = 0;
-            break;
-        default:
-            dbprintf("Invalid state\n");
+    case 0:
+        HouseUnitSelected[house][unit] = '1';
+        break;
+    case 1:
+        hua_init(house);
+        HouseUnitSelected[house][unit] = '1';
+        X10protostate[house] = 0;
+        break;
+    default:
+        dbprintf("Invalid state\n");
     }
     // hua_dbprint();
 }
 
-static void hua_func_all(int house, unsigned char func)
-{
+static void hua_func_all(int house, unsigned char func) {
     int u;
 
     X10protostate[house] = 1;
@@ -166,18 +153,11 @@ static void hua_func_all(int house, unsigned char func)
     // hua_dbprint();
 }
 
-void hua_func_all_on(int house)
-{
-    hua_func_all(house, '1');
-}
+void hua_func_all_on(int house) { hua_func_all(house, '1'); }
 
-void hua_func_all_off(int house)
-{
-    hua_func_all(house, '0');
-}
+void hua_func_all_off(int house) { hua_func_all(house, '0'); }
 
-static void hua_func(int house, unsigned char func)
-{
+static void hua_func(int house, unsigned char func) {
     int u;
 
     /* dbprintf("%s(%d,%d)\n", __func__, house, func); */
@@ -194,18 +174,11 @@ static void hua_func(int house, unsigned char func)
     /* dbprintf("%s exit\n", __func__); */
 }
 
-void hua_func_on(int house)
-{
-    hua_func(house, '1');
-}
+void hua_func_on(int house) { hua_func(house, '1'); }
 
-void hua_func_off(int house)
-{
-    hua_func(house, '0');
-}
+void hua_func_off(int house) { hua_func(house, '0'); }
 
-int hua_getstatus_sec(int rf8bitaddr, unsigned long rfaddr)
-{
+int hua_getstatus_sec(int rf8bitaddr, unsigned long rfaddr) {
     x10secsensor_t *sen;
     unsigned int sensor;
 
@@ -213,45 +186,44 @@ int hua_getstatus_sec(int rf8bitaddr, unsigned long rfaddr)
     for (sensor = 0; sensor < X10sensorcount; sensor++) {
         sen = &X10sensors[sensor];
 
-        dbprintf("[STATUS] hua_getstatus_sec addr8 %d addr %X status %X\n",
-                sen->secaddr8, sen->secaddr, sen->sensorstatus);
+        dbprintf("[STATUS] hua_getstatus_sec addr8 %d addr %X status %X\n", sen->secaddr8,
+                 sen->secaddr, sen->sensorstatus);
         if (rf8bitaddr && sen->secaddr8 && (rfaddr == sen->secaddr)) {
             switch (sen->sensorstatus) {
-                case 0x04: return 1;    /* alert */
-                case 0x84: return 0;    /* normal */
+            case 0x04:
+                return 1; /* alert */
+            case 0x84:
+                return 0; /* normal */
             }
-        }
-        else if (!rf8bitaddr && !sen->secaddr8 && (rfaddr == sen->secaddr)) {
+        } else if (!rf8bitaddr && !sen->secaddr8 && (rfaddr == sen->secaddr)) {
             switch (sen->sensorstatus) {
-                case 0x00:
-                case 0x01:
-                case 0x04:
-                case 0x05:
-                case 0x0C:
-                case 0x0D:
-                    return 1;    /* alert */
-                case 0x80:
-                case 0x81:
-                case 0x84:
-                case 0x85:
-                case 0x8C:
-                case 0x8D:
-                    return 0;    /* normal */
+            case 0x00:
+            case 0x01:
+            case 0x04:
+            case 0x05:
+            case 0x0C:
+            case 0x0D:
+                return 1; /* alert */
+            case 0x80:
+            case 0x81:
+            case 0x84:
+            case 0x85:
+            case 0x8C:
+            case 0x8D:
+                return 0; /* normal */
             }
         }
     }
     return -1;
 }
 
-static int cmpX10sensor(const void *e1, const void *e2)
-{
+static int cmpX10sensor(const void *e1, const void *e2) {
     const x10secsensor_t *sen1 = e1, *sen2 = e2;
 
     return sen1->secaddr - sen2->secaddr;
 }
 
-void hua_show(int fd)
-{
+void hua_show(int fd) {
     int h, u;
     char buf[2048];
     int labeldone;
@@ -266,20 +238,18 @@ void hua_show(int fd)
             if (HouseUnitSelected[h][u]) {
                 if (!labeldone) {
                     labeldone = 1;
-                    snprintf(buf+strlen(buf), sizeof(buf)-strlen(buf), 
-                            "House %c: %d", h+'A', u+1);
-                }
-                else 
-                    snprintf(buf+strlen(buf), sizeof(buf)-strlen(buf), 
-                            ",%d", u+1);
+                    snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "House %c: %d", h + 'A',
+                             u + 1);
+                } else
+                    snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), ",%d", u + 1);
             }
         }
         if (labeldone) {
-            snprintf(buf+strlen(buf), sizeof(buf)-strlen(buf), "\n\r");
+            snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "\n\r");
             sockprintf(fd, "%s", buf);
         }
     }
-    
+
     sockprintf(fd, "Device status\n\r");
     for (h = 0; h < 16; h++) {
         labeldone = 0;
@@ -288,16 +258,15 @@ void hua_show(int fd)
             if (HouseUnitState[h][u]) {
                 if (!labeldone) {
                     labeldone = 1;
-                    snprintf(buf+strlen(buf), sizeof(buf)-strlen(buf), 
-                            "House %c: %d=%c", h+'A', u+1, HouseUnitState[h][u]);
-                }
-                else
-                    snprintf(buf+strlen(buf), sizeof(buf)-strlen(buf), 
-                            ",%d=%c", u+1, HouseUnitState[h][u]);
+                    snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "House %c: %d=%c",
+                             h + 'A', u + 1, HouseUnitState[h][u]);
+                } else
+                    snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), ",%d=%c", u + 1,
+                             HouseUnitState[h][u]);
             }
         }
         if (labeldone) {
-            snprintf(buf+strlen(buf), sizeof(buf)-strlen(buf), "\n\r");
+            snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "\n\r");
             sockprintf(fd, "%s", buf);
         }
     }
@@ -315,8 +284,8 @@ void hua_show(int fd)
             message = findSecRemoteKeyName(sen->sensorstatus);
         else
             message = findSecEventName(sen->sensorstatus);
-        sockprintf(fd, "Sensor addr: %06X Last: %02d:%02d %s \n\r", sen->secaddr,
-                mins, deltat, message);
+        sockprintf(fd, "Sensor addr: %06X Last: %02d:%02d %s \n\r", sen->secaddr, mins, deltat,
+                   message);
     }
 
     sockprintf(fd, "End status\n\r");

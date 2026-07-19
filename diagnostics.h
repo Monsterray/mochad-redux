@@ -27,17 +27,12 @@ typedef struct mochad_diag_runtime {
     const mochad_config *config;
 } mochad_diag_runtime;
 
-int mochad_diag_json_hello(char *buffer, size_t buffer_len,
-        const char *upstream_base);
-int mochad_diag_json_capabilities(char *buffer, size_t buffer_len,
-        int raw_data);
-int mochad_diag_json_health(char *buffer, size_t buffer_len,
-        const char *upstream_base, const mochad_diag_runtime *runtime);
-int mochad_diag_json_clients(char *buffer, size_t buffer_len,
-        const mochad_diag_runtime *runtime);
-int mochad_diag_json_config(char *buffer, size_t buffer_len,
-        const mochad_config *config);
-int mochad_diag_json_version(char *buffer, size_t buffer_len,
-        const char *upstream_base);
+int mochad_diag_json_hello(char *buffer, size_t buffer_len, const char *upstream_base);
+int mochad_diag_json_capabilities(char *buffer, size_t buffer_len, int raw_data);
+int mochad_diag_json_health(char *buffer, size_t buffer_len, const char *upstream_base,
+                            const mochad_diag_runtime *runtime);
+int mochad_diag_json_clients(char *buffer, size_t buffer_len, const mochad_diag_runtime *runtime);
+int mochad_diag_json_config(char *buffer, size_t buffer_len, const mochad_config *config);
+int mochad_diag_json_version(char *buffer, size_t buffer_len, const char *upstream_base);
 
 #endif

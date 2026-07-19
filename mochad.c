@@ -68,13 +68,13 @@
 #include "version.h"
 #include "x10_write.h"
 
-#define MAXCLISOCKETS   (32)
-#define MAXSOCKETS      (1+MAXCLISOCKETS)
-				/* first socket=listen socket, 32 client sockets */
+#define MAXCLISOCKETS (32)
+#define MAXSOCKETS (1 + MAXCLISOCKETS)
+/* first socket=listen socket, 32 client sockets */
 #define CLIENT_OUTPUT_QUEUE_SIZE (16U * 1024U)
 #define CLIENT_WRITE_BUDGET_PER_LOOP (64U * 1024U)
 #define CLIENT_STALLED_TIMEOUT_SECONDS (30)
-#define X10_VENDOR_ID   0x0bc7
+#define X10_VENDOR_ID 0x0bc7
 #define CM15A_PRODUCT_ID 0x0001
 #define CM19A_PRODUCT_ID 0x0002
 
@@ -123,9 +123,9 @@ static time_t StartTime = 0;
 uint8_t InEndpoint, OutEndpoint;
 
 static libusb_context *UsbCtx = NULL;
-static struct libusb_device_handle *Devh        = NULL;
+static struct libusb_device_handle *Devh = NULL;
 static struct libusb_transfer *IntrOut_transfer = NULL;
-static struct libusb_transfer *IntrIn_transfer  = NULL;
+static struct libusb_transfer *IntrIn_transfer = NULL;
 /* libusb transfer pointers remain allocated while callbacks are pending. */
 static int IntrOut_submitted = 0;
 static int IntrOut_canceling = 0;
@@ -157,21 +157,18 @@ int del_client(int fd);
 static int queue_client_bytes(int fd, const void *buffer, size_t length);
 static int set_fd_nonblocking(int fd);
 
-static void client_output_init(struct client_output_queue *queue)
-{
+static void client_output_init(struct client_output_queue *queue) {
     queue->head = 0;
     queue->len = 0;
     queue->stalled_since = 0;
 }
 
-static size_t client_output_space(const struct client_output_queue *queue)
-{
+static size_t client_output_space(const struct client_output_queue *queue) {
     return sizeof(queue->data) - queue->len;
 }
 
-static int client_output_enqueue(struct client_output_queue *queue,
-        const void *buffer, size_t length)
-{
+static int client_output_enqueue(struct client_output_queue *queue, const void *buffer,
+                                 size_t length) {
     const unsigned char *src = buffer;
     size_t tail;
     size_t first;
@@ -191,8 +188,7 @@ static int client_output_enqueue(struct client_output_queue *queue,
 }
 
 static size_t client_output_peek(const struct client_output_queue *queue,
-        const unsigned char **buffer)
-{
+                                 const unsigned char **buffer) {
     size_t available;
 
     if (queue->len == 0) {
@@ -207,9 +203,7 @@ static size_t client_output_peek(const struct client_output_queue *queue,
     return available;
 }
 
-static void client_output_consume(struct client_output_queue *queue,
-        size_t length)
-{
+static void client_output_consume(struct client_output_queue *queue, size_t length) {
     if (length >= queue->len) {
         client_output_init(queue);
         return;
@@ -221,9 +215,7 @@ static void client_output_consume(struct client_output_queue *queue,
         queue->stalled_since = 0;
 }
 
-static int format_bounded(char *buffer, size_t buffer_len,
-        const char *fmt, va_list args)
-{
+static int format_bounded(char *buffer, size_t buffer_len, const char *fmt, va_list args) {
     int written;
 
     if (buffer_len == 0) {
@@ -245,13 +237,12 @@ static int format_bounded(char *buffer, size_t buffer_len,
  * Like printf but print to socket without date/time stamp.
  * Used to send back result of getstatus command.
  */
-int statusprintf(int fd, const char *fmt, ...)
-{
+int statusprintf(int fd, const char *fmt, ...) {
     va_list args;
     char buf[1024];
     int buflen;
 
-    va_start(args,fmt);
+    va_start(args, fmt);
     buflen = format_bounded(buf, sizeof(buf), fmt, args);
     va_end(args);
 
@@ -261,8 +252,7 @@ int statusprintf(int fd, const char *fmt, ...)
     return queue_client_bytes(fd, buf, (size_t)buflen);
 }
 
-static unsigned long uptime_seconds(void)
-{
+static unsigned long uptime_seconds(void) {
     time_t now;
 
     if (StartTime == 0)
@@ -275,32 +265,23 @@ static unsigned long uptime_seconds(void)
     return (unsigned long)(now - StartTime);
 }
 
-static const char *controller_model(void)
-{
+static const char *controller_model(void) {
     if (!Devh)
         return "none";
 
     return Cm19a ? "CM19A" : "CM15A";
 }
 
-static int usb_connected(void)
-{
-    return Devh != NULL;
+static int usb_connected(void) { return Devh != NULL; }
+
+static int endpoints_ready(void) { return InEndpoint != 0 && OutEndpoint != 0; }
+
+static int transfers_ready(void) {
+    return IntrIn_transfer != NULL && IntrOut_transfer != NULL && IntrIn_submitted &&
+           !IntrIn_canceling && !IntrOut_canceling;
 }
 
-static int endpoints_ready(void)
-{
-    return InEndpoint != 0 && OutEndpoint != 0;
-}
-
-static int transfers_ready(void)
-{
-    return IntrIn_transfer != NULL && IntrOut_transfer != NULL &&
-            IntrIn_submitted && !IntrIn_canceling && !IntrOut_canceling;
-}
-
-static void maybe_finish_x10_transmit(void)
-{
+static void maybe_finish_x10_transmit(void) {
     if (!IntrOut_completed)
         return;
 
@@ -325,8 +306,7 @@ static void maybe_finish_x10_transmit(void)
     send_next_x10out();
 }
 
-static void fill_diag_runtime(mochad_diag_runtime *runtime)
-{
+static void fill_diag_runtime(mochad_diag_runtime *runtime) {
     runtime->uptime_seconds = uptime_seconds();
     runtime->usb_connected = usb_connected();
     runtime->controller = controller_model();
@@ -344,78 +324,62 @@ static void fill_diag_runtime(mochad_diag_runtime *runtime)
     runtime->config = &MochadConfig;
 }
 
-static int send_diag_json(int fd, int result, const char *json)
-{
+static int send_diag_json(int fd, int result, const char *json) {
     if (result < 0)
-        return statusprintf(fd,
-                "{\"ok\":false,\"error\":\"diagnostic output too large\"}\n");
+        return statusprintf(fd, "{\"ok\":false,\"error\":\"diagnostic output too large\"}\n");
 
     return statusprintf(fd, "%s\n", json);
 }
 
-int mochad_diag_hello(int fd)
-{
+int mochad_diag_hello(int fd) {
     char json[1024];
 
-    return send_diag_json(fd,
-            mochad_diag_json_hello(json, sizeof(json), MOCHAD_UPSTREAM_BASE),
-            json);
+    return send_diag_json(fd, mochad_diag_json_hello(json, sizeof(json), MOCHAD_UPSTREAM_BASE),
+                          json);
 }
 
-int mochad_diag_capabilities(int fd)
-{
+int mochad_diag_capabilities(int fd) {
     char json[1024];
 
-    return send_diag_json(fd,
-            mochad_diag_json_capabilities(json, sizeof(json),
-                    MochadConfig.raw_data),
-            json);
+    return send_diag_json(
+        fd, mochad_diag_json_capabilities(json, sizeof(json), MochadConfig.raw_data), json);
 }
 
-int mochad_diag_health(int fd)
-{
+int mochad_diag_health(int fd) {
     char json[1024];
     mochad_diag_runtime runtime;
 
     fill_diag_runtime(&runtime);
-    return send_diag_json(fd,
-            mochad_diag_json_health(json, sizeof(json), MOCHAD_UPSTREAM_BASE,
-                    &runtime),
-            json);
+    return send_diag_json(
+        fd, mochad_diag_json_health(json, sizeof(json), MOCHAD_UPSTREAM_BASE, &runtime), json);
 }
 
-int mochad_diag_clients(int fd)
-{
+int mochad_diag_clients(int fd) {
     char json[1024];
     mochad_diag_runtime runtime;
 
     fill_diag_runtime(&runtime);
-    return send_diag_json(fd,
-            mochad_diag_json_clients(json, sizeof(json), &runtime), json);
+    return send_diag_json(fd, mochad_diag_json_clients(json, sizeof(json), &runtime), json);
 }
 
-int mochad_diag_config(int fd)
-{
+int mochad_diag_config(int fd) {
     char json[1024];
 
-    return send_diag_json(fd,
-            mochad_diag_json_config(json, sizeof(json), &MochadConfig), json);
+    return send_diag_json(fd, mochad_diag_json_config(json, sizeof(json), &MochadConfig), json);
 }
 
-int mochad_diag_version(int fd)
-{
+int mochad_diag_version(int fd) {
     char json[1024];
 
-    return send_diag_json(fd,
-            mochad_diag_json_version(json, sizeof(json), MOCHAD_UPSTREAM_BASE),
-            json);
+    return send_diag_json(fd, mochad_diag_json_version(json, sizeof(json), MOCHAD_UPSTREAM_BASE),
+                          json);
 }
 
-static int xmlclient(int fd)
-{
+static int xmlclient(int fd) {
     int i;
     for (i = 0; i < MAXCLISOCKETS; i++) {
-        if (fd == Clientxmlsocks[i].fd) return 1;
+        if (fd == Clientxmlsocks[i].fd)
+            return 1;
     }
     return 0;
 }
@@ -425,8 +389,7 @@ static int xmlclient(int fd)
  * used.
  *
  */
-int or20client(int fd)
-{
+int or20client(int fd) {
     struct sockaddr_storage locl;
     socklen_t locllen;
     unsigned short port;
@@ -438,11 +401,9 @@ int or20client(int fd)
     }
     if (locl.ss_family == AF_INET) {
         port = ntohs(((struct sockaddr_in *)&locl)->sin_port);
-    }
-    else if (locl.ss_family == AF_INET6) {
+    } else if (locl.ss_family == AF_INET6) {
         port = ntohs(((struct sockaddr_in6 *)&locl)->sin6_port);
-    }
-    else {
+    } else {
         dbprintf("locl family %d\n", locl.ss_family);
         return 0;
     }
@@ -454,8 +415,7 @@ int or20client(int fd)
  * Like printf but prefix each line with date/time stamp.
  * If fd == -1, send to all socket clients else send only to fd.
  */
-int sockprintf(int fd, const char *fmt, ...)
-{
+int sockprintf(int fd, const char *fmt, ...) {
     va_list args;
     char buf[1024];
     char *aLine;
@@ -469,16 +429,14 @@ int sockprintf(int fd, const char *fmt, ...)
 
     aLine = buf;
     now = time(NULL);
-    prefix_len = strftime(aLine, sizeof(buf), "%m/%d %T ",
-            localtime_r(&now, &local_tm));
+    prefix_len = strftime(aLine, sizeof(buf), "%m/%d %T ", localtime_r(&now, &local_tm));
     if (prefix_len == 0) {
         errno = EOVERFLOW;
         return -1;
     }
 
-    va_start(args,fmt);
-    body_len = format_bounded(aLine + prefix_len, sizeof(buf) - prefix_len,
-            fmt, args);
+    va_start(args, fmt);
+    body_len = format_bounded(aLine + prefix_len, sizeof(buf) - prefix_len, fmt, args);
     va_end(args);
 
     if (body_len < 0)
@@ -486,8 +444,8 @@ int sockprintf(int fd, const char *fmt, ...)
 
     buflen = prefix_len + (size_t)body_len;
     if (fd != -1) {
-        if (buflen > 0 && xmlclient(fd) && (aLine[buflen-1] == '\n')) {
-            aLine[buflen-1] = '\0';
+        if (buflen > 0 && xmlclient(fd) && (aLine[buflen - 1] == '\n')) {
+            aLine[buflen - 1] = '\0';
         }
         return queue_client_bytes(fd, aLine, buflen);
     }
@@ -505,8 +463,8 @@ int sockprintf(int fd, const char *fmt, ...)
     /* Replace trailing newline with NUL if present.
      * This assumes newline only at end of buffer.
      */
-    if (buflen > 0 && aLine[buflen-1] == '\n') {
-        aLine[buflen-1] = '\0';
+    if (buflen > 0 && aLine[buflen - 1] == '\n') {
+        aLine[buflen - 1] = '\0';
     }
     /* Send to all xml socket clients */
     for (i = 0; i < MAXCLISOCKETS; i++) {
@@ -522,14 +480,15 @@ int sockprintf(int fd, const char *fmt, ...)
     return (int)buflen;
 }
 
-static void _hexdump(void *p, size_t len, char *outbuf, size_t outlen)
-{
-    unsigned char *ptr = (unsigned char*) p;
+static void _hexdump(void *p, size_t len, char *outbuf, size_t outlen) {
+    unsigned char *ptr = (unsigned char *)p;
     size_t l, used = 0;
 
-    if (outlen == 0) return;
+    if (outlen == 0)
+        return;
     outbuf[0] = '\0';
-    if (len == 0) return;
+    if (len == 0)
+        return;
     if (len > ((outlen - 1) / 3))
         l = (outlen - 1) / 3;
     else
@@ -540,9 +499,8 @@ static void _hexdump(void *p, size_t len, char *outbuf, size_t outlen)
     }
 }
 
-void hexdump(void *p, size_t len)
-{
-    char buf[(3*100)+1];
+void hexdump(void *p, size_t len) {
+    char buf[(3 * 100) + 1];
 
     if (len == 0)
         return;
@@ -551,37 +509,32 @@ void hexdump(void *p, size_t len)
     puts(buf);
 }
 
-void sockhexdump(int fd, void *p, size_t len)
-{
-    char buf[(3*100)+1];
+void sockhexdump(int fd, void *p, size_t len) {
+    char buf[(3 * 100) + 1];
 
     _hexdump(p, len, buf, sizeof(buf));
     sockprintf(fd, "%s\n", buf);
 }
 
 // Output Raw data with header for parsing by misterhouse
-void mh_sockhexdump(int fd, void *p, size_t len)
-{
-    char buf[(3*100)+1];
+void mh_sockhexdump(int fd, void *p, size_t len) {
+    char buf[(3 * 100) + 1];
 
     _hexdump(p, len, buf, sizeof(buf));
     sockprintf(fd, "Raw data received: %s\n", buf);
 }
 
-
 static volatile sig_atomic_t Do_exit = 0;
 static volatile sig_atomic_t Exit_signal = 0;
 static int Reattach = 0;
 
-static unsigned int next_client_id(void)
-{
+static unsigned int next_client_id(void) {
     if (NextClientId == 0)
         NextClientId = 1;
     return NextClientId++;
 }
 
-static void init_client(void)
-{
+static void init_client(void) {
     int i;
 
     for (i = 0; i < MAXCLISOCKETS; i++) {
@@ -598,8 +551,7 @@ static void init_client(void)
 }
 
 /* Add new socket client */
-static int add_client(int fd)
-{
+static int add_client(int fd) {
     int i;
 
     dbprintf("add_client(%d)\n", fd);
@@ -607,8 +559,8 @@ static int add_client(int fd)
         if (Clientsocks[i].fd == -1) {
             if (set_fd_nonblocking(fd) < 0) {
                 syslog(LOG_INFO,
-                        "[CLIENT] failed to set nonblocking mode type=main fd=%d errno=%d error=%s",
-                        fd, errno, strerror(errno));
+                       "[CLIENT] failed to set nonblocking mode type=main fd=%d errno=%d error=%s",
+                       fd, errno, strerror(errno));
                 return -1;
             }
             Clientsocks[i].fd = fd;
@@ -619,20 +571,17 @@ static int add_client(int fd)
             client_output_init(&Clientoutputs[i]);
             NClients++;
             dbprintf("add_client: i %d NClients %d\n", i, NClients);
-            syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=main fd=%d",
-                    Clientids[i], fd);
+            syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=main fd=%d", Clientids[i], fd);
             return 0;
         }
     }
     dbprintf("max clients exceeded %d\n", i);
-    syslog(LOG_INFO, "[CLIENT] rejected main client fd=%d: maximum clients reached",
-            fd);
+    syslog(LOG_INFO, "[CLIENT] rejected main client fd=%d: maximum clients reached", fd);
     return -1;
 }
 
 /* Add new flashxml socket client */
-static int add_xmlclient(int fd)
-{
+static int add_xmlclient(int fd) {
     int i;
 
     dbprintf("add_xmlclient(%d)\n", fd);
@@ -640,8 +589,8 @@ static int add_xmlclient(int fd)
         if (Clientxmlsocks[i].fd == -1) {
             if (set_fd_nonblocking(fd) < 0) {
                 syslog(LOG_INFO,
-                        "[CLIENT] failed to set nonblocking mode type=xml fd=%d errno=%d error=%s",
-                        fd, errno, strerror(errno));
+                       "[CLIENT] failed to set nonblocking mode type=xml fd=%d errno=%d error=%s",
+                       fd, errno, strerror(errno));
                 return -1;
             }
             Clientxmlsocks[i].fd = fd;
@@ -652,20 +601,18 @@ static int add_xmlclient(int fd)
             client_output_init(&Clientxmloutputs[i]);
             NxmlClients++;
             dbprintf("add_xmlclient: i %d NxmlClients %d\n", i, NxmlClients);
-            syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=xml fd=%d",
-                    Clientxmlids[i], fd);
+            syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=xml fd=%d", Clientxmlids[i],
+                   fd);
             return 0;
         }
     }
     dbprintf("max XML clients exceeded %d\n", i);
-    syslog(LOG_INFO, "[CLIENT] rejected XML client fd=%d: maximum clients reached",
-            fd);
+    syslog(LOG_INFO, "[CLIENT] rejected XML client fd=%d: maximum clients reached", fd);
     return -1;
 }
 
 /* Add new or20 socket client */
-static int add_or20client(int fd)
-{
+static int add_or20client(int fd) {
     int i;
 
     dbprintf("add_or20client(%d)\n", fd);
@@ -673,8 +620,9 @@ static int add_or20client(int fd)
         if (Clientor20socks[i].fd == -1) {
             if (set_fd_nonblocking(fd) < 0) {
                 syslog(LOG_INFO,
-                        "[CLIENT] failed to set nonblocking mode type=openremote fd=%d errno=%d error=%s",
-                        fd, errno, strerror(errno));
+                       "[CLIENT] failed to set nonblocking mode type=openremote fd=%d errno=%d "
+                       "error=%s",
+                       fd, errno, strerror(errno));
                 return -1;
             }
             Clientor20socks[i].fd = fd;
@@ -685,57 +633,59 @@ static int add_or20client(int fd)
             client_output_init(&Clientor20outputs[i]);
             Nor20Clients++;
             dbprintf("add_or20client: i %d Nor20Clients %d\n", i, Nor20Clients);
-            syslog(LOG_NOTICE,
-                    "[CLIENT] client id=%u connected type=openremote fd=%d",
-                    Clientor20ids[i], fd);
+            syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=openremote fd=%d",
+                   Clientor20ids[i], fd);
             return 0;
         }
     }
     dbprintf("max OR20 clients exceeded %d\n", i);
-    syslog(LOG_INFO,
-            "[CLIENT] rejected OpenRemote client fd=%d: maximum clients reached",
-            fd);
+    syslog(LOG_INFO, "[CLIENT] rejected OpenRemote client fd=%d: maximum clients reached", fd);
     return -1;
 }
 
-static cm15a_encode_state_t *client_encode_state(int fd)
-{
+static cm15a_encode_state_t *client_encode_state(int fd) {
     int i;
 
     for (i = 0; i < MAXCLISOCKETS; i++) {
-        if (Clientsocks[i].fd == fd) return &Clientstates[i];
-        if (Clientxmlsocks[i].fd == fd) return &Clientxmlstates[i];
-        if (Clientor20socks[i].fd == fd) return &Clientor20states[i];
+        if (Clientsocks[i].fd == fd)
+            return &Clientstates[i];
+        if (Clientxmlsocks[i].fd == fd)
+            return &Clientxmlstates[i];
+        if (Clientor20socks[i].fd == fd)
+            return &Clientor20states[i];
     }
     return NULL;
 }
 
-static unsigned int client_id_for_fd(int fd)
-{
+static unsigned int client_id_for_fd(int fd) {
     int i;
 
     for (i = 0; i < MAXCLISOCKETS; i++) {
-        if (Clientsocks[i].fd == fd) return Clientids[i];
-        if (Clientxmlsocks[i].fd == fd) return Clientxmlids[i];
-        if (Clientor20socks[i].fd == fd) return Clientor20ids[i];
+        if (Clientsocks[i].fd == fd)
+            return Clientids[i];
+        if (Clientxmlsocks[i].fd == fd)
+            return Clientxmlids[i];
+        if (Clientor20socks[i].fd == fd)
+            return Clientor20ids[i];
     }
     return 0;
 }
 
-static struct client_output_queue *client_output_for_fd(int fd)
-{
+static struct client_output_queue *client_output_for_fd(int fd) {
     int i;
 
     for (i = 0; i < MAXCLISOCKETS; i++) {
-        if (Clientsocks[i].fd == fd) return &Clientoutputs[i];
-        if (Clientxmlsocks[i].fd == fd) return &Clientxmloutputs[i];
-        if (Clientor20socks[i].fd == fd) return &Clientor20outputs[i];
+        if (Clientsocks[i].fd == fd)
+            return &Clientoutputs[i];
+        if (Clientxmlsocks[i].fd == fd)
+            return &Clientxmloutputs[i];
+        if (Clientor20socks[i].fd == fd)
+            return &Clientor20outputs[i];
     }
     return NULL;
 }
 
-static int set_fd_nonblocking(int fd)
-{
+static int set_fd_nonblocking(int fd) {
     int flags;
 
     flags = fcntl(fd, F_GETFL, 0);
@@ -746,8 +696,7 @@ static int set_fd_nonblocking(int fd)
     return 0;
 }
 
-static int queue_client_bytes(int fd, const void *buffer, size_t length)
-{
+static int queue_client_bytes(int fd, const void *buffer, size_t length) {
     struct client_output_queue *queue;
     int r;
 
@@ -762,18 +711,16 @@ static int queue_client_bytes(int fd, const void *buffer, size_t length)
     r = client_output_enqueue(queue, buffer, length);
     if (r < 0) {
         syslog(LOG_INFO,
-                "[CLIENT] output queue overflow client_id=%u fd=%d bytes=%lu capacity=%lu; disconnecting slow client",
-                client_id_for_fd(fd), fd, (unsigned long)length,
-                (unsigned long)sizeof(queue->data));
+               "[CLIENT] output queue overflow client_id=%u fd=%d bytes=%lu capacity=%lu; "
+               "disconnecting slow client",
+               client_id_for_fd(fd), fd, (unsigned long)length, (unsigned long)sizeof(queue->data));
         del_client(fd);
         return -1;
     }
     return (int)length;
 }
 
-static int flush_client_output(int fd, struct client_output_queue *queue,
-        size_t *write_budget)
-{
+static int flush_client_output(int fd, struct client_output_queue *queue, size_t *write_budget) {
     while (queue->len > 0 && *write_budget > 0) {
         const unsigned char *chunk;
         size_t available;
@@ -795,8 +742,8 @@ static int flush_client_output(int fd, struct client_output_queue *queue,
                 return 0;
             }
             syslog(LOG_INFO,
-                    "[CLIENT] write failed client_id=%u fd=%d errno=%d error=%s; disconnecting",
-                    client_id_for_fd(fd), fd, errno, strerror(errno));
+                   "[CLIENT] write failed client_id=%u fd=%d errno=%d error=%s; disconnecting",
+                   client_id_for_fd(fd), fd, errno, strerror(errno));
             del_client(fd);
             return -1;
         }
@@ -814,69 +761,60 @@ static int flush_client_output(int fd, struct client_output_queue *queue,
     return 0;
 }
 
-static void disconnect_stalled_clients(time_t now)
-{
+static void disconnect_stalled_clients(time_t now) {
     int i;
 
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if (Clientsocks[i].fd != -1 && Clientoutputs[i].len > 0 &&
-                Clientoutputs[i].stalled_since != 0 &&
-                now - Clientoutputs[i].stalled_since >=
-                CLIENT_STALLED_TIMEOUT_SECONDS) {
+            Clientoutputs[i].stalled_since != 0 &&
+            now - Clientoutputs[i].stalled_since >= CLIENT_STALLED_TIMEOUT_SECONDS) {
             syslog(LOG_INFO,
-                    "[CLIENT] output stalled client_id=%u type=main fd=%d seconds=%d; disconnecting",
-                    Clientids[i], Clientsocks[i].fd,
-                    CLIENT_STALLED_TIMEOUT_SECONDS);
+                   "[CLIENT] output stalled client_id=%u type=main fd=%d seconds=%d; disconnecting",
+                   Clientids[i], Clientsocks[i].fd, CLIENT_STALLED_TIMEOUT_SECONDS);
             del_client(Clientsocks[i].fd);
         }
         if (Clientxmlsocks[i].fd != -1 && Clientxmloutputs[i].len > 0 &&
-                Clientxmloutputs[i].stalled_since != 0 &&
-                now - Clientxmloutputs[i].stalled_since >=
-                CLIENT_STALLED_TIMEOUT_SECONDS) {
+            Clientxmloutputs[i].stalled_since != 0 &&
+            now - Clientxmloutputs[i].stalled_since >= CLIENT_STALLED_TIMEOUT_SECONDS) {
             syslog(LOG_INFO,
-                    "[CLIENT] output stalled client_id=%u type=xml fd=%d seconds=%d; disconnecting",
-                    Clientxmlids[i], Clientxmlsocks[i].fd,
-                    CLIENT_STALLED_TIMEOUT_SECONDS);
+                   "[CLIENT] output stalled client_id=%u type=xml fd=%d seconds=%d; disconnecting",
+                   Clientxmlids[i], Clientxmlsocks[i].fd, CLIENT_STALLED_TIMEOUT_SECONDS);
             del_client(Clientxmlsocks[i].fd);
         }
         if (Clientor20socks[i].fd != -1 && Clientor20outputs[i].len > 0 &&
-                Clientor20outputs[i].stalled_since != 0 &&
-                now - Clientor20outputs[i].stalled_since >=
-                CLIENT_STALLED_TIMEOUT_SECONDS) {
+            Clientor20outputs[i].stalled_since != 0 &&
+            now - Clientor20outputs[i].stalled_since >= CLIENT_STALLED_TIMEOUT_SECONDS) {
             syslog(LOG_INFO,
-                    "[CLIENT] output stalled client_id=%u type=openremote fd=%d seconds=%d; disconnecting",
-                    Clientor20ids[i], Clientor20socks[i].fd,
-                    CLIENT_STALLED_TIMEOUT_SECONDS);
+                   "[CLIENT] output stalled client_id=%u type=openremote fd=%d seconds=%d; "
+                   "disconnecting",
+                   Clientor20ids[i], Clientor20socks[i].fd, CLIENT_STALLED_TIMEOUT_SECONDS);
             del_client(Clientor20socks[i].fd);
         }
     }
 }
 
-static void log_accept_result(const char *name, int fd)
-{
+static void log_accept_result(const char *name, int fd) {
     /* errno is meaningful only when accept() fails. Logging it after a
      * successful accept shows stale values from earlier syscalls.
      */
     if (fd < 0) {
         dbprintf("%s accept failed errno %d\n", name, errno);
-        syslog(LOG_INFO, "[CLIENT] accept failed type=%s errno=%d error=%s",
-                name, errno, strerror(errno));
-    }
-    else {
+        syslog(LOG_INFO, "[CLIENT] accept failed type=%s errno=%d error=%s", name, errno,
+               strerror(errno));
+    } else {
         dbprintf("%s accept fd %d\n", name, fd);
     }
 }
 
 /* Delete socket client */
-int del_client(int fd)
-{
+int del_client(int fd) {
     int i;
 
     dbprintf("del_client(%d)\n", fd);
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if (Clientsocks[i].fd == fd) {
-            syslog(LOG_NOTICE, "[CLIENT] client id=%u disconnected type=main fd=%d",
-                    Clientids[i], fd);
+            syslog(LOG_NOTICE, "[CLIENT] client id=%u disconnected type=main fd=%d", Clientids[i],
+                   fd);
             shutdown(fd, SHUT_RDWR);
             close(fd);
             Clientsocks[i].fd = -1;
@@ -888,8 +826,8 @@ int del_client(int fd)
             return 0;
         }
         if (Clientxmlsocks[i].fd == fd) {
-            syslog(LOG_NOTICE, "[CLIENT] client id=%u disconnected type=xml fd=%d",
-                    Clientxmlids[i], fd);
+            syslog(LOG_NOTICE, "[CLIENT] client id=%u disconnected type=xml fd=%d", Clientxmlids[i],
+                   fd);
             shutdown(fd, SHUT_RDWR);
             close(fd);
             Clientxmlsocks[i].fd = -1;
@@ -901,9 +839,8 @@ int del_client(int fd)
             return 0;
         }
         if (Clientor20socks[i].fd == fd) {
-            syslog(LOG_NOTICE,
-                    "[CLIENT] client id=%u disconnected type=openremote fd=%d",
-                    Clientor20ids[i], fd);
+            syslog(LOG_NOTICE, "[CLIENT] client id=%u disconnected type=openremote fd=%d",
+                   Clientor20ids[i], fd);
             shutdown(fd, SHUT_RDWR);
             close(fd);
             Clientor20socks[i].fd = -1;
@@ -920,30 +857,26 @@ int del_client(int fd)
 }
 
 /* Copy socket client records to array */
-static int copy_clients(struct pollfd *Clients)
-{
+static int copy_clients(struct pollfd *Clients) {
     int i;
 
     dbprintf("copy_clients\n");
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if (Clientsocks[i].fd != -1) {
-            Clientsocks[i].events = POLLIN |
-                    (Clientoutputs[i].len > 0 ? POLLOUT : 0);
+            Clientsocks[i].events = POLLIN | (Clientoutputs[i].len > 0 ? POLLOUT : 0);
             *Clients++ = Clientsocks[i];
         }
         if (Clientxmlsocks[i].fd != -1) {
-            Clientxmlsocks[i].events = POLLIN |
-                    (Clientxmloutputs[i].len > 0 ? POLLOUT : 0);
+            Clientxmlsocks[i].events = POLLIN | (Clientxmloutputs[i].len > 0 ? POLLOUT : 0);
             *Clients++ = Clientxmlsocks[i];
         }
         if (Clientor20socks[i].fd != -1) {
-            Clientor20socks[i].events = POLLIN |
-                    (Clientor20outputs[i].len > 0 ? POLLOUT : 0);
+            Clientor20socks[i].events = POLLIN | (Clientor20outputs[i].len > 0 ? POLLOUT : 0);
             *Clients++ = Clientor20socks[i];
         }
     }
-    dbprintf("copy_clients %d\n", NClients+NxmlClients+Nor20Clients);
-    return NClients+NxmlClients+Nor20Clients;
+    dbprintf("copy_clients %d\n", NClients + NxmlClients + Nor20Clients);
+    return NClients + NxmlClients + Nor20Clients;
 }
 /* Client sockets */
 
@@ -973,24 +906,20 @@ static const struct binarydata initcm15abinary[] = {
     {1, {0x8b}},
     {3, {0xab,0x00,0x00}},
 #endif
-    {0}
-};
+    {0}};
 
 static const struct binarydata initcm19abinary[] = {
-    {8, {0x80,0x05,0x1b,0x14,0x28,0x20,0x24,0x29}},
-    {2, {0x83,0x03}},
-    {8, {0x84,0x37,0x02,0x60,0x00,0x00,0x00,0x00}},
-    {8, {0x80,0x01,0x00,0x14,0x20,0x24,0x28,0x29}},
-    {3, {0x83,0x02,0x0f}},
-    {8, {0x83,0x37,0x02,0x60,0x00,0x00,0x00,0x00}},
-    {5, {0x20,0x34,0xcb,0x58,0xa7}},
-    {8, {0x80,0x05,0x01,0x14,0x20,0x24,0x28,0x29}},
-    {0}
-};
+    {8, {0x80, 0x05, 0x1b, 0x14, 0x28, 0x20, 0x24, 0x29}},
+    {2, {0x83, 0x03}},
+    {8, {0x84, 0x37, 0x02, 0x60, 0x00, 0x00, 0x00, 0x00}},
+    {8, {0x80, 0x01, 0x00, 0x14, 0x20, 0x24, 0x28, 0x29}},
+    {3, {0x83, 0x02, 0x0f}},
+    {8, {0x83, 0x37, 0x02, 0x60, 0x00, 0x00, 0x00, 0x00}},
+    {5, {0x20, 0x34, 0xcb, 0x58, 0xa7}},
+    {8, {0x80, 0x05, 0x01, 0x14, 0x20, 0x24, 0x28, 0x29}},
+    {0}};
 
-
-static void initcm1Xa(const struct binarydata *p)
-{
+static void initcm1Xa(const struct binarydata *p) {
     dbprintf("initcm1Xa\n");
     while (p->binlength) {
         x10_write((unsigned char *)p->bindata, p->binlength);
@@ -998,47 +927,42 @@ static void initcm1Xa(const struct binarydata *p)
     }
 }
 
-static const char *usb_error_name(int rc)
-{
+static const char *usb_error_name(int rc) {
     if (rc >= 0)
         return "success";
 
     return libusb_error_name(rc);
 }
 
-static const char *controller_model_from_product(uint16_t product_id)
-{
+static const char *controller_model_from_product(uint16_t product_id) {
     switch (product_id) {
-        case CM15A_PRODUCT_ID:
-            return "CM15A";
-        case CM19A_PRODUCT_ID:
-            return "CM19A";
-        default:
-            return "unknown";
+    case CM15A_PRODUCT_ID:
+        return "CM15A";
+    case CM19A_PRODUCT_ID:
+        return "CM19A";
+    default:
+        return "unknown";
     }
 }
 
-static int product_is_cm1x(uint16_t product_id)
-{
+static int product_is_cm1x(uint16_t product_id) {
     return product_id == CM15A_PRODUCT_ID || product_id == CM19A_PRODUCT_ID;
 }
 
 #ifdef MOCHAD_HAVE_LIBUSB_HOTPLUG
-static const char *hotplug_event_name(libusb_hotplug_event event)
-{
+static const char *hotplug_event_name(libusb_hotplug_event event) {
     switch (event) {
-        case LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED:
-            return "connected";
-        case LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT:
-            return "disconnected";
-        default:
-            return "changed";
+    case LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED:
+        return "connected";
+    case LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT:
+        return "disconnected";
+    default:
+        return "changed";
     }
 }
 
-static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device,
-        libusb_hotplug_event event, void *user_data)
-{
+static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hotplug_event event,
+                          void *user_data) {
     struct libusb_device_descriptor desc;
     int r;
 
@@ -1047,53 +971,44 @@ static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device,
 
     r = libusb_get_device_descriptor(device, &desc);
     if (r < 0) {
-        syslog(LEVEL,
-                "[USB] hotplug event received but descriptor lookup failed rc=%d error=%s",
-                r, usb_error_name(r));
+        syslog(LEVEL, "[USB] hotplug event received but descriptor lookup failed rc=%d error=%s", r,
+               usb_error_name(r));
         return 0;
     }
 
     if (desc.idVendor != X10_VENDOR_ID || !product_is_cm1x(desc.idProduct))
         return 0;
 
-    syslog(LOG_NOTICE,
-            "[USB] controller %s model=%s vendor=0x%04X product=0x%04X",
-            hotplug_event_name(event),
-            controller_model_from_product(desc.idProduct),
-            desc.idVendor, desc.idProduct);
+    syslog(LOG_NOTICE, "[USB] controller %s model=%s vendor=0x%04X product=0x%04X",
+           hotplug_event_name(event), controller_model_from_product(desc.idProduct), desc.idVendor,
+           desc.idProduct);
     return 0;
 }
 
-static void register_usb_hotplug_monitor(void)
-{
+static void register_usb_hotplug_monitor(void) {
     int r;
 
     if (!libusb_has_capability(LIBUSB_CAP_HAS_HOTPLUG)) {
         syslog(LOG_NOTICE,
-                "[USB] hotplug monitoring unavailable: libusb does not report hotplug capability");
+               "[USB] hotplug monitoring unavailable: libusb does not report hotplug capability");
         return;
     }
 
-    r = libusb_hotplug_register_callback(UsbCtx,
-            LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED |
-            LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
-            0, X10_VENDOR_ID, LIBUSB_HOTPLUG_MATCH_ANY,
-            LIBUSB_HOTPLUG_MATCH_ANY, usb_hotplug_cb, NULL,
-            &HotplugHandle);
+    r = libusb_hotplug_register_callback(
+        UsbCtx, LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT, 0,
+        X10_VENDOR_ID, LIBUSB_HOTPLUG_MATCH_ANY, LIBUSB_HOTPLUG_MATCH_ANY, usb_hotplug_cb, NULL,
+        &HotplugHandle);
     if (r < 0) {
-        syslog(LEVEL,
-                "[USB] hotplug monitor registration failed rc=%d error=%s",
-                r, usb_error_name(r));
+        syslog(LEVEL, "[USB] hotplug monitor registration failed rc=%d error=%s", r,
+               usb_error_name(r));
         return;
     }
 
     HotplugRegistered = 1;
-    syslog(LOG_NOTICE,
-            "[USB] hotplug monitoring enabled for CM15A/CM19A controllers");
+    syslog(LOG_NOTICE, "[USB] hotplug monitoring enabled for CM15A/CM19A controllers");
 }
 
-static void cleanup_usb_hotplug_monitor(void)
-{
+static void cleanup_usb_hotplug_monitor(void) {
     if (HotplugRegistered) {
         libusb_hotplug_deregister_callback(UsbCtx, HotplugHandle);
         HotplugRegistered = 0;
@@ -1101,15 +1016,12 @@ static void cleanup_usb_hotplug_monitor(void)
     }
 }
 #else
-static void register_usb_hotplug_monitor(void)
-{
+static void register_usb_hotplug_monitor(void) {
     syslog(LOG_NOTICE,
-            "[USB] hotplug monitoring unavailable: libusb headers do not expose hotplug support");
+           "[USB] hotplug monitoring unavailable: libusb headers do not expose hotplug support");
 }
 
-static void cleanup_usb_hotplug_monitor(void)
-{
-}
+static void cleanup_usb_hotplug_monitor(void) {}
 #endif
 
 /*
@@ -1117,77 +1029,67 @@ static void cleanup_usb_hotplug_monitor(void)
 ** vendor and product IDs, respectively.
 */
 
-static int find_cm15a(struct libusb_device_handle **devhptr)
-{
+static int find_cm15a(struct libusb_device_handle **devhptr) {
     int r;
 
     Cm19a = 0;
-    *devhptr = libusb_open_device_with_vid_pid(UsbCtx, X10_VENDOR_ID,
-            CM15A_PRODUCT_ID);
+    *devhptr = libusb_open_device_with_vid_pid(UsbCtx, X10_VENDOR_ID, CM15A_PRODUCT_ID);
     if (!*devhptr) {
-        *devhptr = libusb_open_device_with_vid_pid(UsbCtx, X10_VENDOR_ID,
-                CM19A_PRODUCT_ID);
+        *devhptr = libusb_open_device_with_vid_pid(UsbCtx, X10_VENDOR_ID, CM19A_PRODUCT_ID);
         if (!*devhptr) {
-            syslog(LEVEL,
-                    "[USB] CM15A/CM19A not found; in Docker, verify /dev/bus/usb is mapped and the container has USB permissions");
+            syslog(LEVEL, "[USB] CM15A/CM19A not found; in Docker, verify /dev/bus/usb is mapped "
+                          "and the container has USB permissions");
             return -EIO;
         }
         Cm19a = 1;
     }
-    syslog(LOG_NOTICE, "[USB] controller candidate found model=%s",
-            (Cm19a) ? "CM19A" : "CM15A");
+    syslog(LOG_NOTICE, "[USB] controller candidate found model=%s", (Cm19a) ? "CM19A" : "CM15A");
 
     r = libusb_set_auto_detach_kernel_driver(*devhptr, 1);
     if (r == 0) {
         syslog(LOG_NOTICE, "[USB] automatic kernel driver detach enabled");
-    }
-    else {
-        syslog(LOG_DEBUG,
-                "[USB] automatic kernel driver detach unavailable rc=%d error=%s",
-                r, usb_error_name(r));
+    } else {
+        syslog(LOG_DEBUG, "[USB] automatic kernel driver detach unavailable rc=%d error=%s", r,
+               usb_error_name(r));
     }
 
     r = libusb_claim_interface(*devhptr, 0);
     if (r == 0) {
-        syslog(LOG_NOTICE, "[USB] controller found model=%s",
-                (Cm19a) ? "CM19A" : "CM15A");
+        syslog(LOG_NOTICE, "[USB] controller found model=%s", (Cm19a) ? "CM19A" : "CM15A");
         return 0;
     }
     syslog(LEVEL,
-            "[USB] claim interface failed rc=%d error=%s; check permissions, Docker USB passthrough, or kernel drivers",
-            r, usb_error_name(r));
+           "[USB] claim interface failed rc=%d error=%s; check permissions, Docker USB "
+           "passthrough, or kernel drivers",
+           r, usb_error_name(r));
     r = libusb_kernel_driver_active(*devhptr, 0);
     if (r < 0) {
-        syslog(LEVEL, "[USB] kernel driver check failed rc=%d error=%s",
-                r, usb_error_name(r));
+        syslog(LEVEL, "[USB] kernel driver check failed rc=%d error=%s", r, usb_error_name(r));
         return -EIO;
     }
     syslog(LOG_NOTICE, "[USB] kernel driver active=%d; trying detach", r);
     r = libusb_detach_kernel_driver(*devhptr, 0);
     if (r < 0) {
         syslog(LEVEL,
-                "[USB] kernel driver detach failed rc=%d error=%s; check drivers such as ati_remote",
-                r, usb_error_name(r));
+               "[USB] kernel driver detach failed rc=%d error=%s; check drivers such as ati_remote",
+               r, usb_error_name(r));
         return -EIO;
     }
     Reattach = 1;
     r = libusb_claim_interface(*devhptr, 0);
     if (r < 0) {
-        syslog(LEVEL,
-                "[USB] claim interface failed after detach rc=%d error=%s",
-                r, usb_error_name(r));
+        syslog(LEVEL, "[USB] claim interface failed after detach rc=%d error=%s", r,
+               usb_error_name(r));
         return -EIO;
     }
-    syslog(LOG_NOTICE, "[USB] controller found model=%s",
-            (Cm19a) ? "CM19A" : "CM15A");
+    syslog(LOG_NOTICE, "[USB] controller found model=%s", (Cm19a) ? "CM19A" : "CM15A");
     return 0;
 }
 
 /* Find the in and out endpoint address in the device descriptors.
  * This is required by newer CM19A that have changed endpoint addresses.
  */
-static int get_endpoint_address(libusb_device_handle *devh, uint8_t *inendpt, uint8_t *outendpt)
-{
+static int get_endpoint_address(libusb_device_handle *devh, uint8_t *inendpt, uint8_t *outendpt) {
     int r;
     struct libusb_config_descriptor *config = NULL;
     struct libusb_device *uDevice;
@@ -1205,69 +1107,62 @@ static int get_endpoint_address(libusb_device_handle *devh, uint8_t *inendpt, ui
     }
     r = libusb_get_device_descriptor(uDevice, &desc);
     if (r < 0) {
-        syslog(LEVEL, "[USB] device descriptor lookup failed rc=%d error=%s",
-                r, usb_error_name(r));
+        syslog(LEVEL, "[USB] device descriptor lookup failed rc=%d error=%s", r, usb_error_name(r));
         return r;
     }
 
     r = libusb_get_active_config_descriptor(uDevice, &config);
     if (r < 0) {
-        syslog(LEVEL,
-                "[USB] active configuration descriptor lookup failed rc=%d error=%s",
-                r, usb_error_name(r));
+        syslog(LEVEL, "[USB] active configuration descriptor lookup failed rc=%d error=%s", r,
+               usb_error_name(r));
         return r;
     }
     if (!config) {
         syslog(LEVEL, "[USB] active configuration descriptor missing");
         return -ENODEV;
     }
-    r = mochad_select_interrupt_endpoints(config, 0, 0,
-            sizeof(IntrInBuf), sizeof(IntrOutBuf),
-            inendpt, outendpt, &in_packet_size, &out_packet_size);
+    r = mochad_select_interrupt_endpoints(config, 0, 0, sizeof(IntrInBuf), sizeof(IntrOutBuf),
+                                          inendpt, outendpt, &in_packet_size, &out_packet_size);
     libusb_free_config_descriptor(config);
 
     if (r < 0) {
         syslog(LEVEL,
-                "[USB] interrupt endpoint discovery failed interface=0 altsetting=0 rc=%d error=%s in=0x%02X out=0x%02X",
-                r, usb_error_name(r), *inendpt, *outendpt);
+               "[USB] interrupt endpoint discovery failed interface=0 altsetting=0 rc=%d error=%s "
+               "in=0x%02X out=0x%02X",
+               r, usb_error_name(r), *inendpt, *outendpt);
         return r;
     }
     syslog(LOG_NOTICE,
-            "[USB] interrupt endpoints selected in=0x%02X in_packet=%u out=0x%02X out_packet=%u",
-            *inendpt, in_packet_size, *outendpt, out_packet_size);
+           "[USB] interrupt endpoints selected in=0x%02X in_packet=%u out=0x%02X out_packet=%u",
+           *inendpt, in_packet_size, *outendpt, out_packet_size);
     return 0;
 }
 
-static const char *transfer_status_name(int status)
-{
+static const char *transfer_status_name(int status) {
     switch (status) {
-        case LIBUSB_TRANSFER_COMPLETED:
-            return "completed";
-        case LIBUSB_TRANSFER_ERROR:
-            return "error";
-        case LIBUSB_TRANSFER_TIMED_OUT:
-            return "timed_out";
-        case LIBUSB_TRANSFER_CANCELLED:
-            return "cancelled";
-        case LIBUSB_TRANSFER_STALL:
-            return "stall";
-        case LIBUSB_TRANSFER_NO_DEVICE:
-            return "no_device";
-        case LIBUSB_TRANSFER_OVERFLOW:
-            return "overflow";
-        default:
-            return "unknown";
+    case LIBUSB_TRANSFER_COMPLETED:
+        return "completed";
+    case LIBUSB_TRANSFER_ERROR:
+        return "error";
+    case LIBUSB_TRANSFER_TIMED_OUT:
+        return "timed_out";
+    case LIBUSB_TRANSFER_CANCELLED:
+        return "cancelled";
+    case LIBUSB_TRANSFER_STALL:
+        return "stall";
+    case LIBUSB_TRANSFER_NO_DEVICE:
+        return "no_device";
+    case LIBUSB_TRANSFER_OVERFLOW:
+        return "overflow";
+    default:
+        return "unknown";
     }
 }
 
-static int transfer_is_active(int submitted, int canceling)
-{
-    return submitted || canceling;
-}
+static int transfer_is_active(int submitted, int canceling) { return submitted || canceling; }
 
-static int cancel_transfer_if_active(const char *name,
-        struct libusb_transfer *transfer, int *submitted, int *canceling)
-{
+static int cancel_transfer_if_active(const char *name, struct libusb_transfer *transfer,
+                                     int *submitted, int *canceling) {
     int r;
 
     if (transfer == NULL || !transfer_is_active(*submitted, *canceling))
@@ -1277,14 +1172,12 @@ static int cancel_transfer_if_active(const char *name,
     if (r == LIBUSB_ERROR_NOT_FOUND) {
         *submitted = 0;
         *canceling = 0;
-        syslog(LOG_NOTICE,
-                "[USB] transfer already inactive name=%s action=cancel",
-                name);
+        syslog(LOG_NOTICE, "[USB] transfer already inactive name=%s action=cancel", name);
         return 0;
     }
     if (r < 0) {
-        syslog(LEVEL, "[USB] transfer cancel failed name=%s rc=%d error=%s",
-                name, r, usb_error_name(r));
+        syslog(LEVEL, "[USB] transfer cancel failed name=%s rc=%d error=%s", name, r,
+               usb_error_name(r));
         return r;
     }
 
@@ -1293,45 +1186,39 @@ static int cancel_transfer_if_active(const char *name,
     return 0;
 }
 
-static int drain_cancelled_transfers(int max_events)
-{
+static int drain_cancelled_transfers(int max_events) {
     int r;
 
-    while (max_events-- > 0 &&
-            (transfer_is_active(IntrIn_submitted, IntrIn_canceling) ||
-             transfer_is_active(IntrOut_submitted, IntrOut_canceling))) {
+    while (max_events-- > 0 && (transfer_is_active(IntrIn_submitted, IntrIn_canceling) ||
+                                transfer_is_active(IntrOut_submitted, IntrOut_canceling))) {
         r = libusb_handle_events(UsbCtx);
         if (r == LIBUSB_ERROR_INTERRUPTED)
             continue;
         if (r < 0) {
-            syslog(LEVEL, "[USB] cancellation drain failed rc=%d error=%s",
-                    r, usb_error_name(r));
+            syslog(LEVEL, "[USB] cancellation drain failed rc=%d error=%s", r, usb_error_name(r));
             return r;
         }
     }
 
     if (transfer_is_active(IntrIn_submitted, IntrIn_canceling) ||
-            transfer_is_active(IntrOut_submitted, IntrOut_canceling)) {
-        syslog(LEVEL,
-                "[USB] cancellation drain timed out in_active=%d out_active=%d",
-                transfer_is_active(IntrIn_submitted, IntrIn_canceling),
-                transfer_is_active(IntrOut_submitted, IntrOut_canceling));
+        transfer_is_active(IntrOut_submitted, IntrOut_canceling)) {
+        syslog(LEVEL, "[USB] cancellation drain timed out in_active=%d out_active=%d",
+               transfer_is_active(IntrIn_submitted, IntrIn_canceling),
+               transfer_is_active(IntrOut_submitted, IntrOut_canceling));
         return -ETIMEDOUT;
     }
 
     return 0;
 }
 
-static void free_transfer_if_inactive(const char *name,
-        struct libusb_transfer **transfer, int submitted, int canceling)
-{
+static void free_transfer_if_inactive(const char *name, struct libusb_transfer **transfer,
+                                      int submitted, int canceling) {
     if (*transfer == NULL)
         return;
 
     if (transfer_is_active(submitted, canceling)) {
-        syslog(LEVEL,
-                "[USB] refusing to free active transfer name=%s submitted=%d canceling=%d",
-                name, submitted, canceling);
+        syslog(LEVEL, "[USB] refusing to free active transfer name=%s submitted=%d canceling=%d",
+               name, submitted, canceling);
         return;
     }
 
@@ -1339,9 +1226,7 @@ static void free_transfer_if_inactive(const char *name,
     *transfer = NULL;
 }
 
-static int ensure_pollfd_capacity(struct pollfd **fds, nfds_t *capacity,
-        nfds_t needed)
-{
+static int ensure_pollfd_capacity(struct pollfd **fds, nfds_t *capacity, nfds_t needed) {
     struct pollfd *new_fds;
     nfds_t new_capacity;
 
@@ -1354,9 +1239,8 @@ static int ensure_pollfd_capacity(struct pollfd **fds, nfds_t *capacity,
 
     new_fds = realloc(*fds, new_capacity * sizeof(*new_fds));
     if (new_fds == NULL) {
-        syslog(LEVEL,
-                "[USB] poll descriptor allocation failed requested=%lu",
-                (unsigned long)needed);
+        syslog(LEVEL, "[USB] poll descriptor allocation failed requested=%lu",
+               (unsigned long)needed);
         return -ENOMEM;
     }
 
@@ -1365,12 +1249,10 @@ static int ensure_pollfd_capacity(struct pollfd **fds, nfds_t *capacity,
     return 0;
 }
 
-static int add_usb_pollfd_record(int fd, short events)
-{
+static int add_usb_pollfd_record(int fd, short events) {
     int r;
 
-    r = ensure_pollfd_capacity(&UsbPollfds, &UsbPollfdCapacity,
-            NUsbPollfds + 1);
+    r = ensure_pollfd_capacity(&UsbPollfds, &UsbPollfdCapacity, NUsbPollfds + 1);
     if (r < 0)
         return r;
 
@@ -1378,13 +1260,11 @@ static int add_usb_pollfd_record(int fd, short events)
     UsbPollfds[NUsbPollfds].events = events;
     UsbPollfds[NUsbPollfds].revents = 0;
     NUsbPollfds++;
-    syslog(LOG_DEBUG, "[USB] poll descriptor added fd=%d events=0x%X",
-            fd, events);
+    syslog(LOG_DEBUG, "[USB] poll descriptor added fd=%d events=0x%X", fd, events);
     return 0;
 }
 
-static void remove_usb_pollfd_record(int fd)
-{
+static void remove_usb_pollfd_record(int fd) {
     nfds_t i;
 
     for (i = 0; i < NUsbPollfds; i++) {
@@ -1402,8 +1282,7 @@ static void remove_usb_pollfd_record(int fd)
     syslog(LOG_DEBUG, "[USB] poll descriptor remove ignored fd=%d", fd);
 }
 
-static void usb_pollfd_added(int fd, short events, void *user_data)
-{
+static void usb_pollfd_added(int fd, short events, void *user_data) {
     int r;
 
     (void)user_data;
@@ -1412,14 +1291,12 @@ static void usb_pollfd_added(int fd, short events, void *user_data)
         UsbPollfdError = r;
 }
 
-static void usb_pollfd_removed(int fd, void *user_data)
-{
+static void usb_pollfd_removed(int fd, void *user_data) {
     (void)user_data;
     remove_usb_pollfd_record(fd);
 }
 
-static int initialize_usb_pollfds(void)
-{
+static int initialize_usb_pollfds(void) {
     const struct libusb_pollfd **pollfds;
     int i;
     int r;
@@ -1439,15 +1316,12 @@ static int initialize_usb_pollfds(void)
     }
     free(pollfds);
 
-    libusb_set_pollfd_notifiers(UsbCtx, usb_pollfd_added,
-            usb_pollfd_removed, NULL);
-    syslog(LOG_NOTICE, "[USB] poll descriptors ready count=%lu",
-            (unsigned long)NUsbPollfds);
+    libusb_set_pollfd_notifiers(UsbCtx, usb_pollfd_added, usb_pollfd_removed, NULL);
+    syslog(LOG_NOTICE, "[USB] poll descriptors ready count=%lu", (unsigned long)NUsbPollfds);
     return 0;
 }
 
-static void cleanup_usb_pollfds(void)
-{
+static void cleanup_usb_pollfds(void) {
     if (UsbCtx)
         libusb_set_pollfd_notifiers(UsbCtx, NULL, NULL, NULL);
 
@@ -1458,8 +1332,7 @@ static void cleanup_usb_pollfds(void)
     UsbPollfdError = 0;
 }
 
-static int timeval_to_timeout_ms(const struct timeval *timeout)
-{
+static int timeval_to_timeout_ms(const struct timeval *timeout) {
     long seconds_ms;
     long useconds_ms;
 
@@ -1476,8 +1349,7 @@ static int timeval_to_timeout_ms(const struct timeval *timeout)
     return (int)(seconds_ms + useconds_ms);
 }
 
-static int combined_poll_timeout_ms(int x10_timeout_ms)
-{
+static int combined_poll_timeout_ms(int x10_timeout_ms) {
     struct timeval usb_timeout;
     int usb_timeout_ms;
 
@@ -1492,13 +1364,11 @@ static int combined_poll_timeout_ms(int x10_timeout_ms)
     return x10_timeout_ms;
 }
 
-static int ensure_main_poll_capacity(nfds_t needed)
-{
+static int ensure_main_poll_capacity(nfds_t needed) {
     return ensure_pollfd_capacity(&Pollfds, &PollfdCapacity, needed);
 }
 
-static void IntrOut_cb(struct libusb_transfer *transfer)
-{
+static void IntrOut_cb(struct libusb_transfer *transfer) {
     IntrOut_submitted = 0;
     IntrOut_canceling = 0;
 
@@ -1517,13 +1387,12 @@ static void IntrOut_cb(struct libusb_transfer *transfer)
     }
 
     syslog(LEVEL, "[USB] interrupt output transfer failed status=%s(%d)",
-            transfer_status_name(transfer->status), transfer->status);
+           transfer_status_name(transfer->status), transfer->status);
     IntrOut_completed = 1;
     Do_exit = 2;
 }
 
-static void IntrIn_cb(struct libusb_transfer *transfer)
-{
+static void IntrIn_cb(struct libusb_transfer *transfer) {
     int r;
 
 #if 0
@@ -1541,7 +1410,7 @@ static void IntrIn_cb(struct libusb_transfer *transfer)
 
     if (transfer->status != LIBUSB_TRANSFER_COMPLETED) {
         syslog(LEVEL, "[USB] interrupt input transfer failed status=%s(%d)",
-                transfer_status_name(transfer->status), transfer->status);
+               transfer_status_name(transfer->status), transfer->status);
         Do_exit = 2;
         return;
     }
@@ -1554,12 +1423,10 @@ static void IntrIn_cb(struct libusb_transfer *transfer)
             X10_ack_received = 1;
             UsbAckReceivedCount++;
             maybe_finish_x10_transmit();
-        }
-        else {
+        } else {
             UsbUnexpectedOneByteCount++;
-            syslog(LOG_DEBUG,
-                    "[USB] ignoring non-ACK one-byte input value=0x%02X",
-                    *transfer->buffer);
+            syslog(LOG_DEBUG, "[USB] ignoring non-ACK one-byte input value=0x%02X",
+                   *transfer->buffer);
         }
     }
 
@@ -1579,16 +1446,15 @@ static void IntrIn_cb(struct libusb_transfer *transfer)
     r = libusb_submit_transfer(IntrIn_transfer);
     if (r < 0) {
         syslog(LEVEL,
-                "[USB] interrupt input transfer resubmit failed rc=%d error=%s; shutting down",
-                r, usb_error_name(r));
+               "[USB] interrupt input transfer resubmit failed rc=%d error=%s; shutting down", r,
+               usb_error_name(r));
         Do_exit = 2;
         return;
     }
     IntrIn_submitted = 1;
 }
 
-static int start_transfers(void)
-{
+static int start_transfers(void) {
     int r;
 
     if (IntrIn_submitted) {
@@ -1598,9 +1464,10 @@ static int start_transfers(void)
 
     r = libusb_submit_transfer(IntrIn_transfer);
     if (r < 0) {
-        syslog(LEVEL,
-                "[USB] interrupt input transfer submit failed rc=%d error=%s; controller is not ready",
-                r, usb_error_name(r));
+        syslog(
+            LEVEL,
+            "[USB] interrupt input transfer submit failed rc=%d error=%s; controller is not ready",
+            r, usb_error_name(r));
         return r;
     }
     IntrIn_submitted = 1;
@@ -1608,35 +1475,31 @@ static int start_transfers(void)
     return 0;
 }
 
-static int do_init(void)
-{
+static int do_init(void) {
     // set clock?
 
     return 0;
 }
 
-static int alloc_transfers(void)
-{
+static int alloc_transfers(void) {
     IntrIn_transfer = libusb_alloc_transfer(0);
     if (!IntrIn_transfer) {
         syslog(LEVEL, "[USB] interrupt input transfer allocation failed");
         return -ENOMEM;
     }
-    libusb_fill_interrupt_transfer(IntrIn_transfer, Devh, InEndpoint, 
-            IntrInBuf, sizeof(IntrInBuf), IntrIn_cb, NULL, 0);
+    libusb_fill_interrupt_transfer(IntrIn_transfer, Devh, InEndpoint, IntrInBuf, sizeof(IntrInBuf),
+                                   IntrIn_cb, NULL, 0);
 
     IntrOut_transfer = libusb_alloc_transfer(0);
     if (!IntrOut_transfer) {
         syslog(LEVEL, "[USB] interrupt output transfer allocation failed");
-        free_transfer_if_inactive("input", &IntrIn_transfer,
-                IntrIn_submitted, IntrIn_canceling);
+        free_transfer_if_inactive("input", &IntrIn_transfer, IntrIn_submitted, IntrIn_canceling);
         return -ENOMEM;
     }
     return 0;
 }
 
-int write_usb(unsigned char *buf, size_t len)
-{
+int write_usb(unsigned char *buf, size_t len) {
     int r;
 
     dbprintf("usb len %lu\n", (unsigned long)len);
@@ -1647,30 +1510,29 @@ int write_usb(unsigned char *buf, size_t len)
     }
     if (IntrOut_submitted || IntrOut_canceling) {
         syslog(LEVEL,
-                "[USB] refusing output submit while previous transfer is active submitted=%d canceling=%d",
-                IntrOut_submitted, IntrOut_canceling);
+               "[USB] refusing output submit while previous transfer is active submitted=%d "
+               "canceling=%d",
+               IntrOut_submitted, IntrOut_canceling);
         return -EBUSY;
     }
     if (len > sizeof(IntrOutBuf)) {
         dbprintf("usb write too long %lu/%lu\n", (unsigned long)len,
-                (unsigned long)sizeof(IntrOutBuf));
-        syslog(LEVEL,
-                "[USB] refusing output packet: length=%lu exceeds controller packet size=%lu",
-                (unsigned long)len, (unsigned long)sizeof(IntrOutBuf));
+                 (unsigned long)sizeof(IntrOutBuf));
+        syslog(LEVEL, "[USB] refusing output packet: length=%lu exceeds controller packet size=%lu",
+               (unsigned long)len, (unsigned long)sizeof(IntrOutBuf));
         return -EINVAL;
     }
     memcpy(IntrOutBuf, buf, len);
-    libusb_fill_interrupt_transfer(IntrOut_transfer, Devh, OutEndpoint, 
-            IntrOutBuf, len, IntrOut_cb, NULL, 0);
+    libusb_fill_interrupt_transfer(IntrOut_transfer, Devh, OutEndpoint, IntrOutBuf, len, IntrOut_cb,
+                                   NULL, 0);
     IntrOut_completed = 0;
     X10_ack_received = 0;
     X10_ack_timed_out = 0;
     r = libusb_submit_transfer(IntrOut_transfer);
     if (r < 0) {
         IntrOut_completed = 1;
-        syslog(LEVEL,
-                "[USB] interrupt output transfer submit failed rc=%d error=%s",
-                r, usb_error_name(r));
+        syslog(LEVEL, "[USB] interrupt output transfer submit failed rc=%d error=%s", r,
+               usb_error_name(r));
         return r;
     }
     IntrOut_submitted = 1;
@@ -1678,28 +1540,25 @@ int write_usb(unsigned char *buf, size_t len)
     return 0;
 }
 
-static void sighandler(int signum)
-{
+static void sighandler(int signum) {
     Exit_signal = signum;
-    Do_exit = 1;	
+    Do_exit = 1;
 }
 
-static const char *signal_name(int signum)
-{
+static const char *signal_name(int signum) {
     switch (signum) {
-        case SIGINT:
-            return "SIGINT";
-        case SIGTERM:
-            return "SIGTERM";
-        case SIGQUIT:
-            return "SIGQUIT";
-        default:
-            return "unknown signal";
+    case SIGINT:
+        return "SIGINT";
+    case SIGTERM:
+        return "SIGTERM";
+    case SIGQUIT:
+        return "SIGQUIT";
+    default:
+        return "unknown signal";
     }
 }
 
-static const char *socket_family_name(int family)
-{
+static const char *socket_family_name(int family) {
     if (family == AF_INET)
         return "ipv4";
     if (family == AF_INET6)
@@ -1707,8 +1566,7 @@ static const char *socket_family_name(int family)
     return "unknown";
 }
 
-static int create_listener(const char *name, int port)
-{
+static int create_listener(const char *name, int port) {
     struct addrinfo hints;
     struct addrinfo *results = NULL;
     struct addrinfo *candidate;
@@ -1725,8 +1583,8 @@ static int create_listener(const char *name, int port)
 
     rc = getaddrinfo(BindAddress, portbuf, &hints, &results);
     if (rc != 0) {
-        syslog(LEVEL, "[TCP] invalid bind address=%s port=%d error=%s",
-                BindAddress, port, gai_strerror(rc));
+        syslog(LEVEL, "[TCP] invalid bind address=%s port=%d error=%s", BindAddress, port,
+               gai_strerror(rc));
         return -1;
     }
 
@@ -1735,75 +1593,70 @@ static int create_listener(const char *name, int port)
         int dual_stack_failed = 0;
         const char *dual_stack = "not_applicable";
 
-        fd = socket(candidate->ai_family, candidate->ai_socktype,
-                candidate->ai_protocol);
+        fd = socket(candidate->ai_family, candidate->ai_socktype, candidate->ai_protocol);
         if (fd < 0) {
             syslog(LEVEL,
-                    "[TCP] socket failed listener=%s address=%s port=%d family=%s errno=%d error=%s",
-                    name, BindAddress, port,
-                    socket_family_name(candidate->ai_family), errno,
-                    strerror(errno));
+                   "[TCP] socket failed listener=%s address=%s port=%d family=%s errno=%d error=%s",
+                   name, BindAddress, port, socket_family_name(candidate->ai_family), errno,
+                   strerror(errno));
             continue;
         }
 
-        if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&on,
-                    sizeof(on)) < 0) {
+        if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)) < 0) {
             syslog(LEVEL,
-                    "[TCP] setsockopt failed listener=%s address=%s port=%d family=%s option=SO_REUSEADDR errno=%d error=%s",
-                    name, BindAddress, port,
-                    socket_family_name(candidate->ai_family), errno,
-                    strerror(errno));
+                   "[TCP] setsockopt failed listener=%s address=%s port=%d family=%s "
+                   "option=SO_REUSEADDR errno=%d error=%s",
+                   name, BindAddress, port, socket_family_name(candidate->ai_family), errno,
+                   strerror(errno));
             close(fd);
             fd = -1;
             continue;
         }
 
         if (candidate->ai_family == AF_INET6 &&
-                MochadConfig.dual_stack == MOCHAD_DUAL_STACK_DISABLE) {
+            MochadConfig.dual_stack == MOCHAD_DUAL_STACK_DISABLE) {
             int v6only = 1;
 
             dual_stack = "disabled";
-            if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6only,
-                        sizeof(v6only)) < 0) {
+            if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only)) < 0) {
                 syslog(LOG_INFO,
-                        "[TCP] IPv6-only request failed listener=%s address=%s port=%d errno=%d error=%s",
-                        name, BindAddress, port, errno, strerror(errno));
+                       "[TCP] IPv6-only request failed listener=%s address=%s port=%d errno=%d "
+                       "error=%s",
+                       name, BindAddress, port, errno, strerror(errno));
             }
-        }
-        else if (candidate->ai_family == AF_INET6) {
+        } else if (candidate->ai_family == AF_INET6) {
             int v6only = 0;
 
-            if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6only,
-                        sizeof(v6only)) < 0) {
+            if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only)) < 0) {
                 dual_stack_failed = 1;
                 syslog(LOG_INFO,
-                        "[TCP] IPv6 dual-stack request failed listener=%s address=%s port=%d errno=%d error=%s",
-                        name, BindAddress, port, errno, strerror(errno));
+                       "[TCP] IPv6 dual-stack request failed listener=%s address=%s port=%d "
+                       "errno=%d error=%s",
+                       name, BindAddress, port, errno, strerror(errno));
                 if (MochadConfig.dual_stack == MOCHAD_DUAL_STACK_ENABLE) {
                     close(fd);
                     fd = -1;
                     continue;
                 }
-            }
-            else {
+            } else {
                 dual_stack_enabled = 1;
             }
         }
 
         if (candidate->ai_family == AF_INET6 &&
-                MochadConfig.dual_stack != MOCHAD_DUAL_STACK_DISABLE) {
-            dual_stack = dual_stack_failed ? "failed" :
-                    (dual_stack_enabled ? "enabled" : "unknown");
+            MochadConfig.dual_stack != MOCHAD_DUAL_STACK_DISABLE) {
+            dual_stack =
+                dual_stack_failed ? "failed" : (dual_stack_enabled ? "enabled" : "unknown");
         }
 
         rc = bind(fd, candidate->ai_addr, candidate->ai_addrlen);
         dbprintf("bind(%s) %d/%d\n", name, rc, errno);
         if (rc < 0) {
             syslog(LEVEL,
-                    "[TCP] bind failed listener=%s address=%s port=%d family=%s dual_stack=%s errno=%d error=%s",
-                    name, BindAddress, port,
-                    socket_family_name(candidate->ai_family), dual_stack,
-                    errno, strerror(errno));
+                   "[TCP] bind failed listener=%s address=%s port=%d family=%s dual_stack=%s "
+                   "errno=%d error=%s",
+                   name, BindAddress, port, socket_family_name(candidate->ai_family), dual_stack,
+                   errno, strerror(errno));
             close(fd);
             fd = -1;
             continue;
@@ -1813,10 +1666,9 @@ static int create_listener(const char *name, int port)
         dbprintf("listen(%s) %d/%d\n", name, rc, errno);
         if (rc < 0) {
             syslog(LEVEL,
-                    "[TCP] listen failed listener=%s address=%s port=%d family=%s errno=%d error=%s",
-                    name, BindAddress, port,
-                    socket_family_name(candidate->ai_family), errno,
-                    strerror(errno));
+                   "[TCP] listen failed listener=%s address=%s port=%d family=%s errno=%d error=%s",
+                   name, BindAddress, port, socket_family_name(candidate->ai_family), errno,
+                   strerror(errno));
             close(fd);
             fd = -1;
             continue;
@@ -1824,22 +1676,20 @@ static int create_listener(const char *name, int port)
 
         ioctl(fd, FIONBIO, &on);
         syslog(LOG_NOTICE,
-                "[TCP] listener ready name=%s address=%s port=%d family=%s dual_stack=%s",
-                name, BindAddress, port,
-                socket_family_name(candidate->ai_family), dual_stack);
+               "[TCP] listener ready name=%s address=%s port=%d family=%s dual_stack=%s", name,
+               BindAddress, port, socket_family_name(candidate->ai_family), dual_stack);
         break;
     }
 
     freeaddrinfo(results);
     if (fd < 0) {
-        syslog(LEVEL, "[TCP] could not start listener=%s address=%s port=%d",
-                name, BindAddress, port);
+        syslog(LEVEL, "[TCP] could not start listener=%s address=%s port=%d", name, BindAddress,
+               port);
     }
     return fd;
 }
 
-static void close_listener(const char *name, int *fd)
-{
+static void close_listener(const char *name, int *fd) {
     if (*fd < 0)
         return;
 
@@ -1848,12 +1698,11 @@ static void close_listener(const char *name, int *fd)
     *fd = -1;
 }
 
-static int mydaemon(void)
-{
+static int mydaemon(void) {
     int nready, i;
 
     /**** sockets ****/
-    socklen_t clilen; 
+    socklen_t clilen;
     int clifd;
     int listenfd = -1;
     int flashxmlfd = -1;
@@ -1862,7 +1711,7 @@ static int mydaemon(void)
     unsigned char buf[1024];
     int bytesIn;
 
-//   struct sockaddr_in cliaddr, servaddr;
+    //   struct sockaddr_in cliaddr, servaddr;
 
     /**** USB ****/
     struct sigaction sigact;
@@ -1875,8 +1724,9 @@ static int mydaemon(void)
     r = libusb_init(&UsbCtx);
     if (r < 0) {
         syslog(LEVEL,
-                "[USB] libusb initialization failed rc=%d error=%s; check USB permissions and container passthrough",
-                r, usb_error_name(r));
+               "[USB] libusb initialization failed rc=%d error=%s; check USB permissions and "
+               "container passthrough",
+               r, usb_error_name(r));
         dbprintf("failed to initialise libusb %d\n", r);
         return 1;
     }
@@ -1896,8 +1746,9 @@ static int mydaemon(void)
     r = find_cm15a(&Devh);
     if (r < 0) {
         syslog(LEVEL,
-                "[USB] could not open CM15A/CM19A rc=%d error=%s; check USB passthrough, permissions, and kernel drivers such as ati_remote",
-                r, usb_error_name(r));
+               "[USB] could not open CM15A/CM19A rc=%d error=%s; check USB passthrough, "
+               "permissions, and kernel drivers such as ati_remote",
+               r, usb_error_name(r));
         dbprintf("Could not find/open CM15A/CM19A %d\n", r);
         goto out;
     }
@@ -1905,13 +1756,13 @@ static int mydaemon(void)
     r = get_endpoint_address(Devh, &InEndpoint, &OutEndpoint);
     if (r < 0) {
         syslog(LEVEL,
-                "[USB] could not find interrupt endpoints rc=%d error=%s; unsupported or unavailable controller descriptor",
-                r, usb_error_name(r));
+               "[USB] could not find interrupt endpoints rc=%d error=%s; unsupported or "
+               "unavailable controller descriptor",
+               r, usb_error_name(r));
         dbprintf("Could not find endpoints %d\n", r);
         goto out_deinit;
     }
-    syslog(LOG_NOTICE, "[USB] endpoints ready in=0x%02X out=0x%02X",
-            InEndpoint, OutEndpoint);
+    syslog(LOG_NOTICE, "[USB] endpoints ready in=0x%02X out=0x%02X", InEndpoint, OutEndpoint);
 
     r = do_init();
     if (r < 0)
@@ -1931,11 +1782,10 @@ static int mydaemon(void)
     sigemptyset(&sigact.sa_mask);
     sigact.sa_flags = 0;
 
-    sigaction(SIGINT,  &sigact, NULL);
+    sigaction(SIGINT, &sigact, NULL);
     sigaction(SIGTERM, &sigact, NULL);
     sigaction(SIGQUIT, &sigact, NULL);
-    syslog(LOG_NOTICE,
-            "[STARTUP] signal handlers installed signals=SIGINT,SIGTERM,SIGQUIT");
+    syslog(LOG_NOTICE, "[STARTUP] signal handlers installed signals=SIGINT,SIGTERM,SIGQUIT");
 
     r = initialize_usb_pollfds();
     if (r < 0)
@@ -1951,23 +1801,18 @@ static int mydaemon(void)
     listenfd = create_listener("main", ServerPort);
     if (XmlEnabled) {
         flashxmlfd = create_listener("xml", XmlPort);
-    }
-    else {
-        syslog(LOG_NOTICE, "[TCP] optional service disabled name=xml port=%d",
-                XmlPort);
+    } else {
+        syslog(LOG_NOTICE, "[TCP] optional service disabled name=xml port=%d", XmlPort);
     }
     if (OpenRemoteEnabled) {
         or20fd = create_listener("openremote", OpenRemotePort);
+    } else {
+        syslog(LOG_NOTICE, "[TCP] optional service disabled name=openremote port=%d",
+               OpenRemotePort);
     }
-    else {
-        syslog(LOG_NOTICE,
-                "[TCP] optional service disabled name=openremote port=%d",
-                OpenRemotePort);
-    }
-    if (listenfd < 0 || (XmlEnabled && flashxmlfd < 0) ||
-            (OpenRemoteEnabled && or20fd < 0)) {
+    if (listenfd < 0 || (XmlEnabled && flashxmlfd < 0) || (OpenRemoteEnabled && or20fd < 0)) {
         syslog(LEVEL,
-                "[TCP] listener startup failed; closing any listeners that were already opened");
+               "[TCP] listener startup failed; closing any listeners that were already opened");
         goto out_deinit;
     }
 
@@ -1979,11 +1824,11 @@ static int mydaemon(void)
      * controller does not produce the same 0x55 ACK behavior as a CM15A.
      */
     syslog(LOG_NOTICE,
-            "[TCP] services configured address=%s main=enabled:%d xml=%s:%d openremote=%s:%d dual_stack=%s",
-            BindAddress, ServerPort, XmlEnabled ? "enabled" : "disabled",
-            XmlPort, OpenRemoteEnabled ? "enabled" : "disabled",
-            OpenRemotePort,
-            mochad_config_dual_stack_name(MochadConfig.dual_stack));
+           "[TCP] services configured address=%s main=enabled:%d xml=%s:%d openremote=%s:%d "
+           "dual_stack=%s",
+           BindAddress, ServerPort, XmlEnabled ? "enabled" : "disabled", XmlPort,
+           OpenRemoteEnabled ? "enabled" : "disabled", OpenRemotePort,
+           mochad_config_dual_stack_name(MochadConfig.dual_stack));
     syslog(LOG_NOTICE, "[STARTUP] mochad is running");
 
     while (!Do_exit) {
@@ -1993,15 +1838,13 @@ static int mydaemon(void)
         nfds_t usb_index;
 
         if (UsbPollfdError < 0) {
-            syslog(LEVEL,
-                    "[USB] poll descriptor update failed rc=%d; shutting down",
-                    UsbPollfdError);
+            syslog(LEVEL, "[USB] poll descriptor update failed rc=%d; shutting down",
+                   UsbPollfdError);
             Do_exit = 2;
             break;
         }
 
-        npollfds = 3 + (int)NUsbPollfds +
-                (int)(NClients + NxmlClients + Nor20Clients);
+        npollfds = 3 + (int)NUsbPollfds + (int)(NClients + NxmlClients + Nor20Clients);
         r = ensure_main_poll_capacity((nfds_t)npollfds);
         if (r < 0) {
             Do_exit = 2;
@@ -2035,8 +1878,8 @@ static int mydaemon(void)
                 syslog(LOG_DEBUG, "[SHUTDOWN] poll interrupted by signal");
                 continue;
             }
-            syslog(LEVEL, "[TCP] poll failed errno=%d error=%s; shutting down",
-                    errno, strerror(errno));
+            syslog(LEVEL, "[TCP] poll failed errno=%d error=%s; shutting down", errno,
+                   strerror(errno));
             Do_exit = 2;
             break;
         }
@@ -2053,11 +1896,10 @@ static int mydaemon(void)
             libusb_handle_events_timeout(UsbCtx, &timeout);
             X10_ack_timed_out = 1;
             UsbAckTimeoutCount++;
-            syslog(LOG_INFO,
-                    "[USB] X10 ACK timeout; command outcome unknown, advancing queue without retransmit");
+            syslog(LOG_INFO, "[USB] X10 ACK timeout; command outcome unknown, advancing queue "
+                             "without retransmit");
             maybe_finish_x10_transmit();
-        }
-        else {
+        } else {
             /**** USB ****/
             libusb_handle_events_timeout(UsbCtx, &timeout);
 
@@ -2065,36 +1907,42 @@ static int mydaemon(void)
             if (Pollfds[0].revents & POLLIN) {
                 /* new client connection */
                 clilen = sizeof(cliaddr);
-                clifd  = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
+                clifd = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
                 log_accept_result("client", clifd);
                 if (clifd >= 0) {
                     r = add_client(clifd);
-                    if (r < 0) close(clifd);
+                    if (r < 0)
+                        close(clifd);
                 }
-                if (--nready <= 0) continue;
+                if (--nready <= 0)
+                    continue;
             }
             if (flashxmlfd >= 0 && (Pollfds[1].revents & POLLIN)) {
                 /* new flashxml client connection */
                 clilen = sizeof(cliaddr);
-                clifd  = accept(flashxmlfd, (struct sockaddr *)&cliaddr, &clilen);
+                clifd = accept(flashxmlfd, (struct sockaddr *)&cliaddr, &clilen);
                 log_accept_result("flashxml", clifd);
                 if (clifd >= 0) {
                     r = add_xmlclient(clifd);
-                    if (r < 0) close(clifd);
+                    if (r < 0)
+                        close(clifd);
                 }
-                if (--nready <= 0) continue;
+                if (--nready <= 0)
+                    continue;
             }
 
             if (or20fd >= 0 && (Pollfds[2].revents & POLLIN)) {
                 /* new OR2.0 client connection */
                 clilen = sizeof(cliaddr);
-                clifd  = accept(or20fd, (struct sockaddr *)&cliaddr, &clilen);
+                clifd = accept(or20fd, (struct sockaddr *)&cliaddr, &clilen);
                 log_accept_result("or20", clifd);
                 if (clifd >= 0) {
                     r = add_or20client(clifd);
-                    if (r < 0) close(clifd);
+                    if (r < 0)
+                        close(clifd);
                 }
-                if (--nready <= 0) continue;
+                if (--nready <= 0)
+                    continue;
             }
 
             for (i = 3 + (int)NUsbPollfds; i < npollfds; i++) {
@@ -2110,53 +1958,45 @@ static int mydaemon(void)
                             continue;
                     }
                     /* dbprintf("client %d revents 0x%X\n", i, Clients[i].revents); */
-                    if (Pollfds[i].revents & (POLLIN|POLLERR)) {
+                    if (Pollfds[i].revents & (POLLIN | POLLERR)) {
                         if ((bytesIn = read(clifd, buf, sizeof(buf))) < 0) {
                             dbprintf("read err %d\n", errno);
                             syslog(LOG_INFO,
-                                    "[CLIENT] read failed client_id=%u fd=%d errno=%d error=%s",
-                                    client_id_for_fd(clifd), clifd, errno,
-                                    strerror(errno));
+                                   "[CLIENT] read failed client_id=%u fd=%d errno=%d error=%s",
+                                   client_id_for_fd(clifd), clifd, errno, strerror(errno));
                             del_client(clifd);
-                        }
-                        else if (bytesIn == 0) {
+                        } else if (bytesIn == 0) {
                             dbprintf("read EOF %d\n", bytesIn);
-                            syslog(LOG_NOTICE,
-                                    "[CLIENT] connection closed client_id=%u fd=%d",
-                                    client_id_for_fd(clifd), clifd);
+                            syslog(LOG_NOTICE, "[CLIENT] connection closed client_id=%u fd=%d",
+                                   client_id_for_fd(clifd), clifd);
                             del_client(clifd);
-                        }
-                        else {
+                        } else {
                             cm15a_encode_state_t *state;
                             dbprintf("Input bytes %d\n", bytesIn);
-                            syslog(LOG_DEBUG,
-                                    "[COMMAND] received client_id=%u fd=%d bytes=%d",
-                                    client_id_for_fd(clifd), clifd, bytesIn);
+                            syslog(LOG_DEBUG, "[COMMAND] received client_id=%u fd=%d bytes=%d",
+                                   client_id_for_fd(clifd), clifd, bytesIn);
                             state = client_encode_state(clifd);
                             if (state)
                                 cm15a_encode_with_state(clifd, state, buf, (size_t)bytesIn);
                         }
-                        if (--nready <= 0) break;
+                        if (--nready <= 0)
+                            break;
                     }
                 }
             }
         }
     }
-    syslog(LOG_NOTICE, "[SHUTDOWN] detaching controller model=%s",
-            (Cm19a) ? "CM19A" : "CM15A");
+    syslog(LOG_NOTICE, "[SHUTDOWN] detaching controller model=%s", (Cm19a) ? "CM19A" : "CM15A");
 
-    cancel_transfer_if_active("output", IntrOut_transfer,
-            &IntrOut_submitted, &IntrOut_canceling);
-    cancel_transfer_if_active("input", IntrIn_transfer,
-            &IntrIn_submitted, &IntrIn_canceling);
+    cancel_transfer_if_active("output", IntrOut_transfer, &IntrOut_submitted, &IntrOut_canceling);
+    cancel_transfer_if_active("input", IntrIn_transfer, &IntrIn_submitted, &IntrIn_canceling);
     drain_cancelled_transfers(100);
 
     if (Do_exit == 1) {
-        syslog(LOG_NOTICE, "[SHUTDOWN] requested by %s (%d)",
-                signal_name(Exit_signal), Exit_signal);
+        syslog(LOG_NOTICE, "[SHUTDOWN] requested by %s (%d)", signal_name(Exit_signal),
+               Exit_signal);
         r = 0;
-    }
-    else {
+    } else {
         syslog(LOG_NOTICE, "[SHUTDOWN] stopping after USB or poll error");
         r = 1;
     }
@@ -2170,26 +2010,21 @@ out_deinit:
     PollfdCapacity = 0;
     cleanup_usb_pollfds();
     syslog(LOG_NOTICE, "[SHUTDOWN] releasing USB resources");
-    free_transfer_if_inactive("input", &IntrIn_transfer,
-            IntrIn_submitted, IntrIn_canceling);
-    free_transfer_if_inactive("output", &IntrOut_transfer,
-            IntrOut_submitted, IntrOut_canceling);
-/* out_release: */
+    free_transfer_if_inactive("input", &IntrIn_transfer, IntrIn_submitted, IntrIn_canceling);
+    free_transfer_if_inactive("output", &IntrOut_transfer, IntrOut_submitted, IntrOut_canceling);
+    /* out_release: */
     if (Devh) {
         r = libusb_release_interface(Devh, 0);
         if (r < 0) {
-            syslog(LEVEL,
-                    "[SHUTDOWN] release interface failed rc=%d error=%s",
-                    r, usb_error_name(r));
+            syslog(LEVEL, "[SHUTDOWN] release interface failed rc=%d error=%s", r,
+                   usb_error_name(r));
         }
         if (Reattach) {
             r = libusb_attach_kernel_driver(Devh, 0);
             if (r < 0) {
-                syslog(LEVEL,
-                        "[SHUTDOWN] kernel driver reattach failed rc=%d error=%s",
-                        r, usb_error_name(r));
-            }
-            else {
+                syslog(LEVEL, "[SHUTDOWN] kernel driver reattach failed rc=%d error=%s", r,
+                       usb_error_name(r));
+            } else {
                 syslog(LOG_NOTICE, "[SHUTDOWN] kernel driver reattached");
             }
         }
@@ -2206,8 +2041,7 @@ out:
     return r >= 0 ? r : -r;
 }
 
-static void printcopy(void)
-{
+static void printcopy(void) {
     printf("Copyright (C) 2010-2012 Brian Uechi.\n");
     printf("\n");
     printf("This program comes with NO WARRANTY.\n");
@@ -2217,8 +2051,7 @@ static void printcopy(void)
     fflush(NULL);
 }
 
-void 
-help() {
+void help() {
     printf("Copyright (C) 2010-2014 Brian Uechi.\n");
     printf("Copyright (C) 2014 Neil Cherry.\n");
     printf("    --config FILE - read optional key=value configuration file\n");
@@ -2226,17 +2059,15 @@ help() {
     printf("    --foreground - run in foreground\n");
     printf("    --background - run in background\n");
     printf("    --bind ADDRESS - bind TCP listeners to IPv4 or IPv6 address (default %s)\n",
-            MOCHAD_DEFAULT_BIND_ADDRESS);
-    printf("    --port PORT - main TCP port (default %d)\n",
-            MOCHAD_DEFAULT_SERVER_PORT);
+           MOCHAD_DEFAULT_BIND_ADDRESS);
+    printf("    --port PORT - main TCP port (default %d)\n", MOCHAD_DEFAULT_SERVER_PORT);
     printf("    --enable-xml - enable Flash XMLSocket listener (default)\n");
     printf("    --disable-xml - disable Flash XMLSocket listener\n");
-    printf("    --xml-port PORT - Flash XMLSocket port (default %d)\n",
-            MOCHAD_DEFAULT_XML_PORT);
+    printf("    --xml-port PORT - Flash XMLSocket port (default %d)\n", MOCHAD_DEFAULT_XML_PORT);
     printf("    --enable-openremote - enable OpenRemote 2.0 listener (default)\n");
     printf("    --disable-openremote - disable OpenRemote 2.0 listener\n");
     printf("    --openremote-port PORT - OpenRemote 2.0 port (default %d)\n",
-            MOCHAD_DEFAULT_OPENREMOTE_PORT);
+           MOCHAD_DEFAULT_OPENREMOTE_PORT);
     printf("    --dual-stack auto|enable|disable - IPv6 dual-stack policy (default auto)\n");
     printf("    --log-level LEVEL - syslog level: debug, info, notice, warning, error\n");
     printf("    --raw-data\n");
@@ -2251,8 +2082,7 @@ help() {
 // This affects whether decode.c will show raw frame data for debugging RF connectivity
 // as well as providing raw data for parsing by users like misterhouse's X10_CMxx module.
 int raw_data = 0;
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     int rc, i;
     char config_error[256];
 
@@ -2263,8 +2093,7 @@ int main(int argc, char *argv[])
             printcopy();
             return 0;
         }
-        if (strcmp(argv[i], "-h") == 0 ||
-                strcmp(argv[i], "--help") == 0) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             printf("%s\n", MOCHAD_REDUX_VERSION);
             printf("upstream base: %s\n", MOCHAD_UPSTREAM_BASE);
             help();
@@ -2272,8 +2101,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (mochad_config_load(&MochadConfig, argc, argv,
-                config_error, sizeof(config_error)) < 0) {
+    if (mochad_config_load(&MochadConfig, argc, argv, config_error, sizeof(config_error)) < 0) {
         fprintf(stderr, "configuration error: %s\n", config_error);
         return 1;
     }
@@ -2308,29 +2136,26 @@ int main(int argc, char *argv[])
      * friendly lifecycle messages to stderr for containers and manual tests.
      */
     StartTime = time(NULL);
-    openlog(DAEMON_NAME, LOG_PID |
-            (MochadConfig.foreground ? LOG_PERROR : 0), LOG_LOCAL5);
+    openlog(DAEMON_NAME, LOG_PID | (MochadConfig.foreground ? LOG_PERROR : 0), LOG_LOCAL5);
     setlogmask(LOG_UPTO(MochadConfig.log_level));
     syslog(LOG_NOTICE,
-            "[STARTUP] %s starting (upstream_base=\"%s\", foreground=%s, raw_data=%s, log_level=%s)",
-            MOCHAD_REDUX_DISPLAY_VERSION, MOCHAD_UPSTREAM_BASE,
-            MochadConfig.foreground ? "yes" : "no",
-            raw_data ? "yes" : "no",
-            mochad_config_log_level_name(MochadConfig.log_level));
+           "[STARTUP] %s starting (upstream_base=\"%s\", foreground=%s, raw_data=%s, log_level=%s)",
+           MOCHAD_REDUX_DISPLAY_VERSION, MOCHAD_UPSTREAM_BASE,
+           MochadConfig.foreground ? "yes" : "no", raw_data ? "yes" : "no",
+           mochad_config_log_level_name(MochadConfig.log_level));
     syslog(LOG_NOTICE,
-            "[STARTUP] TCP configuration bind=%s main=enabled:%d xml=%s:%d openremote=%s:%d dual_stack=%s",
-            BindAddress, ServerPort, XmlEnabled ? "enabled" : "disabled",
-            XmlPort, OpenRemoteEnabled ? "enabled" : "disabled",
-            OpenRemotePort,
-            mochad_config_dual_stack_name(MochadConfig.dual_stack));
+           "[STARTUP] TCP configuration bind=%s main=enabled:%d xml=%s:%d openremote=%s:%d "
+           "dual_stack=%s",
+           BindAddress, ServerPort, XmlEnabled ? "enabled" : "disabled", XmlPort,
+           OpenRemoteEnabled ? "enabled" : "disabled", OpenRemotePort,
+           mochad_config_dual_stack_name(MochadConfig.dual_stack));
 
     /* Daemonize */
     if (!MochadConfig.foreground) {
         rc = daemon(0, 0);
         dbprintf("daemon() => %d\n", rc);
         syslog(LOG_NOTICE, "[STARTUP] running in background");
-    }
-    else {
+    } else {
         syslog(LOG_NOTICE, "[STARTUP] running in foreground");
     }
 

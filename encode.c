@@ -17,7 +17,6 @@
  * along with mochad.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 // bridge: Rx RF -> Tx PL
 //  if equivalent command exists such as A1 ON, relay RF commands to PL.
 //  RF remote keys such as ARM have no equivalent PL command. See RF
@@ -61,7 +60,7 @@
 //          2 = reserved for security
 //          3 = control modules (dimmers and appliances)
 //              F  = Function
-//                  0 = 
+//                  0 =
 //                  1 = Preset receiver output
 //                  DA[5..0] = dim amount = 0..63a
 //                      NZ=ON,Z=OFF,
@@ -73,7 +72,6 @@
 //
 //  07 e7 02 01  31     pl b3 extdim 0
 //  07 e7 02 3e  31     pl b3 extdim 100
-
 
 #include <stdio.h>
 #include <string.h>
@@ -97,23 +95,21 @@ typedef struct command_tokens {
     char *argv[MAX_COMMAND_TOKENS];
 } command_tokens_t;
 
-static void strupper(char *buf)
-{
+static void strupper(char *buf) {
     while (*buf) {
-        if (islower(*buf)) *buf = toupper(*buf);
+        if (islower(*buf))
+            *buf = toupper(*buf);
         buf++;
     }
 }
 
-static char *next_token(command_tokens_t *tokens)
-{
+static char *next_token(command_tokens_t *tokens) {
     if (tokens->pos >= tokens->argc)
         return NULL;
     return tokens->argv[tokens->pos++];
 }
 
-static int tokenize_command(char *line, command_tokens_t *tokens)
-{
+static int tokenize_command(char *line, command_tokens_t *tokens) {
     char *p = line;
 
     tokens->argc = 0;
@@ -132,13 +128,9 @@ static int tokenize_command(char *line, command_tokens_t *tokens)
     return 0;
 }
 
-static int no_more_tokens(const command_tokens_t *tokens)
-{
-    return tokens->pos == tokens->argc;
-}
+static int no_more_tokens(const command_tokens_t *tokens) { return tokens->pos == tokens->argc; }
 
-static int parse_decimal_int(const char *text, int min, int max, int *value)
-{
+static int parse_decimal_int(const char *text, int min, int max, int *value) {
     char *endptr;
     long parsed;
 
@@ -152,8 +144,7 @@ static int parse_decimal_int(const char *text, int min, int max, int *value)
     return 0;
 }
 
-static int parse_hex_ulong(const char *text, int digits, unsigned long *value)
-{
+static int parse_hex_ulong(const char *text, int digits, unsigned long *value) {
     char *endptr;
     unsigned long parsed;
     const char *p = text;
@@ -178,8 +169,7 @@ static int parse_hex_ulong(const char *text, int digits, unsigned long *value)
     return 0;
 }
 
-static int gethexdata(command_tokens_t *tokens, unsigned char buf8[])
-{
+static int gethexdata(command_tokens_t *tokens, unsigned char buf8[]) {
     char *parm;
     unsigned char *ptr = buf8;
     unsigned char *endbuf = buf8 + 8;
@@ -198,92 +188,88 @@ static int gethexdata(command_tokens_t *tokens, unsigned char buf8[])
     return (ptr - buf8);
 }
 
+#define FUNC_ALL_UNITS_OFF (0)
+#define FUNC_ALL_LIGHTS_ON (1)
+#define FUNC_ON (2)
+#define FUNC_OFF (3)
+#define FUNC_DIM (4)
+#define FUNC_BRIGHT (5)
+#define FUNC_ALL_LIGHTS_OFF (6)
+#define FUNC_EXTENDED_CODE_1 (7)
+#define FUNC_HAIL_REQUEST (8)
+#define FUNC_HAIL_ACK (9)
+#define FUNC_EXTENDED_CODE_3 (10)
+#define FUNC_UNUSED (11)
+#define FUNC_EXTENDED_CODE_2 (12)
+#define FUNC_STATUS_ON (13)
+#define FUNC_STATUS_OFF (14)
+#define FUNC_STATUS_REQUEST (15)
+#define FUNC_EXTENDED_DIM (16)
 
-#define    FUNC_ALL_UNITS_OFF   (0)
-#define    FUNC_ALL_LIGHTS_ON   (1)
-#define    FUNC_ON              (2)
-#define    FUNC_OFF             (3)
-#define    FUNC_DIM             (4)
-#define    FUNC_BRIGHT          (5)
-#define    FUNC_ALL_LIGHTS_OFF  (6)
-#define    FUNC_EXTENDED_CODE_1 (7)
-#define    FUNC_HAIL_REQUEST    (8)
-#define    FUNC_HAIL_ACK        (9)
-#define    FUNC_EXTENDED_CODE_3 (10)
-#define    FUNC_UNUSED          (11)
-#define    FUNC_EXTENDED_CODE_2 (12)
-#define    FUNC_STATUS_ON       (13)
-#define    FUNC_STATUS_OFF      (14)
-#define    FUNC_STATUS_REQUEST  (15)
-#define    FUNC_EXTENDED_DIM    (16)
-
-static const char *funccommands[] = {
-    "ALL_UNITS_OFF",
-    "ALL_LIGHTS_ON",
-    "ON",
-    "OFF",
-    "DIM",
-    "BRIGHT",
-    "ALL_LIGHTS_OFF",
-    "EXTENDED_CODE_1",
-    "HAIL_REQUEST",
-    "HAIL_ACK",
-    "EXTENDED_CODE_3",
-    "UNUSED",
-    "EXTENDED_CODE_2",
-    "STATUS_ON",
-    "STATUS_OFF",
-    "STATUS_REQUEST",
-    "XDIM"
-};
+static const char *funccommands[] = {"ALL_UNITS_OFF",
+                                     "ALL_LIGHTS_ON",
+                                     "ON",
+                                     "OFF",
+                                     "DIM",
+                                     "BRIGHT",
+                                     "ALL_LIGHTS_OFF",
+                                     "EXTENDED_CODE_1",
+                                     "HAIL_REQUEST",
+                                     "HAIL_ACK",
+                                     "EXTENDED_CODE_3",
+                                     "UNUSED",
+                                     "EXTENDED_CODE_2",
+                                     "STATUS_ON",
+                                     "STATUS_OFF",
+                                     "STATUS_REQUEST",
+                                     "XDIM"};
 
 static const unsigned char x10housecode[] = {
-    0x06,   /* House code A */
-    0x0e,   /* House code B */
-    0x02,   /* House code C */
-    0x0a,   /* House code D */
-    0x01,   /* House code E */
-    0x09,   /* House code F */
-    0x05,   /* House code G */
-    0x0d,   /* House code H */
-    0x07,   /* House code I */
-    0x0f,   /* House code J */
-    0x03,   /* House code K */
-    0x0b,   /* House code L */
-    0x00,   /* House code M */
-    0x08,   /* House code N */
-    0x04,   /* House code O */
-    0x0c,   /* House code P */
+    0x06, /* House code A */
+    0x0e, /* House code B */
+    0x02, /* House code C */
+    0x0a, /* House code D */
+    0x01, /* House code E */
+    0x09, /* House code F */
+    0x05, /* House code G */
+    0x0d, /* House code H */
+    0x07, /* House code I */
+    0x0f, /* House code J */
+    0x03, /* House code K */
+    0x0b, /* House code L */
+    0x00, /* House code M */
+    0x08, /* House code N */
+    0x04, /* House code O */
+    0x0c, /* House code P */
 };
 
 static const unsigned char x10housecoderf[] = {
-    0x06,   /* House code A */
-    0x07,   /* House code B */
-    0x04,   /* House code C */
-    0x05,   /* House code D */
-    0x08,   /* House code E */
-    0x09,   /* House code F */
-    0x0a,   /* House code G */
-    0x0b,   /* House code H */
-    0x0e,   /* House code I */
-    0x0f,   /* House code J */
-    0x0c,   /* House code K */
-    0x0d,   /* House code L */
-    0x00,   /* House code M */
-    0x01,   /* House code N */
-    0x02,   /* House code O */
-    0x03,   /* House code P */
+    0x06, /* House code A */
+    0x07, /* House code B */
+    0x04, /* House code C */
+    0x05, /* House code D */
+    0x08, /* House code E */
+    0x09, /* House code F */
+    0x0a, /* House code G */
+    0x0b, /* House code H */
+    0x0e, /* House code I */
+    0x0f, /* House code J */
+    0x0c, /* House code K */
+    0x0d, /* House code L */
+    0x00, /* House code M */
+    0x01, /* House code N */
+    0x02, /* House code O */
+    0x03, /* House code P */
 };
 
-static int getfunc(command_tokens_t *tokens)
-{
+static int getfunc(command_tokens_t *tokens) {
     char *command;
     size_t i;
 
     command = next_token(tokens);
-    if (!command) return -1;
-    for (i = 0; i < (sizeof(funccommands)/sizeof(funccommands[0])); i++)
-    {
+    if (!command)
+        return -1;
+    for (i = 0; i < (sizeof(funccommands) / sizeof(funccommands[0])); i++) {
         if (strcmp(command, funccommands[i]) == 0) {
             return i;
         }
@@ -294,13 +280,13 @@ static int getfunc(command_tokens_t *tokens)
 static const struct SecEventRec SecEventNameslongaddr[] = {
     {0x0C, "MOTION_ALERT"},
     {0x8C, "MOTION_NORMAL"},
-    {0x0D, "MOTION_ALERT_LOW"},     /* MS10 does not emit this */
-    {0x8D, "MOTION_NORMAL_LOW"},    /* MS10 does not emit this */
+    {0x0D, "MOTION_ALERT_LOW"},  /* MS10 does not emit this */
+    {0x8D, "MOTION_NORMAL_LOW"}, /* MS10 does not emit this */
     {0x04, "CONTACT_ALERT_MIN"},
     {0x84, "CONTACT_NORMAL_MIN"},
     {0x00, "CONTACT_ALERT_MAX"},
     {0x80, "CONTACT_NORMAL_MAX"},
-    {0x01, "CONTACT_ALERT_MIN_LOW"},    /* _LOW = LOW battery */
+    {0x01, "CONTACT_ALERT_MIN_LOW"}, /* _LOW = LOW battery */
     {0x81, "CONTACT_NORMAL_MIN_LOW"},
     {0x05, "CONTACT_ALERT_MAX_LOW"},
     {0x85, "CONTACT_NORMAL_MAX_LOW"},
@@ -313,63 +299,48 @@ static const struct SecEventRec SecEventNameslongaddr[] = {
 };
 
 static const struct SecEventRec SecRemoteKeyNames8bitaddr[] = {
-    {0x06, "ARM"},
-    {0x0E, "ARM_HOME_MIN"},
-    {0x06, "ARM_AWAY_MIN"},
-    {0x0A, "ARM_HOME_MAX"},
-    {0x02, "ARM_AWAY_MAX"},
-    {0x82, "DISARM"},
-    {0x22, "PANIC"},
-    {0x42, "LIGHTS_ON"},
-    {0xC2, "LIGHTS_OFF"},
-    {0x00, NULL},
+    {0x06, "ARM"},          {0x0E, "ARM_HOME_MIN"}, {0x06, "ARM_AWAY_MIN"}, {0x0A, "ARM_HOME_MAX"},
+    {0x02, "ARM_AWAY_MAX"}, {0x82, "DISARM"},       {0x22, "PANIC"},        {0x42, "LIGHTS_ON"},
+    {0xC2, "LIGHTS_OFF"},   {0x00, NULL},
 };
 
-static int getrffunc(command_tokens_t *tokens, int rf8bitaddr)
-{
+static int getrffunc(command_tokens_t *tokens, int rf8bitaddr) {
     char *command;
     int i;
 
     command = next_token(tokens);
-    if (!command) return -1;
+    if (!command)
+        return -1;
 
     if (rf8bitaddr == 1) {
-        for (i = 0; SecRemoteKeyNames8bitaddr[i].name; i++)
-        {
+        for (i = 0; SecRemoteKeyNames8bitaddr[i].name; i++) {
             if (strcmp(command, SecRemoteKeyNames8bitaddr[i].name) == 0)
                 return SecRemoteKeyNames8bitaddr[i].funct;
         }
         return -1;
-    }
-    else if (rf8bitaddr == 0) {
-        for (i = 0; SecEventNameslongaddr[i].name; i++)
-        {
+    } else if (rf8bitaddr == 0) {
+        for (i = 0; SecEventNameslongaddr[i].name; i++) {
             if (strcmp(command, SecEventNameslongaddr[i].name) == 0)
                 return SecEventNameslongaddr[i].funct;
         }
         return -1;
-    }
-    else
+    } else
         return -1;
 }
 
-
-static int getparam(command_tokens_t *tokens)
-{
+static int getparam(command_tokens_t *tokens) {
     char *param;
     int value;
 
     param = next_token(tokens);
-    if (!param) return -1;
+    if (!param)
+        return -1;
     if (parse_decimal_int(param, 0, 255, &value) < 0)
         return -1;
     return value;
 }
 
-static int ishouse(char h)
-{
-    return ((h >= 'A') && (h <= 'P'));
-}
+static int ishouse(char h) { return ((h >= 'A') && (h <= 'P')); }
 
 /* House code: 'A'..'P', house value: 0..15
  * Unit  code: "1".."16", unit value: 0..15
@@ -378,21 +349,22 @@ static int ishouse(char h)
  * A1           house=0  *unit=0
  * P15          house=15 *unit=14
  */
-static int getdeviceaddr(command_tokens_t *tokens, int *unit)
-{
+static int getdeviceaddr(command_tokens_t *tokens, int *unit) {
     char *parm;
     int parsed_unit;
 
-    int house=-1;
+    int house = -1;
 
-    *unit=-1;
+    *unit = -1;
 
     parm = next_token(tokens);
-    if (!parm || (strlen(parm) > 3)) return house;
+    if (!parm || (strlen(parm) > 3))
+        return house;
 
     dbprintf("deviceaddr %s\n", parm);
 
-    if (!ishouse(parm[0])) return house;
+    if (!ishouse(parm[0]))
+        return house;
     house = parm[0] - 'A';
     dbprintf("house %d\n", house);
 
@@ -408,12 +380,12 @@ static int getdeviceaddr(command_tokens_t *tokens, int *unit)
     return house;
 }
 
-static int getrfaddr(command_tokens_t *tokens, unsigned long *rfaddr)
-{
+static int getrfaddr(command_tokens_t *tokens, unsigned long *rfaddr) {
     char *parm;
 
     parm = next_token(tokens);
-    if (!parm) return -1;
+    if (!parm)
+        return -1;
 
     dbprintf("rfaddr %s\n", parm);
 
@@ -430,18 +402,19 @@ static int getrfaddr(command_tokens_t *tokens, unsigned long *rfaddr)
     return 0;
 }
 
-static unsigned short gethousecodes(command_tokens_t *tokens)
-{
+static unsigned short gethousecodes(command_tokens_t *tokens) {
     char *parm;
     unsigned char house;
     unsigned short rc = 0;
 
     parm = next_token(tokens);
     /* No parameter means turn off all house codes */
-    if (!parm || *parm == '\0') return 0;
+    if (!parm || *parm == '\0')
+        return 0;
 
     /* parameter == "*" means turn on all house codes */
-    if (strcmp(parm, "*") == 0) return 0xFFFF;
+    if (strcmp(parm, "*") == 0)
+        return 0xFFFF;
 
     while ((house = *parm++)) {
         dbprintf("house %c\n", house);
@@ -469,8 +442,7 @@ static unsigned short gethousecodes(command_tokens_t *tokens)
  *     bits 7..4    house code
  *     bits 3..0    unit code
  */
-static int pl_tx_houseunit(int fd, int house, int unit)
-{
+static int pl_tx_houseunit(int fd, int house, int unit) {
     char unsigned buf[4];
 
     (void)fd;
@@ -484,26 +456,23 @@ static int pl_tx_houseunit(int fd, int house, int unit)
 
     /* Transmit only requires last 2 bytes and first byte must be 0x04 */
     buf[2] = 0x04;
-    return x10_write(buf+2, 2);
+    return x10_write(buf + 2, 2);
 }
 
 /* Extended code 1 */
-static int pl_tx_extended_code_1(int fd, int house, int unit, int command, 
-        int subcmd, int param)
-{
+static int pl_tx_extended_code_1(int fd, int house, int unit, int command, int subcmd, int param) {
     unsigned char buf[7];
     size_t nbuf;
     unsigned char *xmitptr;
 
-    dbprintf("%s(%d,%d,%d,%d,%d,%d)\n", __func__, fd, house, unit, command,
-            subcmd, param);
+    dbprintf("%s(%d,%d,%d,%d,%d,%d)\n", __func__, fd, house, unit, command, subcmd, param);
     /* Make buffer as if received so decoder prints */
     buf[0] = 0x00;
     buf[1] = 0x05;
     buf[2] = 0x07;
-    nbuf = 7;  /* Decode 7 bytes */
+    nbuf = 7; /* Decode 7 bytes */
     buf[3] = (x10housecode[house] << 4) | 0x7;
-    buf[4] = x10housecode[unit];  /* unit code */
+    buf[4] = x10housecode[unit]; /* unit code */
     buf[5] = param & 0xFF;
     buf[6] = ((command & 0x0F) << 4) | (subcmd & 0x0F);
     xmitptr = &buf[2];
@@ -516,8 +485,7 @@ static int pl_tx_extended_code_1(int fd, int house, int unit, int command,
     return x10_write(xmitptr, 5);
 }
 
-static int pl_tx_housefunc(int fd, int house, int func, int param)
-{
+static int pl_tx_housefunc(int fd, int house, int func, int param) {
     unsigned char buf[7];
     int dims;
     size_t nbuf;
@@ -527,70 +495,70 @@ static int pl_tx_housefunc(int fd, int house, int func, int param)
     /* Make buffer as if received so decoder prints */
     buf[0] = 0x00;
     switch (func) {
-        case FUNC_DIM:
-        case FUNC_BRIGHT:
-            buf[1] = 0x03;
-            nbuf = 5;  /* Decode 5 bytes */
-            buf[2] = 0x02;
-            dims = ((param & 0x1F) << 3);
-            buf[3] = dims | 0x01;
-            buf[4] = x10housecode[house] << 4 | func;
-            xmitptr = &buf[2];
-            cm15a_decode_plc(-1, buf, nbuf);
-            dbprintf("decoded PLC buffer len %d\n", nbuf);
-            hexdump(buf, nbuf);
+    case FUNC_DIM:
+    case FUNC_BRIGHT:
+        buf[1] = 0x03;
+        nbuf = 5; /* Decode 5 bytes */
+        buf[2] = 0x02;
+        dims = ((param & 0x1F) << 3);
+        buf[3] = dims | 0x01;
+        buf[4] = x10housecode[house] << 4 | func;
+        xmitptr = &buf[2];
+        cm15a_decode_plc(-1, buf, nbuf);
+        dbprintf("decoded PLC buffer len %d\n", nbuf);
+        hexdump(buf, nbuf);
 
-            /* Transmit using the 0x06 prefix just like AHP */
-            /* The remaining two bytes are reversed */
-            *xmitptr++ = 0x06;
-            *xmitptr = *(xmitptr+1);
-            xmitptr++;
-            *xmitptr = 0x06 | dims;
-            hexdump(xmitptr-2, 3);
-            return x10_write(xmitptr-2, 3);
-        case FUNC_EXTENDED_DIM:
-            buf[1] = 0x05;
-            buf[2] = 0x07;
-            nbuf = 7;  /* Decode 7 bytes */
-            buf[3] = x10housecode[house] << 4 | 0x7;
-            buf[4] = 0x02;  /* 2 data bytes follow */
-            dims = param & 0xFF;
-            buf[5] = dims;
-            buf[6] = 0x31;  /* Dim/Bright */
-            xmitptr = &buf[2];
-            cm15a_decode_plc(-1, buf, nbuf);
-            dbprintf("decoded PLC buffer len %d\n", nbuf);
-            hexdump(buf, nbuf);
+        /* Transmit using the 0x06 prefix just like AHP */
+        /* The remaining two bytes are reversed */
+        *xmitptr++ = 0x06;
+        *xmitptr = *(xmitptr + 1);
+        xmitptr++;
+        *xmitptr = 0x06 | dims;
+        hexdump(xmitptr - 2, 3);
+        return x10_write(xmitptr - 2, 3);
+    case FUNC_EXTENDED_DIM:
+        buf[1] = 0x05;
+        buf[2] = 0x07;
+        nbuf = 7; /* Decode 7 bytes */
+        buf[3] = x10housecode[house] << 4 | 0x7;
+        buf[4] = 0x02; /* 2 data bytes follow */
+        dims = param & 0xFF;
+        buf[5] = dims;
+        buf[6] = 0x31; /* Dim/Bright */
+        xmitptr = &buf[2];
+        cm15a_decode_plc(-1, buf, nbuf);
+        dbprintf("decoded PLC buffer len %d\n", nbuf);
+        hexdump(buf, nbuf);
 
-            /* Transmit only requires last 5 bytes */
-            hexdump(xmitptr, 5);
-            return x10_write(xmitptr, 5);
-        default:
-            buf[1] = 0x02;
-            nbuf = 4;  /* Decode 4 bytes */
-            buf[2] = 0x01;
-            buf[3] = x10housecode[house] << 4 | func;
-            xmitptr = &buf[2];
-            cm15a_decode_plc(-1, buf, nbuf);
-            dbprintf("decoded PLC buffer len %d\n", nbuf);
-            hexdump(buf, nbuf);
+        /* Transmit only requires last 5 bytes */
+        hexdump(xmitptr, 5);
+        return x10_write(xmitptr, 5);
+    default:
+        buf[1] = 0x02;
+        nbuf = 4; /* Decode 4 bytes */
+        buf[2] = 0x01;
+        buf[3] = x10housecode[house] << 4 | func;
+        xmitptr = &buf[2];
+        cm15a_decode_plc(-1, buf, nbuf);
+        dbprintf("decoded PLC buffer len %d\n", nbuf);
+        hexdump(buf, nbuf);
 
-            /* Transmit only requires last 2 bytes */
-            *xmitptr = 0x06;
-            hexdump(xmitptr, 2);
-            return x10_write(xmitptr, 2);
+        /* Transmit only requires last 2 bytes */
+        *xmitptr = 0x06;
+        hexdump(xmitptr, 2);
+        return x10_write(xmitptr, 2);
     }
 }
 
 /*
  * EB 20 E2 ED 0A F5 from SH624 8 bit RF address
- *        |  |  |  | 
+ *        |  |  |  |
  *        |  |  |  XOR with prev byte==0xff
  *        |  |  key code
  *        |  XOR with prev byte==0x0f
  *        8 bit security code change by pressing CODE button
  *
- * EB 29 7F 70 8C 73 CA 00 from MS10,DS10,KR10 17(?) bit RF address 
+ * EB 29 7F 70 8C 73 CA 00 from MS10,DS10,KR10 17(?) bit RF address
  *        |  |  |  |  |  |
  *        |  |  |  |  |  addr3 (even parity bit for previous byte)
  *        |  |  |  |  addr2
@@ -599,9 +567,8 @@ static int pl_tx_housefunc(int fd, int house, int func, int param)
  *        |  XOR with prev byte==0x0f
  *        addr1
  */
-           
-static int rfsec_tx(int fd, int rf8bitaddr, unsigned long rfaddr, int func)
-{
+
+static int rfsec_tx(int fd, int rf8bitaddr, unsigned long rfaddr, int func) {
     unsigned char buf[8];
     unsigned char *p = buf;
     unsigned char addr1;
@@ -614,14 +581,13 @@ static int rfsec_tx(int fd, int rf8bitaddr, unsigned long rfaddr, int func)
         *p++ = rfaddr;
         *p++ = rfaddr ^ 0x0f;
         *p++ = func;
-        *p   = ~func;
+        *p = ~func;
         cm15a_decode_rf(-1, buf, 6);
         if (Cm19a)
-            return x10_write(buf+1, 5);
+            return x10_write(buf + 1, 5);
         else
             return x10_write(buf, 6);
-    }
-    else {
+    } else {
         *p++ = 0x29;
         addr1 = rfaddr >> 16;
         *p++ = addr1;
@@ -629,10 +595,10 @@ static int rfsec_tx(int fd, int rf8bitaddr, unsigned long rfaddr, int func)
         *p++ = func;
         *p++ = ~func;
         *p++ = rfaddr >> 8;
-        *p   = rfaddr;
+        *p = rfaddr;
         cm15a_decode_rf(-1, buf, 8);
         if (Cm19a)
-            return x10_write(buf+1, 7);
+            return x10_write(buf + 1, 7);
         else
             return x10_write(buf, 8);
     }
@@ -644,14 +610,14 @@ static int rfsec_tx(int fd, int rf8bitaddr, unsigned long rfaddr, int func)
  *        |  XOR with prev byte=0xff
  *        house code/unit
  */
-static int rf_tx_houseunitfunc(int fd, int house, int unit, int func)
-{
+static int rf_tx_houseunitfunc(int fd, int house, int unit, int func) {
     unsigned char buf[6];
     unsigned char unit8, unit4, unit2, unit1;
 
     (void)fd;
 
-    if (house < 0) return -1;
+    if (house < 0)
+        return -1;
     unit8 = unit & 0x08;
     unit4 = unit & 0x04;
     unit2 = unit & 0x02;
@@ -663,49 +629,49 @@ static int rf_tx_houseunitfunc(int fd, int house, int unit, int func)
 
     buf[4] = 0;
     switch (func) {
-        /* X10 standard RF */
-        case FUNC_OFF:
-            buf[4] = 1<<5;      // 1=OFF, 0=ON
-            /* fall through */
-        case FUNC_ON:
-            if (unit < 0) return -1;
-            buf[4] |= (unit4 << 4) | (unit2 << 2) | (unit1 << 4);
-            break;
-        case FUNC_DIM:
-            buf[4] = 0x98;
-            break;
-        case FUNC_BRIGHT:
-            buf[4] = 0x88;
-            break;
-            /* X10 SECURITY RF */
-        default:
-            dbprintf("Invalid function\n");
+    /* X10 standard RF */
+    case FUNC_OFF:
+        buf[4] = 1 << 5; // 1=OFF, 0=ON
+        /* fall through */
+    case FUNC_ON:
+        if (unit < 0)
             return -1;
+        buf[4] |= (unit4 << 4) | (unit2 << 2) | (unit1 << 4);
+        break;
+    case FUNC_DIM:
+        buf[4] = 0x98;
+        break;
+    case FUNC_BRIGHT:
+        buf[4] = 0x88;
+        break;
+        /* X10 SECURITY RF */
+    default:
+        dbprintf("Invalid function\n");
+        return -1;
     }
-    buf[3] = ~buf[2];     // add check bytes
+    buf[3] = ~buf[2]; // add check bytes
     buf[5] = ~buf[4];
 
     cm15a_decode_rf(-1, buf, sizeof(buf));
     if (Cm19a)
-        return x10_write(buf+1, sizeof(buf)-1);
+        return x10_write(buf + 1, sizeof(buf) - 1);
     else
         return x10_write(buf, sizeof(buf));
 }
 
-static const char DOMAINPOLICY[] = 
-    "<?xml version=\"1.0\"?>"
-    "<!DOCTYPE cross-domain-policy SYSTEM \"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\">"
-    "<cross-domain-policy>"
-    "<allow-access-from domain=\"*.chumby.com\" to-ports=\"1100\" />"
-    "</cross-domain-policy>";
+static const char DOMAINPOLICY[] = "<?xml version=\"1.0\"?>"
+                                   "<!DOCTYPE cross-domain-policy SYSTEM "
+                                   "\"http://www.adobe.com/xml/dtds/cross-domain-policy.dtd\">"
+                                   "<cross-domain-policy>"
+                                   "<allow-access-from domain=\"*.chumby.com\" to-ports=\"1100\" />"
+                                   "</cross-domain-policy>";
 
 /* aLine looks something like the following
  * pl a1 on
  * rf a1 on
  * getstatus a1
  */
-int processcommandline(int fd, char *aLine)
-{
+int processcommandline(int fd, char *aLine) {
     char *command, *arg1;
     command_tokens_t tokens;
     int house, unit, func, param;
@@ -730,40 +696,36 @@ int processcommandline(int fd, char *aLine)
     if (command) {
         if (strcmp(command, "HELLO") == 0) {
             return mochad_diag_hello(fd);
-        }
-        else if (strcmp(command, "CAPABILITIES") == 0) {
+        } else if (strcmp(command, "CAPABILITIES") == 0) {
             return mochad_diag_capabilities(fd);
-        }
-        else if (strcmp(command, "HEALTH") == 0) {
+        } else if (strcmp(command, "HEALTH") == 0) {
             return mochad_diag_health(fd);
-        }
-        else if (strcmp(command, "CLIENTS") == 0) {
+        } else if (strcmp(command, "CLIENTS") == 0) {
             return mochad_diag_clients(fd);
-        }
-        else if (strcmp(command, "CONFIG") == 0) {
+        } else if (strcmp(command, "CONFIG") == 0) {
             return mochad_diag_config(fd);
-        }
-        else if (strcmp(command, "VERSION") == 0) {
+        } else if (strcmp(command, "VERSION") == 0) {
             return mochad_diag_version(fd);
-        }
-        else if (strcmp(command, "PL") == 0) {
-            if (or20client(fd)) statusprintf(fd, "ok\n\r");
+        } else if (strcmp(command, "PL") == 0) {
+            if (or20client(fd))
+                statusprintf(fd, "ok\n\r");
             house = getdeviceaddr(&tokens, &unit);
             dbprintf("house %d unit %d\n", house, unit);
-            if (house < 0) return -1;
+            if (house < 0)
+                return -1;
             if (unit < 0) {
                 /* Unit code is 0 but house code != 0 */
                 func = getfunc(&tokens);
-                if (func < 0 || func == FUNC_EXTENDED_DIM) return -1;
+                if (func < 0 || func == FUNC_EXTENDED_DIM)
+                    return -1;
                 if (func == FUNC_DIM || func == FUNC_BRIGHT) {
                     param = getparam(&tokens);
-                    if (param == -1) param = 1;
+                    if (param == -1)
+                        param = 1;
                     pl_tx_housefunc(fd, house, func, param);
-                }
-                else
+                } else
                     pl_tx_housefunc(fd, house, func, 0);
-            }
-            else {
+            } else {
                 func = getfunc(&tokens);
                 if (func < 0) {
                     pl_tx_houseunit(fd, house, unit);
@@ -772,58 +734,66 @@ int processcommandline(int fd, char *aLine)
                 dbprintf("func %d\n", func);
                 if (func == FUNC_EXTENDED_DIM) {
                     param = getparam(&tokens);
-                    if (param == -1) param = 1; /* default is 1 dim */
+                    if (param == -1)
+                        param = 1; /* default is 1 dim */
                     pl_tx_extended_code_1(fd, house, unit, 3, 1, param);
-                }
-                else if (func == FUNC_DIM || func == FUNC_BRIGHT) {
+                } else if (func == FUNC_DIM || func == FUNC_BRIGHT) {
                     param = getparam(&tokens);
-                    if (param == -1) param = 1;
+                    if (param == -1)
+                        param = 1;
                     pl_tx_houseunit(fd, house, unit);
                     pl_tx_housefunc(fd, house, func, param);
-                }
-                else if (func == FUNC_EXTENDED_CODE_1) {
+                } else if (func == FUNC_EXTENDED_CODE_1) {
                     int extcommand, subcmd, data;
                     extcommand = getparam(&tokens);
-                    if (extcommand == -1) extcommand = 0;
+                    if (extcommand == -1)
+                        extcommand = 0;
                     subcmd = getparam(&tokens);
-                    if (subcmd == -1) subcmd = 0;
+                    if (subcmd == -1)
+                        subcmd = 0;
                     data = getparam(&tokens);
-                    if (data == -1) data = 0;
+                    if (data == -1)
+                        data = 0;
                     pl_tx_extended_code_1(fd, house, unit, extcommand, subcmd, data);
-                }
-                else {
+                } else {
                     pl_tx_houseunit(fd, house, unit);
                     pl_tx_housefunc(fd, house, func, 0);
                 }
             }
-        }
-        else if (strcmp(command, "RF") == 0) {
-            if (or20client(fd)) statusprintf(fd, "ok\n\r");
+        } else if (strcmp(command, "RF") == 0) {
+            if (or20client(fd))
+                statusprintf(fd, "ok\n\r");
             house = getdeviceaddr(&tokens, &unit);
             dbprintf("house %d unit %d\n", house, unit);
-            if (house < 0) return -1;
+            if (house < 0)
+                return -1;
             func = getfunc(&tokens);
-            if (func < 0) return -1;
+            if (func < 0)
+                return -1;
             rf_tx_houseunitfunc(fd, house, unit, func);
-        }
-        else if (strcmp(command, "RFSEC") == 0) {
-            if (or20client(fd)) statusprintf(fd, "ok\n\r");
+        } else if (strcmp(command, "RFSEC") == 0) {
+            if (or20client(fd))
+                statusprintf(fd, "ok\n\r");
             rfaddr = 0;
             rf8bitaddr = getrfaddr(&tokens, &rfaddr);
             dbprintf("rfaddr 8bit: %d %X\n", rf8bitaddr, rfaddr);
-            if (rf8bitaddr < 0) return -1;
+            if (rf8bitaddr < 0)
+                return -1;
             func = getrffunc(&tokens, rf8bitaddr);
             dbprintf("rf func %X\n", func);
-            if (func < 0) return -1;
+            if (func < 0)
+                return -1;
             rfsec_tx(fd, rf8bitaddr, rfaddr, func);
-        }
-        else if (strcmp(command, "RFCAM") == 0) {
-            if (or20client(fd)) statusprintf(fd, "ok\n\r");
+        } else if (strcmp(command, "RFCAM") == 0) {
+            if (or20client(fd))
+                statusprintf(fd, "ok\n\r");
             /* Unit number is ignored */
             house = getdeviceaddr(&tokens, &unit);
-            if (house < 0) return -1;
+            if (house < 0)
+                return -1;
             arg1 = next_token(&tokens);
-            if (arg1 == NULL || *arg1 == '\0') return -1;
+            if (arg1 == NULL || *arg1 == '\0')
+                return -1;
             dbprintf("rfcam house keyname %d %s\n", house, arg1);
 
             rfcamkey = findCamRemoteCommand(arg1);
@@ -837,20 +807,21 @@ int processcommandline(int fd, char *aLine)
                 hexdump(x10bytes8, 5);
                 cm15a_decode_rf(-1, x10bytes8, 5);
                 if (Cm19a)
-                    x10_write(x10bytes8+1, 4);
+                    x10_write(x10bytes8 + 1, 4);
                 else
                     x10_write(x10bytes8, 5);
-            }
-            else {
+            } else {
                 sockprintf(fd, "Invalid command %s\n\r", arg1);
             }
-        }
-        else if (strcmp(command, "PT") == 0) {
-            if (or20client(fd)) statusprintf(fd, "ok\n\r");
+        } else if (strcmp(command, "PT") == 0) {
+            if (or20client(fd))
+                statusprintf(fd, "ok\n\r");
             len = gethexdata(&tokens, x10bytes8);
-            if (len == 0 || len == (size_t)-1) return -1;
-            hexdump (x10bytes8, len);
-            if (len > 0) x10_write(x10bytes8, len);
+            if (len == 0 || len == (size_t)-1)
+                return -1;
+            hexdump(x10bytes8, len);
+            if (len > 0)
+                x10_write(x10bytes8, len);
         }
 #if 0
         /* Enable/disable the internal RFTOPL repeater */
@@ -875,12 +846,13 @@ int processcommandline(int fd, char *aLine)
         }
 #endif
         else if (strcmp(command, "RFTOPL") == 0) {
-            if (or20client(fd)) statusprintf(fd, "ok\n\r");
+            if (or20client(fd))
+                statusprintf(fd, "ok\n\r");
             RfToPl16 = gethousecodes(&tokens);
             sockprintf(fd, "RfToPl %04X\n\r", RfToPl16);
-        }
-        else if (strcmp(command, "RFTORF") == 0) {
-            if (or20client(fd)) statusprintf(fd, "ok\n\r");
+        } else if (strcmp(command, "RFTORF") == 0) {
+            if (or20client(fd))
+                statusprintf(fd, "ok\n\r");
             arg1 = next_token(&tokens);
             if (arg1) {
                 int value;
@@ -889,71 +861,58 @@ int processcommandline(int fd, char *aLine)
                 RfToRf16 = (unsigned short)value;
             }
             sockprintf(fd, "RfToRf %04X\n\r", RfToRf16);
-        }
-        else if (strcmp(command, "ST") == 0) {
+        } else if (strcmp(command, "ST") == 0) {
             arg1 = next_token(&tokens);
             dbprintf("st arg1 %s\n", arg1 ? arg1 : "(none)");
             if (arg1 && (strcmp(arg1, "0") == 0))
                 hua_sec_init();
             else
                 hua_show(fd);
-        }
-	else if (strcmp(command, "INFO") == 0) { // New goodies, stuff in progress
-	    // Info about those connected
-	    sockprintf(fd, "Info\r\n\0");
-	    return 0;
-	}
-	else if (strcmp(command, "QUIT") == 0) {
-	    // Disconnect from mochad
-	    sockprintf(fd, "Quit\r\n\0");
-	    return 0;
-	}
-        else if (strcmp(command, "HELP") == 0) {
-	    // Display the help message
-	    sockprintf(fd, "Help\r\n\0");
-	    return 0;
-	}
-        else if (strcmp(command, "?") == 0) {
-	    // Display the help message
-	    sockprintf(fd, "Help ?\r\n\0");
-	    return 0;
-	}
-        else if (strcmp(command, "HEX") == 0) {
-	    // translate the ASCII to Hex and send it to the CM15A
-	    command = next_token(&tokens);
+        } else if (strcmp(command, "INFO") == 0) { // New goodies, stuff in progress
+            // Info about those connected
+            sockprintf(fd, "Info\r\n\0");
+            return 0;
+        } else if (strcmp(command, "QUIT") == 0) {
+            // Disconnect from mochad
+            sockprintf(fd, "Quit\r\n\0");
+            return 0;
+        } else if (strcmp(command, "HELP") == 0) {
+            // Display the help message
+            sockprintf(fd, "Help\r\n\0");
+            return 0;
+        } else if (strcmp(command, "?") == 0) {
+            // Display the help message
+            sockprintf(fd, "Help ?\r\n\0");
+            return 0;
+        } else if (strcmp(command, "HEX") == 0) {
+            // translate the ASCII to Hex and send it to the CM15A
+            command = next_token(&tokens);
             if (command == NULL)
                 return -1;
-	    sockprintf(fd, "Hex %s\r\n\0", command);
-	    return 0;
-	}
-        else if (strcmp(command, "GETSTATUS") == 0) {
+            sockprintf(fd, "Hex %s\r\n\0", command);
+            return 0;
+        } else if (strcmp(command, "GETSTATUS") == 0) {
             house = getdeviceaddr(&tokens, &unit);
             if ((house >= 0) && (unit >= 0)) {
                 arg1 = next_token(&tokens);
                 if (arg1) {
-                    if (strcmp(arg1, "XDIM") == 0) {    /* getstatus a1 xdim */
-                        statusprintf(fd,"%d\n\r",hua_getstatus_xdim(house, unit));
-                    }
-                    else {  /* getstatus a1 ? */
+                    if (strcmp(arg1, "XDIM") == 0) { /* getstatus a1 xdim */
+                        statusprintf(fd, "%d\n\r", hua_getstatus_xdim(house, unit));
+                    } else { /* getstatus a1 ? */
                         statusprintf(fd, "-1\n\r");
                     }
+                } else { /* getstatus a1 */
+                    statusprintf(fd, "%s\n\r", (hua_getstatus(house, unit) == '1') ? "on" : "off");
                 }
-                else {  /* getstatus a1 */
-                    statusprintf(fd, "%s\n\r", 
-                            (hua_getstatus(house, unit) == '1') ? "on": "off");
-                }
-            }
-            else
+            } else
                 return -1;
-        }
-        else if (strcmp(command, "GETSTATUSSEC") == 0) {
+        } else if (strcmp(command, "GETSTATUSSEC") == 0) {
             rfaddr = 0;
             rf8bitaddr = getrfaddr(&tokens, &rfaddr);
-            if (rf8bitaddr < 0) return -1;
-            statusprintf(fd, "%s\n\r",
-                    (hua_getstatus_sec(rf8bitaddr, rfaddr) == 1) ? "on": "off");
-        }
-        else {
+            if (rf8bitaddr < 0)
+                return -1;
+            statusprintf(fd, "%s\n\r", (hua_getstatus_sec(rf8bitaddr, rfaddr) == 1) ? "on" : "off");
+        } else {
             dbprintf("Unknown command: %s\n", command);
             return -1;
         }
@@ -969,16 +928,14 @@ int processcommandline(int fd, char *aLine)
  * Parse human readable commands and convert to binary X10 protocol.
  * Send to CM15A.
  */
-void cm15a_encode_state_init(cm15a_encode_state_t *state)
-{
+void cm15a_encode_state_init(cm15a_encode_state_t *state) {
     state->remainder[0] = '\0';
     state->remlen = 0;
     state->discarding = 0;
 }
 
-void cm15a_encode_with_state(int fd, cm15a_encode_state_t *state,
-        unsigned char *buf, size_t buflen)
-{
+void cm15a_encode_with_state(int fd, cm15a_encode_state_t *state, unsigned char *buf,
+                             size_t buflen) {
     char *remptr;
 
     dbprintf("buflen %lu\n", (unsigned long)buflen);
@@ -1013,19 +970,18 @@ void cm15a_encode_with_state(int fd, cm15a_encode_state_t *state,
             *remptr = '\0';
             if (strlen(state->remainder)) {
                 processcommandline(fd, state->remainder);
-                if (or20client(fd)) del_client(fd);
+                if (or20client(fd))
+                    del_client(fd);
             }
             remptr = state->remainder;
-        }
-        else
+        } else
             remptr++;
         buf++;
     }
     state->remlen = remptr - state->remainder;
 }
 
-void cm15a_encode(int fd, unsigned char *buf, size_t buflen)
-{
+void cm15a_encode(int fd, unsigned char *buf, size_t buflen) {
     static cm15a_encode_state_t default_state;
     static int initialized = 0;
 
