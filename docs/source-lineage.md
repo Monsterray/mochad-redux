@@ -54,11 +54,11 @@ be audited before adding file-level SPDX identifiers.
 
 Current understanding:
 
-- `systemd/mochad.service` is maintained in this fork for native Linux service
-  deployment.
-- `udev/91-usb-x10-controllers.rules` and
-  `udev/91-usb-x10-controllers.rules-systemd` are maintained in this fork for
-  CM15A/CM19A USB permissions and optional systemd activation.
+- `systemd/mochad.service.in` is maintained in this fork as an inactive native
+  Linux service template rendered by `mochad-redux-setup`.
+- `udev/91-usb-x10-controllers.rules.in` is maintained in this fork as an
+  inactive CM15A/CM19A permission template. The older rule files are retained
+  as historical references and are not activated by `make install`.
 - `hotplug2/` contains legacy OpenWrt-era support files retained for historical
   compatibility.
 

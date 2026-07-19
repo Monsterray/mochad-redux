@@ -1,0 +1,35 @@
+.TH MOCHAD-REDUX-SETUP 8
+.SH NAME
+mochad-redux-setup \- administer native mochad-redux integration
+.SH SYNOPSIS
+.B mochad-redux-setup
+.I command
+[options]
+.SH DESCRIPTION
+The setup tool explicitly creates the native service account and renders the
+inactive templates installed by the package.  Package installation itself never
+performs these host changes.
+.SH COMMANDS
+.TP
+.B install
+Create accounts and install managed systemd and udev integration.
+.TP
+.B verify
+Verify managed files and selected service settings.
+.TP
+.B status
+Display the resolved paths and current integration status.
+.TP
+.B remove
+Remove managed integration files.  It preserves configuration and accounts.
+.TP
+.B purge
+Explicit destructive cleanup.  Account removal additionally requires
+.BR --purge-accounts .
+.SH OPTIONS
+.BR --enable , " --enable-now" , " --restart" , " --no-systemd" ,
+.BR --no-udev , " --service-user" , " --service-group" , " --usb-group" ,
+.BR --prefix , " --dry-run" , " --force"
+are supported.  Run with
+.B --help
+for details.

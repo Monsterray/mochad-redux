@@ -150,6 +150,24 @@ The CI workflow covers:
 Supported platform expectations are documented in
 [docs/supported-platforms.md](docs/supported-platforms.md).
 
+## Native Installation Changes
+
+`make install` is a pure packaging operation. Do not add install hooks that
+create accounts, write `/etc`, call service managers, reload udev, or touch
+USB. Put host integration only in `mochad-redux-setup` and preserve its managed
+file protections.
+
+When changing installation, templates, or the setup tool, run:
+
+```sh
+scripts/validate/staged-install-contract.sh
+scripts/validate/native-setup-tool.sh
+```
+
+The second validator uses a temporary fake root. It is not permission or USB
+hardware evidence. Record an actual native `mochad-redux-setup install
+--enable-now` result separately when a release needs that claim.
+
 ## v0.4.x Quality Focus
 
 After logging and diagnostics are in good shape, focus on:

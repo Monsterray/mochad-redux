@@ -48,21 +48,22 @@ distribution-specific behavior here unless it is tested on that target.
 
 ## udev
 
-`udev/` contains USB device rules for Linux systems:
+`udev/` contains USB rule templates for Linux systems:
 
-- `91-usb-x10-controllers.rules` is the non-systemd rule set. It assigns
-  `root:x10` ownership and `0660` mode to supported X10 USB nodes.
-- `91-usb-x10-controllers.rules-systemd` assigns the same USB node ownership
-  and asks systemd to activate `mochad.service`.
+- `91-usb-x10-controllers.rules.in` is rendered by `mochad-redux-setup`; it
+  assigns `root:x10` ownership and `0660` mode to supported X10 USB nodes.
+- The legacy rule files remain source references. `make install` places only
+  inactive templates beneath the configured prefix.
 
-For modern Linux systems, the systemd rule is safer because udev should not run
-long-lived daemons directly.
+The setup tool performs host integration explicitly, so udev never launches
+the daemon directly.
 
 ## systemd
 
-`systemd/mochad.service` is the native systemd service unit. It starts
-`/usr/local/bin/mochad -d` in the foreground as user `mochad`, group `mochad`,
-with supplementary group `x10` and `UMask=0022`.
+`systemd/mochad.service.in` is rendered into the existing `mochad.service` unit
+name by the setup tool. It resolves the installed binary path and uses user
+`mochad`, group `mochad`, supplementary group `x10`, and `UMask=0022` by
+default.
 
 Potential future hardening includes explicit device dependencies and optional
 service sandboxing. Those changes should be tested with real CM15A/CM19A

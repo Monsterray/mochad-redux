@@ -47,7 +47,8 @@ The `apps/`, `cgi/`, `hotplug2/`, `udev/`, and `systemd/` folders are described
 in [support-files.md](support-files.md). They are not all equal support
 surfaces:
 
-- `systemd/` and `udev/` are active Linux deployment support files.
+- `systemd/` and `udev/` provide inactive templates rendered by the explicit
+  native setup tool; package installation does not activate them.
 - `hotplug2/` is legacy embedded Linux support.
 - `apps/` and `cgi/` are historical examples and should not be treated as
   maintained production clients without review.

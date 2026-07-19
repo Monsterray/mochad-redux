@@ -48,6 +48,9 @@ Record the exact commands and results.
 | Shutdown logs | native foreground |  |  |
 | Docker build | Docker |  | `scripts/validate/docker-build.sh` |
 | Docker health check | Docker |  | `scripts/validate/docker-smoke-test.sh` |
+| Staged install contract | source archive |  | `scripts/validate/staged-install-contract.sh` |
+| Native setup-tool contract | temporary fake root |  | `scripts/validate/native-setup-tool.sh` |
+| Native setup activation | Linux host |  | `mochad-redux-setup install --enable-now`; record only when run |
 
 ## Hardware Validation
 

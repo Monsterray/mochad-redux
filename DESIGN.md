@@ -71,6 +71,15 @@ Docker behavior should remain:
 Docker should not hide USB errors. If the controller cannot be opened, logs
 should make the likely cause visible.
 
+## Explicit Privilege Boundaries
+
+Build and package installation must be safe in release archives, package
+staging roots, containers, and CI. `make install` therefore only copies files
+and honors `DESTDIR`. Account creation, udev reloads, systemd changes, service
+activation, and USB access belong only to an explicit native-administration
+step. The managed `mochad-redux-setup` tool protects local edits and preserves
+configuration by default; it is never part of `mochad-docker` runtime setup.
+
 ## Incremental Maintenance
 
 Large rewrites are discouraged. Changes should be small, reviewable, and easy

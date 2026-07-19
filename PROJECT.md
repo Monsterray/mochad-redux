@@ -34,6 +34,7 @@ The engineering principles for this maintained line are documented in
 * Prefer safe maintenance over rewrites.
 * Make runtime failures self-explanatory through clear logs before adding
   protocol features.
+* Keep package installation passive and native host integration explicit.
 
 ## Supported Targets
 

@@ -5,6 +5,21 @@ All notable changes to `mochad-redux` should be recorded here.
 This project values release evidence over broad release claims. Each release
 entry should link to validation evidence when available.
 
+## [Unreleased]
+
+### Changed
+
+- `make install` is now a pure, `DESTDIR`-safe packaging operation. Native
+  service, udev, and account integration moved to the explicit
+  `mochad-redux-setup` administration tool.
+- Native setup now records managed integration files, preserves configuration,
+  and refuses to replace unmanaged or locally modified files without `--force`.
+
+### Added
+
+- `mochad-redux-setup` administration commands and the source-tree
+  `scripts/install-native.sh` convenience wrapper.
+- Deterministic staged-install and fake-root native setup validation scripts.
 
 ## [0.4.0] - 07/16/2026
 

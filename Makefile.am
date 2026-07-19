@@ -1,4 +1,5 @@
 bin_PROGRAMS = mochad
+sbin_SCRIPTS = scripts/mochad-redux-setup
 
 # These files are deliberately installed as inactive templates.  A package
 # installation must never alter the running host; mochad-redux-setup is the
@@ -14,7 +15,10 @@ dist_doc_DATA = README.md docs/native-install-rollback.md \
 		docs/support-files.md docs/supported-platforms.md
 licensedir = $(datadir)/licenses/mochad-redux
 license_DATA = COPYING NOTICE LICENSE.md
-man_MANS = docs/mochad.1
+man_MANS = docs/mochad.1 docs/mochad-redux-setup.8
+
+print-sbindir:
+	@echo '$(sbindir)'
 
 mochad_SOURCES = mochad.c config.c decode.c diagnostics.c encode.c global.c \
 		mochad_event.c socket_io.c usb_endpoint_selection.c \
@@ -31,7 +35,7 @@ EXTRA_DIST = config/mochad.conf.example \
 		cgi/x10.pl cgi/netcat.pl cgi/getsensors.pl cgi/cgi-lib.pl \
 		apps/mochamon.pl apps/simplemon.pl apps/bash.sh \
 		apps/rfsectopl3.pl apps/x10-tk.py apps/mochad.scr \
-		scripts/setup-native-permissions.sh \
+		scripts/install-native.sh scripts/mochad-redux-setup.in \
 		scripts/release/prepare-next-dev.sh \
 		scripts/release/prepare-release.sh \
 		scripts/release/update-version-files.sh \
@@ -42,6 +46,7 @@ EXTRA_DIST = config/mochad.conf.example \
 		scripts/validate/full-libusb-build.sh \
 		scripts/validate/libusb-stub-syntax-check.sh \
 		scripts/validate/native-smoke-test.sh \
+		scripts/validate/native-setup-tool.sh \
 		scripts/validate/staged-install-contract.sh \
 		scripts/validate/release-evidence.sh \
 		scripts/validate/repository-hygiene.sh \
@@ -59,7 +64,7 @@ EXTRA_DIST = config/mochad.conf.example \
 		docs/compatibility.md docs/generated-artifacts.md docs/hardware-validation.md \
 		docs/json-api.md docs/milestone-1.md docs/source-lineage.md \
 		docs/support-files.md docs/supported-platforms.md \
-		docs/native-install-rollback.md \
+		docs/native-install-rollback.md docs/mochad-redux-setup.8 \
 		validation/README.md validation/compiler.md validation/hardware.md \
 		validation/regression.md validation/release-evidence-template.md \
 		validation/releases/README.md validation/releases/v0.4.0.md \

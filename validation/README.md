@@ -47,6 +47,8 @@ scripts/validate/libusb-stub-syntax-check.sh
 scripts/validate/full-libusb-build.sh
 scripts/validate/docker-build.sh
 scripts/validate/native-smoke-test.sh
+scripts/validate/staged-install-contract.sh
+scripts/validate/native-setup-tool.sh
 scripts/validate/unit-tests.sh
 scripts/validate/tcp-diagnostics-smoke-test.sh
 scripts/validate/docker-smoke-test.sh
@@ -78,6 +80,10 @@ TCP evidence.
 The scripts print clear console output suitable for pasting into release
 evidence. Docker scripts default to the sibling `../mochad-docker` project and
 can be pointed elsewhere with `MOCHAD_DOCKER_DIR`.
+
+`staged-install-contract.sh` proves `make DESTDIR=... install` remains
+packaging-safe. `native-setup-tool.sh` validates setup behavior against a
+temporary fake filesystem root; neither script changes the host or opens USB.
 
 ## Hardware Evidence
 

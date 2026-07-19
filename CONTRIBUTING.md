@@ -36,6 +36,17 @@ For release PRs, complete [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) and
 record validation evidence using
 [validation/release-evidence-template.md](validation/release-evidence-template.md).
 
+Changes to installation, templates, or native setup must also run:
+
+```sh
+scripts/validate/staged-install-contract.sh
+scripts/validate/native-setup-tool.sh
+```
+
+Do not add host-mutating behavior to `make install`. Native systemd, udev, and
+account changes belong in the explicit `mochad-redux-setup` administration
+tool.
+
 ## Hardware Reports
 
 Hardware validation is valuable even when no code changes are involved. Use the

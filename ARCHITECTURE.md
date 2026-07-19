@@ -122,6 +122,16 @@ Docker should run mochad in foreground mode. Runtime configuration should be sup
 
 Docker should not hide USB errors. If USB is unavailable, logs should clearly explain the likely cause.
 
+## Native Installation Boundary
+
+Autotools installation is packaging-only: `make install` copies the daemon,
+documentation, licenses, administration tool, and inactive templates beneath
+the configured prefix and honors `DESTDIR`. It must never create identities,
+modify live `/etc`, call `systemctl` or `udevadm`, start a service, or access a
+controller. Native host integration is an explicit administrator action through
+`mochad-redux-setup`; see [README.md](README.md) and
+[docs/native-install-rollback.md](docs/native-install-rollback.md).
+
 ## TCP Binding
 
 TCP listeners are created through a shared `getaddrinfo` path so IPv4 and IPv6

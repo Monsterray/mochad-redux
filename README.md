@@ -100,62 +100,68 @@ git clone https://github.com/Monsterray/mochad-redux.git
 cd mochad-redux
 ```
 
-Build the project:
+Git checkouts need Autotools before configuration:
 
 ```sh
-chmod +x autogen.sh
 ./autogen.sh
+./configure
 make
 ```
 
-Install the package:
+Release archives already include `configure`, so use:
+
+```sh
+./configure
+make
+```
+
+## Native Linux Install
+
+The recommended bare-metal path is explicit and safe to repeat:
 
 ```sh
 sudo make install
+sudo mochad-redux-setup install --enable-now
 ```
 
 The Autotools install target only copies files into the configured prefix and
-honors `DESTDIR` for package builds. It does not create users, modify live
-`/etc`, reload udev, invoke systemd, or start services.
+honors `DESTDIR`. It installs inactive templates, documentation, licenses, and
+the `mochad-redux-setup` administration tool. It never creates accounts,
+modifies live `/etc`, calls `systemctl` or `udevadm`, starts services, or opens
+the controller.
 
-To prepare a native Linux host for the new non-root service permissions without
-running the full install target, use:
-
-```sh
-sudo scripts/setup-native-permissions.sh
-```
-
-Preview the operations first with:
+For a source-tree convenience path after a successful build:
 
 ```sh
-scripts/setup-native-permissions.sh --dry-run
+sudo ./scripts/install-native.sh --enable-now
 ```
 
-Expected installed files include:
+`mochad-redux-setup` manages the default `mochad` user and group, the `x10`
+supplementary USB group, a `root:x10` / `0660` udev rule, and the existing
+`mochad.service` unit name. It records managed integration files and refuses to
+replace local edits unless `--force` is given. It preserves
+`/etc/mochad-redux/mochad.conf` during upgrades and does not restart an active
+service unless `--restart` or `--enable-now` is explicit.
 
-```text
-/usr/local/bin/mochad
-/etc/udev/rules.d/91-usb-x10-controllers.rules
-/etc/systemd/system/mochad.service
+Preview native integration first with:
+
+```sh
+sudo mochad-redux-setup install --dry-run
 ```
 
-Native packages create a `mochad` service user, a `mochad` primary group, and an
-`x10` device-access group when installed as root. The systemd unit runs with:
+## Package Staging
 
-```text
-User=mochad
-Group=mochad
-SupplementaryGroups=x10
-UMask=0022
+Package builders should stage only files and perform no host integration:
+
+```sh
+make DESTDIR="$PWD/stage" install
 ```
 
-The udev rules do not execute the daemon directly. They assign supported X10
-USB nodes to `root:x10` with mode `0660`; the systemd udev rule then activates
-`mochad.service`.
+## Development And Containers
 
-The service remains inactive until a supported CM15A or CM19A controller is
-connected. The installed `udev` rules handle service activation.
-Rollback steps are documented in
+Run the daemon directly during development or use an isolated prefix. Never run
+`mochad-redux-setup` inside `mochad-docker`; container permissions are managed
+by that project instead. Removal and rollback guidance is in
 [docs/native-install-rollback.md](docs/native-install-rollback.md).
 
 ## Testing

@@ -63,10 +63,14 @@ fi
 # lets this contract test execute the install rules without requiring libusb.
 printf '#!/bin/sh\nexit 0\n' > mochad
 chmod 0755 mochad
-make -o mochad DESTDIR="$dest_dir" install-binPROGRAMS install-data >/dev/null
+make -o mochad DESTDIR="$dest_dir" install-binPROGRAMS install-sbinSCRIPTS install-data >/dev/null
 
 test -f "$dest_dir/usr/bin/mochad" || {
     echo "FAIL: staged executable missing" >&2
+    exit 1
+}
+test -x "$dest_dir/usr/sbin/mochad-redux-setup" || {
+    echo "FAIL: staged administration tool missing" >&2
     exit 1
 }
 test -f "$dest_dir/usr/share/mochad-redux/templates/mochad.service.in" || {
@@ -83,6 +87,10 @@ test -f "$dest_dir/usr/share/mochad-redux/templates/mochad.conf.example" || {
 }
 test -f "$dest_dir/usr/share/man/man1/mochad.1" || {
     echo "FAIL: staged manual page missing" >&2
+    exit 1
+}
+test -f "$dest_dir/usr/share/man/man8/mochad-redux-setup.8" || {
+    echo "FAIL: staged setup manual page missing" >&2
     exit 1
 }
 

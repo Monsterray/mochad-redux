@@ -1,9 +1,15 @@
 # Native Install Rollback
 
-Use this checklist when removing a native Linux `mochad-redux` installation.
+Use the installed setup tool for managed integration files. It preserves the
+configuration and accounts by default:
 
-These steps are intentionally manual. The setup helper never removes users or
-groups automatically because those accounts may be reused by local policy.
+```sh
+sudo mochad-redux-setup remove
+```
+
+It refuses to remove locally edited files without `--force`. `purge --force`
+is explicit destructive cleanup; account removal remains deliberately refused
+until an administrator has reviewed local account usage.
 
 ## Stop Service Activation
 

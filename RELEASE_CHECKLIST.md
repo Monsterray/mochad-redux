@@ -17,6 +17,8 @@ ship releases with evidence, not just a changelog.
 - [ ] Review `git status --short`.
 - [ ] `scripts/validate/repository-hygiene.sh`
 - [ ] `scripts/validate/source-archive-validation.sh`
+- [ ] `scripts/validate/staged-install-contract.sh`
+- [ ] `scripts/validate/native-setup-tool.sh`
 - [ ] `scripts/validate/release-evidence.sh <release-or-candidate>`
 - [ ] Review generated artifacts against
   [docs/generated-artifacts.md](docs/generated-artifacts.md).
@@ -49,6 +51,8 @@ ship releases with evidence, not just a changelog.
 - [ ] `scripts/validate/docker-smoke-test.sh`
 - [ ] `scripts/validate/cm19a-hardware-validation.sh`, when CM19A hardware is available
 - [ ] Native foreground startup logs recorded.
+- [ ] Native setup `install --enable-now` result recorded when native service
+  deployment is claimed.
 - [ ] Native foreground TCP connection test recorded.
 - [ ] Native foreground shutdown logs recorded.
 - [ ] IPv4 default bind validated.

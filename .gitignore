@@ -33,5 +33,6 @@ Makefile.in
 config.h*
 !/config.h
 configure
+scripts/mochad-redux-setup
 build/
 build-*/
