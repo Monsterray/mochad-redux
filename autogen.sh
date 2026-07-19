@@ -4,10 +4,10 @@
 package="mochad"
 
 
-srcdir=`dirname $0`
+srcdir=$(dirname "$0")
 test -z "$srcdir" && srcdir=.
 
-cd "$srcdir"
+cd "$srcdir" || exit 1
 DIE=0
 
 (autoheader --version) < /dev/null > /dev/null 2>&1 || {
@@ -46,7 +46,7 @@ echo "Generating configuration files for $package, please wait...."
 
 run_cmd() {
     echo "  running $* ..."
-    if ! $*; then
+    if ! "$@"; then
 			echo failed!
 			exit 1
     fi
