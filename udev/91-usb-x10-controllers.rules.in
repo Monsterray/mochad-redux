@@ -1,0 +1,3 @@
+# Managed by mochad-redux-setup.  This template is inactive until rendered.
+SUBSYSTEM=="usb", ACTION=="add", ATTR{idVendor}=="0bc7", ATTR{idProduct}=="0001", GROUP="@USB_GROUP@", MODE="0660"
+SUBSYSTEM=="usb", ACTION=="add", ATTR{idVendor}=="0bc7", ATTR{idProduct}=="0002", GROUP="@USB_GROUP@", MODE="0660"

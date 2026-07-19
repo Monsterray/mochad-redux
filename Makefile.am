@@ -1,11 +1,20 @@
 bin_PROGRAMS = mochad
-systemdsystemunitdir = $(prefix)/lib/systemd/system
-systemdsystemunit_DATA = systemd/mochad.service
-udevrulesdir = $(prefix)/lib/udev/rules.d
-udevrules_DATA = udev/91-usb-x10-controllers.rules \
-		udev/91-usb-x10-controllers.rules-systemd
-hotplug2dir = $(pkgdatadir)/hotplug2
-hotplug2_DATA = hotplug2/20-usb-x10 hotplug2/mochad
+
+# These files are deliberately installed as inactive templates.  A package
+# installation must never alter the running host; mochad-redux-setup is the
+# explicit administrator action that renders them into /etc.
+templatedir = $(pkgdatadir)/templates
+template_DATA = systemd/mochad.service.in \
+		udev/91-usb-x10-controllers.rules.in \
+		config/mochad.conf.example
+legacydir = $(pkgdatadir)/legacy/hotplug2
+legacy_DATA = hotplug2/20-usb-x10 hotplug2/mochad
+docdir = $(datadir)/doc/mochad-redux
+dist_doc_DATA = README.md docs/native-install-rollback.md \
+		docs/support-files.md docs/supported-platforms.md
+licensedir = $(datadir)/licenses/mochad-redux
+license_DATA = COPYING NOTICE LICENSE.md
+man_MANS = docs/mochad.1
 
 mochad_SOURCES = mochad.c config.c decode.c diagnostics.c encode.c global.c \
 		mochad_event.c socket_io.c usb_endpoint_selection.c \
@@ -13,7 +22,10 @@ mochad_SOURCES = mochad.c config.c decode.c diagnostics.c encode.c global.c \
 		config.h decode.h diagnostics.h encode.h global.h \
 		mochad_event.h socket_io.h usb_endpoint_selection.h \
 		version.h x10state.h x10_write.h
-EXTRA_DIST = udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules-systemd \
+EXTRA_DIST = config/mochad.conf.example \
+		systemd/mochad.service.in \
+		udev/91-usb-x10-controllers.rules.in \
+		udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules-systemd \
 		udev/README.md \
 		hotplug2/20-usb-x10 hotplug2/mochad systemd/mochad.service \
 		cgi/x10.pl cgi/netcat.pl cgi/getsensors.pl cgi/cgi-lib.pl \

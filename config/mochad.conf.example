@@ -1,0 +1,9 @@
+# mochad-redux runtime configuration template.
+#
+# Copy selected settings into /etc/mochad-redux/mochad.conf.  The setup tool
+# creates this file once and deliberately preserves local changes on upgrades.
+# Command-line options and environment variables remain supported.
+#
+# Example:
+# bind=0.0.0.0
+# port=1099

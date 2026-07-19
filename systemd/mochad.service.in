@@ -1,0 +1,15 @@
+[Unit]
+Description=Mochad a TCP gateway service for X10-RF (CM15A/CM15Pro/CM19A)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=@MOCHAD_BINARY@ -d
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+SupplementaryGroups=@USB_GROUP@
+UMask=0022
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
