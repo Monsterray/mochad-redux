@@ -21,6 +21,8 @@ Run:
 ```sh
 sh tools/compile_without_libusb.sh --strict --asan --ubsan
 sh tools/compile_without_libusb.sh --cppcheck
+scripts/validate/clang-format.sh
+scripts/validate/shellcheck.sh
 git diff --check
 ```
 
@@ -46,6 +48,17 @@ scripts/validate/native-setup-tool.sh
 Do not add host-mutating behavior to `make install`. Native systemd, udev, and
 account changes belong in the explicit `mochad-redux-setup` administration
 tool.
+
+## Formatting and Shell Scripts
+
+Maintained C and header files follow the checked-in [`.clang-format`](.clang-format)
+policy: four spaces, attached braces, 100-column limit, and right-aligned
+pointers. Run `scripts/format-c.sh` before committing C formatting changes.
+The development libusb stub is intentionally excluded.
+
+All tracked shell scripts are checked with ShellCheck at warning severity.
+Fix shell defects rather than adding broad suppressions. The initial finding
+disposition is recorded in [docs/static-analysis-audit.md](docs/static-analysis-audit.md).
 
 ## Hardware Reports
 
