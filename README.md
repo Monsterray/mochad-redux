@@ -164,6 +164,16 @@ Run the daemon directly during development or use an isolated prefix. Never run
 by that project instead. Removal and rollback guidance is in
 [docs/native-install-rollback.md](docs/native-install-rollback.md).
 
+## Beta Testing
+
+Version 0.4.0 is a cautious public beta. Use a tagged beta release or exact
+full Git SHA, not a moving branch. Source-level validation has passed; CM19A,
+CM15A, and module behavior still require physical evidence.
+
+See [docs/beta-status.md](docs/beta-status.md), the
+[hardware validation guide](docs/hardware-validation.md), and the Beta test
+report issue form before testing a non-critical controller or module.
+
 ## Testing
 
 Connect a CM15A or CM19A to USB, then connect to `mochad` with `netcat` and
