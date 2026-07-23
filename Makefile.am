@@ -75,7 +75,8 @@ EXTRA_DIST = config/mochad.conf.example \
 		docs/json-api.md docs/milestone-1.md docs/source-lineage.md \
 		docs/repository-layout-source-move-manifest.md \
 		docs/support-files.md docs/supported-platforms.md \
-		docs/native-install-rollback.md docs/mochad-redux-setup.8 \
+		docs/native-install-rollback.md docs/mochad.1 \
+		docs/mochad-redux-setup.8 \
 		validation/README.md validation/compiler.md validation/hardware.md \
 		validation/regression.md validation/release-evidence-template.md \
 		validation/releases/README.md validation/releases/v0.4.0.md \
