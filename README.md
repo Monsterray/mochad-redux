@@ -74,6 +74,25 @@ service and device rules install correctly on modern systems.
 Legacy examples and service integration files are documented in
 [legacy support-file documentation](docs/development/legacy-support-files.md).
 
+## Repository Layout
+
+Maintained code and support files are grouped by ownership:
+
+- `src/` contains the daemon, configuration, network, USB, and X10 code.
+- `tests/` contains unit, golden-output, integration, and test-support files.
+- `packaging/` contains maintained Linux templates and retained OpenWrt files.
+- `scripts/` contains build, formatting, setup, release, hardware, and
+  validation commands.
+- `contrib/` contains unsupported but reviewable client examples.
+- `docs/research/` contains historical, superseded, or provenance-sensitive
+  material that must not be treated as current installation guidance.
+- `validation/` contains release evidence policy and records.
+
+See the [documentation index](docs/README.md), the
+[architecture guide](docs/architecture/architecture.md), and the
+[repository layout record](docs/development/repository-layout-proposal.md) for
+ownership and compatibility details.
+
 ## Installation
 
 Install the userspace USB development library:

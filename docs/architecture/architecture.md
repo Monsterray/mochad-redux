@@ -1,8 +1,26 @@
-# ARCHITECTURE.md
-
 # Architecture
 
 `mochad-redux` is a small TCP daemon that talks to X10 USB controllers through libusb and exposes a text protocol over TCP.
+
+## Repository Boundaries
+
+| Path | Ownership |
+| --- | --- |
+| `src/core/` | Process lifecycle, event loop, clients, shared globals, logging |
+| `src/config/` | Validated configuration and maintained version constants |
+| `src/net/` | Socket helpers and diagnostic JSON |
+| `src/usb/` | Endpoint selection, transfer-facing output, transmit queue |
+| `src/x10/` | Command encoding, decoding, state, normalized and legacy events |
+| `tests/` | Unit, golden-output, integration, and test support |
+| `packaging/` | Inactive native templates and retained OpenWrt integration |
+| `scripts/` | Build, setup, validation, release, formatting, and hardware tools |
+| `contrib/` | Unsupported examples retained for reference |
+| `docs/research/` | Non-authoritative historical and provenance material |
+| `validation/` | Release evidence policy and records |
+
+The root non-recursive `Makefile.am` remains the build manifest. Directory
+ownership does not change existing C symbols, listener framing, commands, USB
+IDs, or hardware behavior.
 
 ## Major Components
 

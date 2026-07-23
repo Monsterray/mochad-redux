@@ -43,16 +43,18 @@ hardware validation evidence.
 
 ## Legacy Support Files
 
-The `apps/`, `contrib/`, `cgi/`, `packaging/`, `udev/`, and `systemd/` folders
-are described in
-[legacy support files](../development/legacy-support-files.md). They are not all equal support
-surfaces:
+The `contrib/`, `cgi/`, `packaging/`, and `docs/research/legacy-*` folders are
+described in [legacy support files](../development/legacy-support-files.md).
+They are not equal support surfaces:
 
-- `systemd/` and `udev/` provide inactive templates rendered by the explicit
-  native setup tool; package installation does not activate them.
+- `packaging/linux/systemd/` and `packaging/linux/udev/` provide inactive
+  templates rendered by the explicit native setup tool; package installation
+  does not activate them.
 - `packaging/openwrt/` is legacy embedded Linux support.
-- `apps/` and `cgi/` are historical examples and should not be treated as
-  maintained production clients without review.
+- `contrib/apps/` contains unsupported examples.
+- `docs/research/legacy-*` contains non-authoritative historical artifacts.
+- `cgi/` remains under review and must not be exposed without a security and
+  provenance review.
 
 ## Updating This Matrix
 

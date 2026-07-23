@@ -5,6 +5,26 @@ Audit base: `3c387bda4c308f330c7fb825af7de9baf63af69e`
 This proposal turns the file inventory into a reviewable target. It does not
 authorize deletions and does not require empty directories or new modules.
 
+## Implementation Status
+
+The proposal was implemented as a compatibility-preserving, stacked branch
+series:
+
+| Branch | Result |
+| --- | --- |
+| `refactor/repository-layout-source` | Maintained C and headers moved under `src/`; build and validation paths updated. |
+| `refactor/repository-layout-support` | Tests, packaging, scripts, documentation, and examples grouped by ownership. |
+| `cleanup/remove-obsolete-files` | Superseded files archived as research; no tracked file irreversibly deleted. |
+| `docs/repository-architecture` | Public navigation, ownership, and implementation records finalized. |
+
+The historical CGI set remains at `cgi/` with status `NEEDS REVIEW`. The
+implemented tree therefore intentionally differs from the proposed tree by not
+moving it to `contrib/cgi/`. Empty proposed directories were not created.
+
+Historical file names and paths later in this document describe the audit base.
+Current authoritative paths are shown in the populated tree and documentation
+index.
+
 ## Goals
 
 - Make runtime ownership visible without changing C symbols or behavior.
@@ -76,8 +96,8 @@ authorize deletions and does not require empty directories or new modules.
 │   ├── release/
 │   └── research/
 ├── contrib/
-│   ├── apps/
-│   └── cgi/
+│   └── apps/
+├── cgi/                    # retained in place pending explicit review
 └── validation/
     └── releases/
 ```

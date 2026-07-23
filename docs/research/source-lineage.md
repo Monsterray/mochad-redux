@@ -48,10 +48,10 @@ distributed under the repository license unless a file states otherwise.
 
 ## Support Files
 
-The `packaging/linux/`, `packaging/openwrt/`, `systemd/`, and `udev/`
-directories contain deployment support files for Linux systems. Their exact
-historical source path should continue to be audited before adding file-level
-SPDX identifiers.
+The `packaging/linux/` and `packaging/openwrt/` directories contain deployment
+support files for Linux systems. Superseded static systemd and udev files are
+retained under `docs/research/legacy-packaging/`. Their exact historical source
+path should continue to be audited before adding file-level SPDX identifiers.
 
 Current understanding:
 

@@ -5,6 +5,23 @@ Audit base: `3c387bda4c308f330c7fb825af7de9baf63af69e`
 This report identifies overlap and obsolescence candidates. It does not approve
 deletion by itself.
 
+## Implementation Outcome
+
+The cleanup branch followed the conservative audit result:
+
+- no tracked file was irreversibly deleted;
+- maintained templates remain under `packaging/linux/`;
+- superseded static systemd and udev files moved to
+  `docs/research/legacy-packaging/`;
+- the Python 2/Tk demo and process-killing FIFO helper moved to
+  `docs/research/legacy-apps/`;
+- current examples moved to `contrib/apps/`;
+- OpenWrt support remains under `packaging/openwrt/`;
+- the complete CGI set remains at `cgi/` with status `NEEDS REVIEW`.
+
+Paths in the findings below describe the audit base unless an implemented
+destination is stated.
+
 ## Summary
 
 | Finding | Classification | Proposed disposition |
