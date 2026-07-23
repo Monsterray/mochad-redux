@@ -3,8 +3,9 @@
 Hardware validation is the strongest evidence that `mochad-redux` still works
 as a real X10 daemon. It complements CI; it does not replace CI.
 
-Use [the hardware validation guide](../docs/development/hardware-validation.md) as the
-step-by-step checklist.
+Use [the hardware validation guide](../docs/development/hardware-validation.md)
+and [the isolated lab setup](../docs/development/hardware-lab-setup.md) as the
+step-by-step checklists.
 
 For interactive CM19A evidence collection, use:
 
@@ -12,7 +13,9 @@ For interactive CM19A evidence collection, use:
 scripts/hardware/cm19a-validation.sh
 ```
 
-Set `MOCHAD_BIN`, `MOCHAD_PORT`, or `LOG_FILE` to override the defaults.
+The default run does not transmit. Set `MOCHAD_BIN`, `MOCHAD_LAB_PORT`, or
+`EVIDENCE_FILE` to override safe defaults. Transmission requires `--transmit`,
+an address under housecode `D`, and the exact interactive approval phrase.
 
 ## Minimum Release Evidence
 

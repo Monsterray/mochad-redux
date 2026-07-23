@@ -128,14 +128,18 @@ This check validates the generic `rf <house><unit> on` transmit path with an
 SC546A chime as the receiving load. It does not add or require an
 SC546A-specific protocol mode in `mochad-redux`.
 
+Follow [Hardware Lab Setup](hardware-lab-setup.md). Acquire the controller lock
+and obtain explicit human approval before sending any command.
+
 Required hardware:
 
 - CM19A connected to the host running `mochad-redux`.
 - TM751 or compatible X10 RF transceiver on the same house code.
 - SC546A chime set to the test house/unit address.
 
-Example assumes the SC546A is set to `A2`. Adjust the address to match the
-physical dials before recording evidence.
+The development lab reserves housecode `D`. This example assumes the SC546A
+is set to `D2`. Adjust the unit within `D1` through `D16`; do not transmit on
+another housecode during automated or agent-assisted validation.
 
 Start `mochad-redux` in the foreground:
 
@@ -152,25 +156,23 @@ nc localhost 1099
 Run and record each command:
 
 ```text
-rf A2 on
-rf A2 on
-rf A2 off
-rf A3 on
-rf B2 on
+rf D2 on
+rf D2 on
+rf D2 off
+rf D3 on
 ```
 
 Expected physical behavior:
 
-- `rf A2 on`: SC546A chimes.
-- Repeated `rf A2 on`: SC546A chimes again for each intentional command.
-- `rf A2 off`: ignored by the SC546A.
-- `rf A3 on`: ignored when the SC546A unit dial is set to A2.
-- `rf B2 on`: ignored when the SC546A house dial is set to A.
+- `rf D2 on`: SC546A chimes.
+- Repeated `rf D2 on`: SC546A chimes again for each intentional command.
+- `rf D2 off`: ignored by the SC546A.
+- `rf D3 on`: ignored when the SC546A unit dial is set to D2.
 
 Expected daemon behavior:
 
 - The TCP stream may report transmitted RF activity such as
-  `Tx RF HouseUnit: A2 Func: On`.
+  `Tx RF HouseUnit: D2 Func: On`.
 - A successful CM19A USB transmit means the command was handed to the
   controller for RF transmission. It is transmitted, not physically confirmed.
 - The daemon must not claim that the SC546A chimed unless the tester records

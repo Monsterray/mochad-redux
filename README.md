@@ -191,8 +191,9 @@ full Git SHA, not a moving branch. Source-level validation has passed; CM19A,
 CM15A, and module behavior still require physical evidence.
 
 See [the beta-status guide](docs/release/beta-status.md), the
-[hardware validation guide](docs/development/hardware-validation.md), and the Beta test
-report issue form before testing a non-critical controller or module.
+[hardware validation guide](docs/development/hardware-validation.md), the
+[isolated hardware-lab setup](docs/development/hardware-lab-setup.md), and the
+Beta test report issue form before testing a non-critical controller or module.
 
 ## Testing
 
