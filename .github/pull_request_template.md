@@ -23,8 +23,8 @@
 
 ## Validation
 
-- [ ] `sh tools/compile_without_libusb.sh --strict --asan --ubsan`
-- [ ] `sh tools/compile_without_libusb.sh --cppcheck`
+- [ ] `sh scripts/build/compile-without-libusb.sh --strict --asan --ubsan`
+- [ ] `sh scripts/build/compile-without-libusb.sh --cppcheck`
 - [ ] `git diff --check`
 - [ ] Full libusb build on Linux, if available
 - [ ] CM19A hardware test, if available
