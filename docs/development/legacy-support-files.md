@@ -49,8 +49,8 @@ distribution-specific behavior here unless it is tested on that target.
 ## udev
 
 `packaging/linux/udev/` contains the maintained USB rule template for Linux
-systems. The root `udev/` directory retains historical references pending a
-separate provenance review:
+systems. Historical fixed-group and systemd-activation rules are retained
+under `docs/research/legacy-packaging/udev/` for provenance:
 
 - `91-usb-x10-controllers.rules.in` is rendered by `mochad-redux-setup`; it
   assigns `root:x10` ownership and `0660` mode to supported X10 USB nodes.
@@ -65,8 +65,8 @@ the daemon directly.
 `packaging/linux/systemd/mochad.service.in` is rendered into the existing
 `mochad.service` unit name by the setup tool. It resolves the installed binary
 path and uses user `mochad`, group `mochad`, supplementary group `x10`, and
-`UMask=0022` by default. The root `systemd/` directory contains only a
-historical fixed-path unit pending separate disposition.
+`UMask=0022` by default. The historical fixed-path unit is retained under
+`docs/research/legacy-packaging/systemd/` and is not authoritative packaging.
 
 Potential future hardening includes explicit device dependencies and optional
 service sandboxing. Those changes should be tested with real CM15A/CM19A
