@@ -30,6 +30,6 @@
 - [ ] CM19A hardware test, if available
 - [ ] CM15A hardware test, if available
 - [ ] Release evidence updated, if this is a release PR
-- [ ] Generated artifacts reviewed against `docs/generated-artifacts.md`
+- [ ] Generated artifacts reviewed against `docs/development/generated-artifacts.md`
 
 ## Notes

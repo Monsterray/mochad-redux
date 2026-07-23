@@ -97,6 +97,10 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		docs/research/source-lineage.md \
 		docs/development/repository-layout-source-move-manifest.md \
 		docs/development/legacy-support-files.md \
+		docs/development/duplicate-and-obsolete-files.md \
+		docs/development/repository-file-inventory.md \
+		docs/development/repository-layout-proposal.md \
+		docs/README.md \
 		docs/installation/supported-platforms.md \
 		docs/installation/native-install-rollback.md \
 		packaging/linux/man/mochad.1 \

@@ -11,14 +11,14 @@ recommended deployment paths.
 - `simplemon.pl` and `mochamon.pl` monitor one or more `mochad` TCP streams.
 - `rfsectopl3.pl` and `bash.sh` translate RF security events into X10 power-line
   commands.
-- `x10-tk.py` is a Python 2/Tk desktop demo.
-- `mochad.scr` feeds raw data into a FIFO for MisterHouse-style integrations.
 
 These files are historical examples. Several contain site-specific hostnames,
-hardcoded IPv4 addresses, Python 2 syntax, or assumptions about local tools
-such as `flite`. They should not be treated as maintained production clients
-without review. Future modernization should either move these into clearly
-versioned examples or replace them with small IPv4/IPv6-capable sample clients.
+hardcoded IPv4 addresses, or assumptions about local tools such as `flite`.
+They should not be treated as maintained production clients without review.
+
+The Python 2/Tk `x10-tk.py` demo and the process-killing/FIFO `mochad.scr`
+helper are retained under `docs/research/legacy-apps/`. They are historical
+evidence, not supported programs, and must not be executed without review.
 
 ## cgi
 
@@ -72,3 +72,15 @@ Potential future hardening includes explicit device dependencies and optional
 service sandboxing. Those changes should be tested with real CM15A/CM19A
 hardware before becoming defaults, because USB device access and kernel-driver
 detaching can be sensitive to service permissions.
+
+## Authority Summary
+
+| Area | Authoritative path | Historical or unsupported path |
+| --- | --- | --- |
+| Native systemd | `packaging/linux/systemd/mochad.service.in` | `docs/research/legacy-packaging/systemd/` |
+| Native udev | `packaging/linux/udev/91-usb-x10-controllers.rules.in` | `docs/research/legacy-packaging/udev/` |
+| Native setup | `scripts/setup/mochad-redux-setup.in` | None |
+| OpenWrt | `packaging/openwrt/` | Legacy compatibility surface |
+| Example clients | `contrib/apps/` | Unsupported examples |
+| Obsolete applications | None | `docs/research/legacy-apps/` |
+| CGI | Undecided | Root `cgi/`, retained pending provenance/support decision |

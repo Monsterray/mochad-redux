@@ -1,6 +1,4 @@
-# PROJECT.md
-
-# mochad-redux
+# Project Status
 
 `mochad-redux` is a maintained modernization fork of mochad for X10 CM15A/CM19A controllers.
 
