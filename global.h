@@ -32,7 +32,7 @@ extern unsigned short RfToPl16;
 
 extern unsigned short RfToRf16;
 
-#define dbprintf(fmt, ...) _dbprintf(fmt, __FILE__,__LINE__, ## __VA_ARGS__)
+#define dbprintf(fmt, ...) _dbprintf(fmt, __FILE__, __LINE__, ##__VA_ARGS__)
 int _dbprintf(const char *fmt, ...);
 
 int write_usb(unsigned char *buf, size_t len);

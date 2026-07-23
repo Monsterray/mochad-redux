@@ -11,6 +11,25 @@ on:
       - develop
 
 jobs:
+  style:
+    name: C format and shell safety
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install static-analysis tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format shellcheck
+
+      - name: Validate maintained C formatting
+        run: scripts/validate/clang-format.sh
+
+      - name: Validate tracked shell scripts
+        run: scripts/validate/shellcheck.sh
+
   ubuntu:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}

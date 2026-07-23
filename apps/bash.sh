@@ -13,11 +13,11 @@ exec 6<>/dev/tcp/192.168.1.254/1099
 # PL commands and voice prompts, keep track of the device state.
 ds10state="unknown"
 
-while read <&6
+while IFS= read -r <&6
 do
     # Show the line on standard output just for debugging.
-    echo $REPLY >&1
-    case $REPLY in
+    printf '%s\n' "$REPLY" >&1
+    case "$REPLY" in
         *Rx\ RFSEC\ Addr:\ EF:43:80*alert*)
         if [ "$ds10state" != "alert" ]
         then
@@ -36,4 +36,3 @@ do
         ;;
     esac
 done
-

@@ -13,16 +13,13 @@
 #define MSG_NOSIGNAL 0
 #endif
 
-static ssize_t real_send(int fd, const void *buffer, size_t length, int flags,
-        void *context)
-{
+static ssize_t real_send(int fd, const void *buffer, size_t length, int flags, void *context) {
     (void)context;
     return send(fd, buffer, length, flags);
 }
 
-static int send_all_impl(int fd, const void *buffer, size_t length,
-        mochad_send_func sender, void *context)
-{
+static int send_all_impl(int fd, const void *buffer, size_t length, mochad_send_func sender,
+                         void *context) {
     const unsigned char *cursor = buffer;
     size_t remaining = length;
 
@@ -54,15 +51,13 @@ static int send_all_impl(int fd, const void *buffer, size_t length,
     return (int)length;
 }
 
-int send_all(int fd, const void *buffer, size_t length)
-{
+int send_all(int fd, const void *buffer, size_t length) {
     return send_all_impl(fd, buffer, length, real_send, NULL);
 }
 
 #ifdef MOCHAD_TESTING
-int send_all_with_sender(int fd, const void *buffer, size_t length,
-        mochad_send_func sender, void *context)
-{
+int send_all_with_sender(int fd, const void *buffer, size_t length, mochad_send_func sender,
+                         void *context) {
     if (sender == NULL) {
         errno = EINVAL;
         return -1;

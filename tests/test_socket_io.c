@@ -14,9 +14,7 @@ struct fake_sender_state {
     int return_zero;
 };
 
-static ssize_t fake_sender(int fd, const void *buffer, size_t length,
-        int flags, void *context)
-{
+static ssize_t fake_sender(int fd, const void *buffer, size_t length, int flags, void *context) {
     struct fake_sender_state *state = context;
     size_t chunk;
 
@@ -41,8 +39,7 @@ static ssize_t fake_sender(int fd, const void *buffer, size_t length,
     return (ssize_t)chunk;
 }
 
-static int expect(int condition, const char *message)
-{
+static int expect(int condition, const char *message) {
     if (!condition) {
         fprintf(stderr, "FAIL: %s\n", message);
         return 1;
@@ -50,25 +47,23 @@ static int expect(int condition, const char *message)
     return 0;
 }
 
-static int test_partial_writes(void)
-{
+static int test_partial_writes(void) {
     const char payload[] = "partial-write-safe";
     struct fake_sender_state state;
 
     memset(&state, 0, sizeof(state));
     state.max_chunk = 3;
 
-    if (send_all_with_sender(7, payload, strlen(payload),
-                fake_sender, &state) != (int)strlen(payload))
+    if (send_all_with_sender(7, payload, strlen(payload), fake_sender, &state) !=
+        (int)strlen(payload))
         return expect(0, "send_all_with_sender returned wrong length");
 
     return expect(state.used == strlen(payload) &&
-            memcmp(state.bytes, payload, strlen(payload)) == 0,
-            "partial writes did not preserve payload");
+                      memcmp(state.bytes, payload, strlen(payload)) == 0,
+                  "partial writes did not preserve payload");
 }
 
-static int test_eintr_retry(void)
-{
+static int test_eintr_retry(void) {
     const char payload[] = "retry";
     struct fake_sender_state state;
 
@@ -76,17 +71,16 @@ static int test_eintr_retry(void)
     state.max_chunk = 2;
     state.interrupt_once = 1;
 
-    if (send_all_with_sender(7, payload, strlen(payload),
-                fake_sender, &state) != (int)strlen(payload))
+    if (send_all_with_sender(7, payload, strlen(payload), fake_sender, &state) !=
+        (int)strlen(payload))
         return expect(0, "send_all_with_sender did not retry EINTR");
 
     return expect(state.used == strlen(payload) &&
-            memcmp(state.bytes, payload, strlen(payload)) == 0,
-            "EINTR retry payload mismatch");
+                      memcmp(state.bytes, payload, strlen(payload)) == 0,
+                  "EINTR retry payload mismatch");
 }
 
-static int test_zero_write_fails(void)
-{
+static int test_zero_write_fails(void) {
     const char payload[] = "closed";
     struct fake_sender_state state;
 
@@ -94,15 +88,13 @@ static int test_zero_write_fails(void)
     state.max_chunk = 2;
     state.return_zero = 1;
 
-    if (send_all_with_sender(7, payload, strlen(payload),
-                fake_sender, &state) != -1)
+    if (send_all_with_sender(7, payload, strlen(payload), fake_sender, &state) != -1)
         return expect(0, "zero-length send should fail");
 
     return expect(errno == EPIPE, "zero-length send should set EPIPE");
 }
 
-static int test_real_socketpair(void)
-{
+static int test_real_socketpair(void) {
     const char payload[] = "socketpair";
     char received[32];
     int sockets[2];
@@ -113,8 +105,7 @@ static int test_real_socketpair(void)
         return 1;
     }
 
-    if (send_all(sockets[0], payload, strlen(payload)) !=
-            (int)strlen(payload)) {
+    if (send_all(sockets[0], payload, strlen(payload)) != (int)strlen(payload)) {
         perror("send_all");
         close(sockets[0]);
         close(sockets[1]);
@@ -128,12 +119,10 @@ static int test_real_socketpair(void)
     if (bytes != (ssize_t)strlen(payload))
         return expect(0, "socketpair read length mismatch");
 
-    return expect(memcmp(received, payload, strlen(payload)) == 0,
-            "socketpair payload mismatch");
+    return expect(memcmp(received, payload, strlen(payload)) == 0, "socketpair payload mismatch");
 }
 
-int main(void)
-{
+int main(void) {
     if (test_partial_writes())
         return 1;
     if (test_eintr_retry())

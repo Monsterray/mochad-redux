@@ -19,8 +19,7 @@
 
 void hua_sec_init(void);
 
-void hua_sec_event(unsigned char *secaddr, unsigned int funcint, 
-        unsigned int secaddr8);
+void hua_sec_event(unsigned char *secaddr, unsigned int funcint, unsigned int secaddr8);
 
 void hua_add(int house, int unit);
 
@@ -38,4 +37,3 @@ unsigned char hua_getstatus(int house, int unit);
 unsigned char hua_getstatus_xdim(int house, int unit);
 void hua_setstatus_xdim(int house, int unit, int xdim);
 int hua_getstatus_sec(int rf8bitaddr, unsigned long rfaddr);
-

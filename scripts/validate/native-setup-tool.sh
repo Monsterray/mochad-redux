@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source_dir="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+source_dir="$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$source_dir"
 
 root="$(mktemp -d "${TMPDIR:-/tmp}/mochad-native-setup.XXXXXX")"

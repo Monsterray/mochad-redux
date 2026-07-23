@@ -6,7 +6,7 @@ set -euo pipefail
 export LC_ALL=C
 export LANG=C
 
-source_dir="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+source_dir="$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$source_dir"
 
 echo "== mochad-redux validation: staged install contract =="

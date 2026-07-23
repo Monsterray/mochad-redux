@@ -4,8 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static int expect(int condition, const char *message)
-{
+static int expect(int condition, const char *message) {
     if (!condition) {
         fprintf(stderr, "FAIL: %s\n", message);
         return 1;
@@ -13,21 +12,17 @@ static int expect(int condition, const char *message)
     return 0;
 }
 
-static int run_case(const char *name,
-        const struct libusb_config_descriptor *config,
-        int expected)
-{
+static int run_case(const char *name, const struct libusb_config_descriptor *config, int expected) {
     uint8_t in_endpoint = 0;
     uint8_t out_endpoint = 0;
     unsigned int in_packet = 0;
     unsigned int out_packet = 0;
     int r;
 
-    r = mochad_select_interrupt_endpoints(config, 0, 0, 8, 8,
-            &in_endpoint, &out_endpoint, &in_packet, &out_packet);
+    r = mochad_select_interrupt_endpoints(config, 0, 0, 8, 8, &in_endpoint, &out_endpoint,
+                                          &in_packet, &out_packet);
     if (r != expected) {
-        fprintf(stderr, "FAIL: %s returned %d expected %d\n", name, r,
-                expected);
+        fprintf(stderr, "FAIL: %s returned %d expected %d\n", name, r, expected);
         return 1;
     }
     if (expected == 0) {
@@ -43,70 +38,80 @@ static int run_case(const char *name,
     return 0;
 }
 
-int main(void)
-{
+int main(void) {
     struct libusb_endpoint_descriptor valid_eps[] = {
-        { .bEndpointAddress = 0x81, .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
-          .wMaxPacketSize = 8 },
-        { .bEndpointAddress = 0x02, .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
-          .wMaxPacketSize = 8 },
+        {.bEndpointAddress = 0x81,
+         .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
+         .wMaxPacketSize = 8},
+        {.bEndpointAddress = 0x02,
+         .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
+         .wMaxPacketSize = 8},
     };
     struct libusb_interface_descriptor valid_alt[] = {
-        { .bInterfaceNumber = 0, .bAlternateSetting = 0, .bNumEndpoints = 2,
-          .endpoint = valid_eps },
+        {.bInterfaceNumber = 0, .bAlternateSetting = 0, .bNumEndpoints = 2, .endpoint = valid_eps},
     };
     struct libusb_interface valid_iface[] = {
-        { .altsetting = valid_alt, .num_altsetting = 1 },
+        {.altsetting = valid_alt, .num_altsetting = 1},
     };
     struct libusb_config_descriptor valid_config = {
-        .bNumInterfaces = 1, .interface = valid_iface,
+        .bNumInterfaces = 1,
+        .interface = valid_iface,
     };
 
     struct libusb_endpoint_descriptor wrong_type_eps[] = {
-        { .bEndpointAddress = 0x81, .bmAttributes = LIBUSB_TRANSFER_TYPE_BULK,
-          .wMaxPacketSize = 8 },
-        { .bEndpointAddress = 0x02, .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
-          .wMaxPacketSize = 8 },
+        {.bEndpointAddress = 0x81, .bmAttributes = LIBUSB_TRANSFER_TYPE_BULK, .wMaxPacketSize = 8},
+        {.bEndpointAddress = 0x02,
+         .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
+         .wMaxPacketSize = 8},
     };
     struct libusb_interface_descriptor wrong_type_alt[] = {
-        { .bInterfaceNumber = 0, .bAlternateSetting = 0, .bNumEndpoints = 2,
-          .endpoint = wrong_type_eps },
+        {.bInterfaceNumber = 0,
+         .bAlternateSetting = 0,
+         .bNumEndpoints = 2,
+         .endpoint = wrong_type_eps},
     };
     struct libusb_interface wrong_type_iface[] = {
-        { .altsetting = wrong_type_alt, .num_altsetting = 1 },
+        {.altsetting = wrong_type_alt, .num_altsetting = 1},
     };
     struct libusb_config_descriptor wrong_type_config = {
-        .bNumInterfaces = 1, .interface = wrong_type_iface,
+        .bNumInterfaces = 1,
+        .interface = wrong_type_iface,
     };
 
     struct libusb_endpoint_descriptor duplicate_eps[] = {
-        { .bEndpointAddress = 0x81, .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
-          .wMaxPacketSize = 8 },
-        { .bEndpointAddress = 0x82, .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
-          .wMaxPacketSize = 8 },
-        { .bEndpointAddress = 0x02, .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
-          .wMaxPacketSize = 8 },
+        {.bEndpointAddress = 0x81,
+         .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
+         .wMaxPacketSize = 8},
+        {.bEndpointAddress = 0x82,
+         .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
+         .wMaxPacketSize = 8},
+        {.bEndpointAddress = 0x02,
+         .bmAttributes = LIBUSB_TRANSFER_TYPE_INTERRUPT,
+         .wMaxPacketSize = 8},
     };
     struct libusb_interface_descriptor duplicate_alt[] = {
-        { .bInterfaceNumber = 0, .bAlternateSetting = 0, .bNumEndpoints = 3,
-          .endpoint = duplicate_eps },
+        {.bInterfaceNumber = 0,
+         .bAlternateSetting = 0,
+         .bNumEndpoints = 3,
+         .endpoint = duplicate_eps},
     };
     struct libusb_interface duplicate_iface[] = {
-        { .altsetting = duplicate_alt, .num_altsetting = 1 },
+        {.altsetting = duplicate_alt, .num_altsetting = 1},
     };
     struct libusb_config_descriptor duplicate_config = {
-        .bNumInterfaces = 1, .interface = duplicate_iface,
+        .bNumInterfaces = 1,
+        .interface = duplicate_iface,
     };
 
     struct libusb_interface_descriptor wrong_alt[] = {
-        { .bInterfaceNumber = 0, .bAlternateSetting = 1, .bNumEndpoints = 2,
-          .endpoint = valid_eps },
+        {.bInterfaceNumber = 0, .bAlternateSetting = 1, .bNumEndpoints = 2, .endpoint = valid_eps},
     };
     struct libusb_interface wrong_alt_iface[] = {
-        { .altsetting = wrong_alt, .num_altsetting = 1 },
+        {.altsetting = wrong_alt, .num_altsetting = 1},
     };
     struct libusb_config_descriptor wrong_alt_config = {
-        .bNumInterfaces = 1, .interface = wrong_alt_iface,
+        .bNumInterfaces = 1,
+        .interface = wrong_alt_iface,
     };
 
     if (run_case("valid", &valid_config, 0))

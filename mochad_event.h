@@ -3,10 +3,7 @@
 
 #include <stddef.h>
 
-typedef enum {
-    MOCHAD_EVENT_DIRECTION_RX,
-    MOCHAD_EVENT_DIRECTION_TX
-} mochad_event_direction_t;
+typedef enum { MOCHAD_EVENT_DIRECTION_RX, MOCHAD_EVENT_DIRECTION_TX } mochad_event_direction_t;
 
 typedef enum {
     MOCHAD_EVENT_TRANSPORT_PL,
@@ -40,14 +37,12 @@ typedef struct {
     const char *camera_command;
 } mochad_event_t;
 
-int mochad_event_format_legacy_body(const mochad_event_t *event,
-        char *buffer, size_t buffer_len);
-int mochad_event_format_legacy_line(const mochad_event_t *event,
-        char *buffer, size_t buffer_len);
-int mochad_event_format_xmlsocket_line(const mochad_event_t *event,
-        char *buffer, size_t buffer_len);
-int mochad_event_format_openremote_line(const mochad_event_t *event,
-        char *buffer, size_t buffer_len);
+int mochad_event_format_legacy_body(const mochad_event_t *event, char *buffer, size_t buffer_len);
+int mochad_event_format_legacy_line(const mochad_event_t *event, char *buffer, size_t buffer_len);
+int mochad_event_format_xmlsocket_line(const mochad_event_t *event, char *buffer,
+                                       size_t buffer_len);
+int mochad_event_format_openremote_line(const mochad_event_t *event, char *buffer,
+                                        size_t buffer_len);
 int mochad_dispatch_event(int fd, const mochad_event_t *event);
 
 #endif

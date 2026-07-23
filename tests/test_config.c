@@ -5,21 +5,14 @@
 #include <string.h>
 #include <unistd.h>
 
-static void clear_mochad_env(void)
-{
+static void clear_mochad_env(void) {
     static const char *names[] = {
-        "MOCHAD_CONFIG",
-        "MOCHAD_BIND",
-        "MOCHAD_BIND_ADDRESS",
-        "MOCHAD_PORT",
-        "MOCHAD_SERVER_PORT",
-        "MOCHAD_XML_ENABLED",
-        "MOCHAD_XML_PORT",
-        "MOCHAD_OPENREMOTE_ENABLED",
-        "MOCHAD_OPENREMOTE_PORT",
-        "MOCHAD_FOREGROUND",
-        "MOCHAD_RAW_DATA",
-        "MOCHAD_DUAL_STACK",
+        "MOCHAD_CONFIG",          "MOCHAD_BIND",
+        "MOCHAD_BIND_ADDRESS",    "MOCHAD_PORT",
+        "MOCHAD_SERVER_PORT",     "MOCHAD_XML_ENABLED",
+        "MOCHAD_XML_PORT",        "MOCHAD_OPENREMOTE_ENABLED",
+        "MOCHAD_OPENREMOTE_PORT", "MOCHAD_FOREGROUND",
+        "MOCHAD_RAW_DATA",        "MOCHAD_DUAL_STACK",
         "MOCHAD_LOG_LEVEL",
     };
     size_t i;
@@ -28,8 +21,7 @@ static void clear_mochad_env(void)
         unsetenv(names[i]);
 }
 
-static int expect(int condition, const char *message)
-{
+static int expect(int condition, const char *message) {
     if (!condition) {
         fprintf(stderr, "FAIL: %s\n", message);
         return 1;
@@ -37,10 +29,9 @@ static int expect(int condition, const char *message)
     return 0;
 }
 
-static int test_defaults(void)
-{
+static int test_defaults(void) {
     char arg0[] = "test_config";
-    char *argv[] = { arg0 };
+    char *argv[] = {arg0};
     char error[256];
     mochad_config config;
 
@@ -51,19 +42,17 @@ static int test_defaults(void)
     }
 
     if (expect(strcmp(config.bind_address, MOCHAD_DEFAULT_BIND_ADDRESS) == 0,
-                "default bind address changed"))
+               "default bind address changed"))
         return 1;
-    if (expect(config.server_port == MOCHAD_DEFAULT_SERVER_PORT,
-                "default main port changed"))
+    if (expect(config.server_port == MOCHAD_DEFAULT_SERVER_PORT, "default main port changed"))
         return 1;
     if (expect(config.xml_enabled == 1 && config.openremote_enabled == 1,
-                "legacy listeners should default to enabled"))
+               "legacy listeners should default to enabled"))
         return 1;
     return expect(config.raw_data == 0, "raw data should default off");
 }
 
-static int write_config_file(char *path, size_t path_len)
-{
+static int write_config_file(char *path, size_t path_len) {
     FILE *file;
     int fd;
 
@@ -93,8 +82,7 @@ static int write_config_file(char *path, size_t path_len)
     return 0;
 }
 
-static int test_precedence(void)
-{
+static int test_precedence(void) {
     char path[128];
     char error[256];
     mochad_config config;
@@ -103,11 +91,7 @@ static int test_precedence(void)
     char arg3[] = "--port";
     char arg4[] = "1400";
     char *argv[] = {
-        arg0,
-        arg1,
-        path,
-        arg3,
-        arg4,
+        arg0, arg1, path, arg3, arg4,
     };
 
     clear_mochad_env();
@@ -128,28 +112,23 @@ static int test_precedence(void)
 
     unlink(path);
 
-    if (expect(config.server_port == 1400,
-                "CLI should override environment and config file"))
+    if (expect(config.server_port == 1400, "CLI should override environment and config file"))
         return 1;
-    if (expect(config.xml_enabled == 0,
-                "config file boolean should apply"))
+    if (expect(config.xml_enabled == 0, "config file boolean should apply"))
         return 1;
-    if (expect(config.raw_data == 1,
-                "config file raw_data should apply"))
+    if (expect(config.raw_data == 1, "config file raw_data should apply"))
         return 1;
     if (expect(config.dual_stack == MOCHAD_DUAL_STACK_DISABLE,
-                "config file dual_stack should apply"))
+               "config file dual_stack should apply"))
         return 1;
-    return expect(config.log_level == LOG_INFO,
-            "config file log_level should apply");
+    return expect(config.log_level == LOG_INFO, "config file log_level should apply");
 }
 
-static int test_invalid_port(void)
-{
+static int test_invalid_port(void) {
     char arg0[] = "test_config";
     char arg1[] = "--port";
     char arg2[] = "70000";
-    char *argv[] = { arg0, arg1, arg2 };
+    char *argv[] = {arg0, arg1, arg2};
     char error[256];
     mochad_config config;
 
@@ -157,12 +136,10 @@ static int test_invalid_port(void)
     if (mochad_config_load(&config, 3, argv, error, sizeof(error)) == 0)
         return expect(0, "invalid port should fail validation");
 
-    return expect(strstr(error, "TCP port") != NULL,
-            "invalid port error should be clear");
+    return expect(strstr(error, "TCP port") != NULL, "invalid port error should be clear");
 }
 
-int main(void)
-{
+int main(void) {
     if (test_defaults())
         return 1;
     if (test_precedence())
