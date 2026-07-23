@@ -37,3 +37,5 @@ configure
 scripts/mochad-redux-setup
 build/
 build-*/
+/mochad-redux-*.tar.gz
+/mochad-redux-[0-9]*/

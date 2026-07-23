@@ -98,7 +98,7 @@ existing clients.
 Goal: add a modern local push API without changing existing listener behavior
 or encoding integration-specific concepts into the daemon.
 
-Status: design only. See [docs/json-api.md](docs/json-api.md).
+Status: design only. See [the JSON API design](../protocol/json-api.md).
 
 * [x] Introduce a normalized internal `mochad_event_t`.
 * [ ] Route legacy text, XMLSocket, OpenRemote, and JSON output through event

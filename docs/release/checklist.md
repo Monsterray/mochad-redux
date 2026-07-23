@@ -21,20 +21,21 @@ ship releases with evidence, not just a changelog.
 - [ ] `scripts/validate/native-setup-tool.sh`
 - [ ] `scripts/validate/release-evidence.sh <release-or-candidate>`
 - [ ] Review generated artifacts against
-  [docs/generated-artifacts.md](docs/generated-artifacts.md).
+  [the generated-artifact policy](../development/generated-artifacts.md).
 - [ ] Confirm no local build outputs, credentials, private paths, or hardware
   serial details are committed.
-- [ ] Confirm `README.md`, `LICENSE.md`, `MAINTAINING.md`, `ROADMAP.md`, and
+- [ ] Confirm `README.md`, `LICENSE.md`, `docs/development/maintaining.md`,
+  `docs/release/roadmap.md`, and
   validation docs are current.
 
 ## Build and Analysis
 
 - [ ] `scripts/validate/strict-libusb-free-compile.sh`
-- [ ] `sh tools/compile_without_libusb.sh --cppcheck`
+- [ ] `sh scripts/build/compile-without-libusb.sh --cppcheck`
 - [ ] `git diff --check`
 - [ ] `scripts/validate/full-libusb-build.sh`
-- [ ] Optional: `sh tools/compile_without_libusb.sh --clang-tidy`
-- [ ] Optional: `sh tools/compile_without_libusb.sh --clang-format-check`
+- [ ] Optional: `sh scripts/build/compile-without-libusb.sh --clang-tidy`
+- [ ] Optional: `sh scripts/build/compile-without-libusb.sh --clang-format-check`
 
 ## CI
 
@@ -49,7 +50,7 @@ ship releases with evidence, not just a changelog.
 - [ ] `scripts/validate/native-smoke-test.sh`
 - [ ] `scripts/validate/docker-build.sh`
 - [ ] `scripts/validate/docker-smoke-test.sh`
-- [ ] `scripts/validate/cm19a-hardware-validation.sh`, when CM19A hardware is available
+- [ ] `scripts/hardware/cm19a-validation.sh`, when CM19A hardware is available
 - [ ] Native foreground startup logs recorded.
 - [ ] Native setup `install --enable-now` result recorded when native service
   deployment is claimed.

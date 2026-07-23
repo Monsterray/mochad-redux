@@ -29,5 +29,5 @@ AC_FUNC_FORK
 AC_FUNC_MALLOC
 AC_CHECK_FUNCS([alarm getaddrinfo gai_strerror memset select socket strerror strtol strtoul])
 
-AC_CONFIG_FILES([Makefile scripts/mochad-redux-setup])
+AC_CONFIG_FILES([Makefile scripts/mochad-redux-setup:scripts/setup/mochad-redux-setup.in])
 AC_OUTPUT

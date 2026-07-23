@@ -16,8 +16,10 @@ trap cleanup EXIT INT HUP TERM
 install_fixture() {
     fixture_root="$1"
     mkdir -p "$fixture_root$prefix/share/mochad-redux/templates" "$fixture_root$prefix/bin"
-    cp config/mochad.conf.example systemd/mochad.service.in \
-        udev/91-usb-x10-controllers.rules.in "$fixture_root$prefix/share/mochad-redux/templates/"
+    cp packaging/linux/config/mochad.conf.example \
+        packaging/linux/systemd/mochad.service.in \
+        packaging/linux/udev/91-usb-x10-controllers.rules.in \
+        "$fixture_root$prefix/share/mochad-redux/templates/"
     : >"$fixture_root$prefix/bin/mochad"
     chmod 0755 "$fixture_root$prefix/bin/mochad"
 }

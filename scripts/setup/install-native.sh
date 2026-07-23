@@ -3,7 +3,7 @@ set -euo pipefail
 
 # This is deliberately thin: native host changes live in the installed setup
 # tool, so the source-tree convenience path cannot drift from package installs.
-repo_root="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
+repo_root="$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$repo_root"
 
 if [ ! -x ./mochad ]; then

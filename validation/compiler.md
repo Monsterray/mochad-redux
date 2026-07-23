@@ -14,7 +14,7 @@ scripts/validate/strict-libusb-free-compile.sh
 scripts/validate/libusb-stub-syntax-check.sh
 scripts/validate/unit-tests.sh
 scripts/validate/tcp-diagnostics-smoke-test.sh
-sh tools/compile_without_libusb.sh --cppcheck
+sh scripts/build/compile-without-libusb.sh --cppcheck
 git diff --check
 ```
 
@@ -24,7 +24,7 @@ strict libusb-free compile, full Autotools build, and native smoke test.
 
 `libusb-stub-syntax-check.sh` is for development machines without libusb
 headers. It compiles `src/core/mochad.c` with the checked-in header under
-`tools/stubs/libusb-1.0/` so maintainers can catch ordinary compile mistakes in
+`tests/support/libusb-1.0/` so maintainers can catch ordinary compile mistakes in
 USB-facing code. This is build assistance only; release evidence still needs a
 real Linux/libusb build.
 
@@ -54,9 +54,9 @@ Record:
 Run when available:
 
 ```sh
-sh tools/compile_without_libusb.sh --clang-tidy
-sh tools/compile_without_libusb.sh --clang-format-check
-sh tools/compile_without_libusb.sh --cppcheck-style
+sh scripts/build/compile-without-libusb.sh --clang-tidy
+sh scripts/build/compile-without-libusb.sh --clang-format-check
+sh scripts/build/compile-without-libusb.sh --cppcheck-style
 ```
 
 These checks are useful for maintainers, but they should not block emergency

@@ -56,8 +56,8 @@ make
 For source-only validation without generated files:
 
 ```sh
-sh tools/compile_without_libusb.sh --strict --asan --ubsan
-sh tools/compile_without_libusb.sh --cppcheck
+sh scripts/build/compile-without-libusb.sh --strict --asan --ubsan
+sh scripts/build/compile-without-libusb.sh --cppcheck
 ```
 
 ## Release Source Archives

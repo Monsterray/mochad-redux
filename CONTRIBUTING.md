@@ -19,8 +19,8 @@ feature growth.
 Run:
 
 ```sh
-sh tools/compile_without_libusb.sh --strict --asan --ubsan
-sh tools/compile_without_libusb.sh --cppcheck
+sh scripts/build/compile-without-libusb.sh --strict --asan --ubsan
+sh scripts/build/compile-without-libusb.sh --cppcheck
 scripts/validate/clang-format.sh
 scripts/validate/shellcheck.sh
 git diff --check
@@ -34,7 +34,7 @@ When possible, also run a full Linux build:
 make
 ```
 
-For release PRs, complete [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) and
+For release PRs, complete [the release checklist](docs/release/checklist.md) and
 record validation evidence using
 [validation/release-evidence-template.md](validation/release-evidence-template.md).
 
@@ -53,12 +53,13 @@ tool.
 
 Maintained C and header files follow the checked-in [`.clang-format`](.clang-format)
 policy: four spaces, attached braces, 100-column limit, and right-aligned
-pointers. Run `scripts/format-c.sh` before committing C formatting changes.
+pointers. Run `scripts/format/c.sh` before committing C formatting changes.
 The development libusb stub is intentionally excluded.
 
 All tracked shell scripts are checked with ShellCheck at warning severity.
 Fix shell defects rather than adding broad suppressions. The initial finding
-disposition is recorded in [docs/static-analysis-audit.md](docs/static-analysis-audit.md).
+disposition is recorded in
+[the static-analysis audit](docs/research/audits/static-analysis.md).
 
 ## Hardware Reports
 

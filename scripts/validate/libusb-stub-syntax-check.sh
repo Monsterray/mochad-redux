@@ -7,8 +7,8 @@ echo "== mochad-redux validation: libusb stub syntax check =="
 echo "Working directory: $PWD"
 echo
 
-if [ ! -f tools/stubs/libusb-1.0/libusb.h ]; then
-    echo "FAIL: tools/stubs/libusb-1.0/libusb.h is missing" >&2
+if [ ! -f tests/support/libusb-1.0/libusb.h ]; then
+    echo "FAIL: tests/support/libusb-1.0/libusb.h is missing" >&2
     exit 2
 fi
 
@@ -17,11 +17,11 @@ if [ ! -x ./configure ] || [ ! -f Makefile.in ]; then
     ./autogen.sh
 fi
 
-echo "+ ./configure CPPFLAGS=-Itools/stubs"
-./configure CPPFLAGS="-Itools/stubs"
+echo "+ ./configure CPPFLAGS=-Itests/support"
+./configure CPPFLAGS="-Itests/support"
 
-echo "+ make -B src/core/mochad.o CPPFLAGS=-Itools/stubs"
-make -B src/core/mochad.o CPPFLAGS="-Itools/stubs"
+echo "+ make -B src/core/mochad.o CPPFLAGS=-Itests/support"
+make -B src/core/mochad.o CPPFLAGS="-Itests/support"
 
 echo "+ verify src/x10/decode.c is linked into mochad"
 if ! awk '
