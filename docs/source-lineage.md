@@ -30,17 +30,17 @@ The core C runtime files are inherited from mochad unless they were added in
 
 Examples of inherited files include:
 
-- `mochad.c`
-- `decode.c`
-- `decode.h`
-- `encode.c`
-- `encode.h`
-- `global.c`
-- `global.h`
-- `x10state.c`
-- `x10state.h`
-- `x10_write.c`
-- `x10_write.h`
+- `src/core/mochad.c`
+- `src/x10/decode.c`
+- `src/x10/decode.h`
+- `src/x10/encode.c`
+- `src/x10/encode.h`
+- `src/core/global.c`
+- `src/core/global.h`
+- `src/x10/x10state.c`
+- `src/x10/x10state.h`
+- `src/usb/x10_write.c`
+- `src/usb/x10_write.h`
 
 Files added or substantially expanded during `mochad-redux` maintenance include
 configuration, diagnostics, event-model, validation, and test support. They are

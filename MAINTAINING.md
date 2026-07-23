@@ -118,9 +118,9 @@ The default cppcheck gate focuses on warnings, performance, and portability.
 Style suggestions are opt-in through `--cppcheck-style` so they do not block
 safety-focused maintenance work.
 
-This compiles `decode.c`, `encode.c`, `global.c`, `x10state.c`, and
-`x10_write.c` as object files in a temporary directory. It intentionally skips
-`mochad.c`, which owns the libusb dependency and the daemon socket/USB loop.
+This compiles the libusb-free sources under `src/` as object files in a
+temporary directory. It intentionally skips `src/core/mochad.c`, which owns the
+libusb dependency and the daemon socket/USB loop.
 
 Install the build dependencies first. On Debian or Ubuntu:
 

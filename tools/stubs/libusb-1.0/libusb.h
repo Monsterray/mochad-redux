@@ -1,7 +1,7 @@
 /*
  * Development-only libusb header stub.
  *
- * This file exists so maintainers can syntax-check mochad.c in environments
+ * This file exists so maintainers can syntax-check src/core/mochad.c in environments
  * that do not have libusb development headers installed. It is intentionally
  * incomplete and must never be used for a production build or runtime test.
  */

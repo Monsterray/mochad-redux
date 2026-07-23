@@ -64,7 +64,7 @@ Older `mochad` sources could fail to link with errors similar to:
 ```
 
 That issue was addressed by declaring shared variables as `extern` in
-`global.h` and defining storage in `global.c`.
+`src/core/global.h` and defining storage in `src/core/global.c`.
 
 The `systemd` and `udev` directories were restored from the original
 [mochad-0.1.17](https://sourceforge.net/projects/mochad/files/) release so the
@@ -207,8 +207,8 @@ scripts/validate/libusb-stub-syntax-check.sh
 ```
 
 This does not replace a real Linux/libusb build. It only keeps maintainers from
-missing ordinary C syntax or include errors in `mochad.c` while working on
-machines such as macOS.
+missing ordinary C syntax or include errors in `src/core/mochad.c` while
+working on machines such as macOS.
 
 To run sanitizer-backed unit tests and validate diagnostic JSON over a loopback
 TCP socket:

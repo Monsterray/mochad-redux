@@ -10,7 +10,7 @@ if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-dev|-rc[1-9][0-9]*)?$ ]]; then
     exit 1
 fi
 
-cat > version.h <<EOF
+cat > src/config/version.h <<EOF
 /*
  * Generated from VERSION by scripts/release/update-version-files.sh.
  * Do not edit the version strings here by hand.
@@ -26,4 +26,4 @@ cat > version.h <<EOF
 #endif
 EOF
 
-echo "Updated version.h from VERSION ($version)"
+echo "Updated src/config/version.h from VERSION ($version)"

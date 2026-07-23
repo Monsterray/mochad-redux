@@ -47,18 +47,18 @@ require_not_contains() {
 
 require_contains configure.ac 'AC_INIT([mochad-redux], m4_esyscmd_s([cat VERSION])' \
     "Autotools VERSION source"
-require_contains version.h "#define MOCHAD_REDUX_VERSION \"$version\"" \
+require_contains src/config/version.h "#define MOCHAD_REDUX_VERSION \"$version\"" \
     "C plain version"
-require_contains version.h "#define MOCHAD_REDUX_DISPLAY_VERSION \"mochad-redux $version\"" \
+require_contains src/config/version.h "#define MOCHAD_REDUX_DISPLAY_VERSION \"mochad-redux $version\"" \
     "C display version"
-require_contains version.h '#define MOCHAD_UPSTREAM_BASE "mochad 0.1.18"' \
+require_contains src/config/version.h '#define MOCHAD_UPSTREAM_BASE "mochad 0.1.18"' \
     "upstream base"
 require_contains CHANGELOG.md "## [$version]" "changelog heading"
-require_contains diagnostics.c 'MOCHAD_REDUX_VERSION' \
+require_contains src/net/diagnostics.c 'MOCHAD_REDUX_VERSION' \
     "diagnostic plain version macro"
-require_not_contains diagnostics.c 'MOCHAD_REDUX_DISPLAY_VERSION' \
+require_not_contains src/net/diagnostics.c 'MOCHAD_REDUX_DISPLAY_VERSION' \
     "display version in machine-readable diagnostics"
-require_contains diagnostics.c '\"name\":\"mochad-redux\"' \
+require_contains src/net/diagnostics.c '\"name\":\"mochad-redux\"' \
     "diagnostic name identity"
 
 evidence_version="$version"

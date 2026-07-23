@@ -23,7 +23,7 @@ host with libusb headers. It removes ignored build outputs before running the
 strict libusb-free compile, full Autotools build, and native smoke test.
 
 `libusb-stub-syntax-check.sh` is for development machines without libusb
-headers. It compiles `mochad.c` with the checked-in header under
+headers. It compiles `src/core/mochad.c` with the checked-in header under
 `tools/stubs/libusb-1.0/` so maintainers can catch ordinary compile mistakes in
 USB-facing code. This is build assistance only; release evidence still needs a
 real Linux/libusb build.

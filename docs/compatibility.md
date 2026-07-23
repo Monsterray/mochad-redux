@@ -18,7 +18,7 @@ expose separate machine-readable `name`, `version`, and `upstream_base` fields.
 - Version files use semantic versions without `v`: `0.5.0`, `0.5.0-dev`, or
   `0.5.0-rc1`.
 - Git tags use the same version with a leading `v`, such as `v0.5.0`.
-- `version.h` is generated from `VERSION` with
+- `src/config/version.h` is generated from `VERSION` with
   `scripts/release/update-version-files.sh`.
 - `configure.ac` reads `VERSION` directly, so Autotools package metadata and
   the C runtime stay aligned.

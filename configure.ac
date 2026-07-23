@@ -3,8 +3,8 @@
 
 AC_PREREQ([2.61])
 AC_INIT([mochad-redux], m4_esyscmd_s([cat VERSION]), [https://github.com/Monsterray/mochad-redux/issues])
-#AC_CONFIG_SRCDIR([mochad.c])
-AM_INIT_AUTOMAKE([foreign -Wall -Werror])
+AC_CONFIG_SRCDIR([src/core/mochad.c])
+AM_INIT_AUTOMAKE([foreign -Wall -Werror subdir-objects])
 
 # Checks for programs.
 AC_PROG_CC
