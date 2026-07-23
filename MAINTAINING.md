@@ -76,6 +76,9 @@ Generated autotools files and local build outputs should not obscure source
 review. Follow [docs/generated-artifacts.md](docs/generated-artifacts.md) when
 deciding whether generated files belong in a change.
 
+The mechanical source relocations are recorded in the
+[source layout move manifest](docs/repository-layout-source-move-manifest.md).
+
 ## Local build check
 
 To compile the non-USB source files without installing libusb, run:

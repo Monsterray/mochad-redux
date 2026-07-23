@@ -73,6 +73,7 @@ EXTRA_DIST = config/mochad.conf.example \
 		tests/test_usb_endpoint_selection.c \
 		docs/compatibility.md docs/generated-artifacts.md docs/hardware-validation.md \
 		docs/json-api.md docs/milestone-1.md docs/source-lineage.md \
+		docs/repository-layout-source-move-manifest.md \
 		docs/support-files.md docs/supported-platforms.md \
 		docs/native-install-rollback.md docs/mochad-redux-setup.8 \
 		validation/README.md validation/compiler.md validation/hardware.md \
