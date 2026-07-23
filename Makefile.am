@@ -61,6 +61,9 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		scripts/release/prepare-release.sh \
 		scripts/release/update-version-files.sh \
 		scripts/hardware/cm19a-validation.sh \
+		scripts/hardware/lab-preflight.sh \
+		scripts/hardware/record-result.sh \
+		scripts/hardware/run-cm19a-validation.sh \
 		scripts/validate/clang-format.sh \
 		scripts/validate/clean-build-test.sh \
 		scripts/validate/docker-build.sh \
@@ -71,6 +74,7 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		scripts/validate/native-setup-tool.sh \
 		scripts/validate/staged-install-contract.sh \
 		scripts/validate/release-evidence.sh \
+		scripts/validate/release-evidence-runner.sh \
 		scripts/validate/repository-hygiene.sh \
 		scripts/validate/shellcheck.sh \
 		scripts/validate/source-archive-validation.sh \
@@ -86,7 +90,9 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		tests/unit/test_usb_endpoint_selection.c \
 		docs/architecture/compatibility.md \
 		docs/development/generated-artifacts.md \
+		docs/development/hardware-lab-setup.md \
 		docs/development/hardware-validation.md \
+		docs/development/test-strategy.md \
 		docs/protocol/json-api.md \
 		docs/research/milestones/milestone-1.md \
 		docs/research/audits/static-analysis.md \
@@ -113,5 +119,5 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		docs/architecture/project-status.md README.md \
 		docs/release/beta-status.md docs/release/checklist.md \
 		docs/release/roadmap.md \
-		SECURITY.md COPYING LICENSE.md NOTICE VERSION \
+		AGENTS.md SECURITY.md COPYING LICENSE.md NOTICE VERSION \
 		tests/support/libusb-1.0/libusb.h

@@ -24,6 +24,8 @@ Use this page to distinguish current guidance from historical research.
 - [Maintainer guide](development/maintaining.md)
 - [Generated-artifact policy](development/generated-artifacts.md)
 - [Hardware validation](development/hardware-validation.md)
+- [Hardware lab setup](development/hardware-lab-setup.md)
+- [Test strategy](development/test-strategy.md)
 - [Legacy support-file ownership](development/legacy-support-files.md)
 - [Repository layout record](development/repository-layout-proposal.md)
 - [Tracked-file inventory](development/repository-file-inventory.md)

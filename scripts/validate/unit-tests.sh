@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 CC=${CC:-cc}
+MOCHAD_SANITIZERS=${MOCHAD_SANITIZERS:-enabled}
 BUILD_DIR=$(mktemp -d "${TMPDIR:-/tmp}/mochad-unit-tests.XXXXXX")
 
 cleanup() {
@@ -11,11 +12,25 @@ cleanup() {
 }
 trap cleanup EXIT INT HUP TERM
 
-CFLAGS="${CFLAGS:-} -std=c11 -D_POSIX_C_SOURCE=200809L -DMOCHAD_TESTING -Isrc/core -Isrc/config -Isrc/net -Isrc/usb -Isrc/x10 -Wall -Wextra -Werror -Wformat -Wformat-security -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wmissing-prototypes -Wstrict-prototypes -fsanitize=address,undefined -fno-omit-frame-pointer"
-LDFLAGS="${LDFLAGS:-} -fsanitize=address,undefined"
+CFLAGS="${CFLAGS:-} -std=c11 -D_POSIX_C_SOURCE=200809L -DMOCHAD_TESTING -Isrc/core -Isrc/config -Isrc/net -Isrc/usb -Isrc/x10 -Wall -Wextra -Werror -Wformat -Wformat-security -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wmissing-prototypes -Wstrict-prototypes"
+LDFLAGS="${LDFLAGS:-}"
+
+case "$MOCHAD_SANITIZERS" in
+    enabled)
+        CFLAGS="$CFLAGS -fsanitize=address,undefined -fno-omit-frame-pointer"
+        LDFLAGS="$LDFLAGS -fsanitize=address,undefined"
+        ;;
+    disabled)
+        ;;
+    *)
+        echo "FAIL: MOCHAD_SANITIZERS must be enabled or disabled" >&2
+        exit 64
+        ;;
+esac
 
 echo "== mochad-redux validation: unit tests =="
 echo "Working directory: $PWD"
+echo "Sanitizers: $MOCHAD_SANITIZERS"
 echo
 
 echo "+ socket_io"

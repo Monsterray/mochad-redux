@@ -1,0 +1,143 @@
+name: CI Release Evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu-source:
+    name: Release Ubuntu source validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v7
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            build-essential \
+            libtool \
+            libusb-1.0-0-dev \
+            pkg-config \
+            python3
+
+      - name: Run strict and sanitizer validation
+        run: |
+          scripts/validate/clang-format.sh
+          scripts/validate/shellcheck.sh
+          sh scripts/build/compile-without-libusb.sh --strict --asan --ubsan
+          MOCHAD_SANITIZERS=enabled scripts/validate/unit-tests.sh
+          scripts/validate/tcp-diagnostics-smoke-test.sh
+
+      - name: Validate native build and release contracts
+        run: |
+          scripts/validate/full-libusb-build.sh
+          scripts/validate/native-smoke-test.sh
+          MOCHAD_BIN=./mochad scripts/validate/version-consistency.sh
+          scripts/validate/staged-install-contract.sh
+          scripts/validate/native-setup-tool.sh
+          scripts/validate/source-archive-validation.sh
+          scripts/validate/repository-hygiene.sh
+
+  debian:
+    name: Release Debian Stable
+    runs-on: ubuntu-latest
+    container: debian:stable-slim
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v7
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            autoconf \
+            automake \
+            build-essential \
+            libtool \
+            libusb-1.0-0-dev \
+            pkg-config \
+            python3
+
+      - name: Build and verify runtime identity
+        run: |
+          ./autogen.sh
+          ./configure
+          make
+          ./mochad --version
+          MOCHAD_BIN=./mochad scripts/validate/version-consistency.sh
+
+  raspberry-pi-cross:
+    name: Release Raspberry Pi Cross Compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v7
+
+      - name: Install ARM64 cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+
+      - name: Cross compile libusb-free sources
+        run: |
+          sh scripts/build/compile-without-libusb.sh \
+            --strict \
+            --cc aarch64-linux-gnu-gcc
+
+  evidence:
+    name: Release evidence summary
+    if: always()
+    needs:
+      - ubuntu-source
+      - debian
+      - raspberry-pi-cross
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v7
+
+      - name: Record exact-SHA release evidence
+        env:
+          UBUNTU_RESULT: ${{ needs.ubuntu-source.result }}
+          DEBIAN_RESULT: ${{ needs.debian.result }}
+          RASPBERRY_RESULT: ${{ needs.raspberry-pi-cross.result }}
+        run: |
+          evidence="validation/releases/evidence-${GITHUB_SHA}.md"
+          status_for() {
+            case "$1" in
+              success) echo PASS ;;
+              failure) echo FAIL ;;
+              *) echo "NOT RUN" ;;
+            esac
+          }
+          scripts/validate/release-evidence-runner.sh init "$evidence"
+          scripts/validate/release-evidence-runner.sh record \
+            "$evidence" "Ubuntu source and sanitizer validation" \
+            "$(status_for "$UBUNTU_RESULT")"
+          scripts/validate/release-evidence-runner.sh record \
+            "$evidence" "Debian Stable build" \
+            "$(status_for "$DEBIAN_RESULT")"
+          scripts/validate/release-evidence-runner.sh record \
+            "$evidence" "Raspberry Pi ARM64 cross compile" \
+            "$(status_for "$RASPBERRY_RESULT")"
+          scripts/validate/release-evidence-runner.sh record \
+            "$evidence" "Isolated Docker integration" "NOT RUN" \
+            "Requires the separate non-production Docker integration runner."
+          scripts/validate/release-evidence-runner.sh record \
+            "$evidence" "CM19A physical validation" "HARDWARE REQUIRED" \
+            "Requires a human-approved locked hardware-lab session."
+          scripts/validate/release-evidence-runner.sh record \
+            "$evidence" "CM15A physical validation" "HARDWARE REQUIRED" \
+            "Requires recorded compatible hardware evidence."
+
+      - name: Upload exact-SHA evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-evidence-${{ github.sha }}
+          path: validation/releases/evidence-${{ github.sha }}.md

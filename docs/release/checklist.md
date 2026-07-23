@@ -39,6 +39,7 @@ ship releases with evidence, not just a changelog.
 
 ## CI
 
+- [ ] Manually dispatched `CI Release Evidence` completed for the exact SHA.
 - [ ] Ubuntu LTS passed.
 - [ ] Ubuntu Latest passed.
 - [ ] Debian Stable passed.
@@ -50,7 +51,9 @@ ship releases with evidence, not just a changelog.
 - [ ] `scripts/validate/native-smoke-test.sh`
 - [ ] `scripts/validate/docker-build.sh`
 - [ ] `scripts/validate/docker-smoke-test.sh`
-- [ ] `scripts/hardware/cm19a-validation.sh`, when CM19A hardware is available
+- [ ] `scripts/hardware/lab-preflight.sh`, when CM19A hardware is available.
+- [ ] `scripts/hardware/cm19a-validation.sh`, with explicit approval before
+  any housecode `D` transmission.
 - [ ] Native foreground startup logs recorded.
 - [ ] Native setup `install --enable-now` result recorded when native service
   deployment is claimed.
