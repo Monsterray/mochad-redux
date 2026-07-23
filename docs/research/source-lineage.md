@@ -59,7 +59,10 @@ Current understanding:
   inactive native Linux service template rendered by `mochad-redux-setup`.
 - `packaging/linux/udev/91-usb-x10-controllers.rules.in` is maintained in this
   fork as an inactive CM15A/CM19A permission template. The older rule files are
-  retained as historical references and are not activated by `make install`.
+  retained under `docs/research/legacy-packaging/udev/` and are not activated
+  by `make install`.
+- `docs/research/legacy-packaging/systemd/mochad.service` retains the historical
+  fixed-path unit; it is not installed or rendered by current tooling.
 - `packaging/openwrt/` contains legacy OpenWrt-era support files retained for
   historical compatibility.
 

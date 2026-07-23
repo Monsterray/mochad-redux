@@ -42,14 +42,17 @@ mochad_SOURCES = src/core/mochad.c src/core/global.c src/core/global.h \
 EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		packaging/linux/systemd/mochad.service.in \
 		packaging/linux/udev/91-usb-x10-controllers.rules.in \
-		udev/91-usb-x10-controllers.rules udev/91-usb-x10-controllers.rules-systemd \
-		udev/README.md \
+		docs/research/legacy-packaging/udev/91-usb-x10-controllers.rules \
+		docs/research/legacy-packaging/udev/91-usb-x10-controllers.rules-systemd \
+		docs/research/legacy-packaging/udev/README.md \
 		packaging/openwrt/hotplug2/20-usb-x10 \
-		packaging/openwrt/init.d/mochad systemd/mochad.service \
+		packaging/openwrt/init.d/mochad \
+		docs/research/legacy-packaging/systemd/mochad.service \
 		cgi/x10.pl cgi/netcat.pl cgi/getsensors.pl cgi/cgi-lib.pl \
 		contrib/apps/mochamon.pl contrib/apps/simplemon.pl \
 		contrib/apps/bash.sh contrib/apps/rfsectopl3.pl \
-		apps/x10-tk.py apps/mochad.scr \
+		docs/research/legacy-apps/x10-tk.py \
+		docs/research/legacy-apps/mochad.scr \
 		.clang-format .clang-format-ignore \
 		scripts/build/compile-without-libusb.sh \
 		scripts/format/c.sh \
@@ -87,6 +90,9 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		docs/protocol/json-api.md \
 		docs/research/milestones/milestone-1.md \
 		docs/research/audits/static-analysis.md \
+		docs/research/README.md \
+		docs/research/legacy-apps/README.md \
+		docs/research/legacy-packaging/README.md \
 		docs/research/plans/static-analysis-cleanup.md \
 		docs/research/source-lineage.md \
 		docs/development/repository-layout-source-move-manifest.md \
