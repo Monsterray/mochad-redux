@@ -26,7 +26,7 @@ before protocol or behavioral changes are introduced.
 
 - `git fetch upstream --tags` succeeds.
 - `develop` can be compared directly with `upstream/master`.
-- `sh tools/compile_without_libusb.sh --strict` passes without libusb installed.
+- `sh scripts/build/compile-without-libusb.sh --strict` passes without libusb installed.
 - Ubuntu LTS, Ubuntu Latest, and Debian Stable pass `./autogen.sh`,
   `./configure`, and `make` in CI.
 - Raspberry Pi ARM cross compile passes for libusb-free source files in CI.

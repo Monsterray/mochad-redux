@@ -21,8 +21,8 @@ echo
 
 echo "+ build TCP diagnostics harness"
 # shellcheck disable=SC2086
-"$CC" $CFLAGS tests/test_tcp_diagnostics.c src/net/diagnostics.c src/config/config.c \
-    src/net/socket_io.c \
+"$CC" $CFLAGS tests/integration/test_tcp_diagnostics.c src/net/diagnostics.c \
+    src/config/config.c src/net/socket_io.c \
     -o "$BUILD_DIR/test_tcp_diagnostics" $LDFLAGS
 
 echo "+ run TCP diagnostics harness"

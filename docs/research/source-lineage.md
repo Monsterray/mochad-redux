@@ -48,19 +48,20 @@ distributed under the repository license unless a file states otherwise.
 
 ## Support Files
 
-The `systemd/`, `udev/`, and `hotplug2/` directories contain deployment support
-files for Linux systems. Their exact historical source path should continue to
-be audited before adding file-level SPDX identifiers.
+The `packaging/linux/`, `packaging/openwrt/`, `systemd/`, and `udev/`
+directories contain deployment support files for Linux systems. Their exact
+historical source path should continue to be audited before adding file-level
+SPDX identifiers.
 
 Current understanding:
 
-- `systemd/mochad.service.in` is maintained in this fork as an inactive native
-  Linux service template rendered by `mochad-redux-setup`.
-- `udev/91-usb-x10-controllers.rules.in` is maintained in this fork as an
-  inactive CM15A/CM19A permission template. The older rule files are retained
-  as historical references and are not activated by `make install`.
-- `hotplug2/` contains legacy OpenWrt-era support files retained for historical
-  compatibility.
+- `packaging/linux/systemd/mochad.service.in` is maintained in this fork as an
+  inactive native Linux service template rendered by `mochad-redux-setup`.
+- `packaging/linux/udev/91-usb-x10-controllers.rules.in` is maintained in this
+  fork as an inactive CM15A/CM19A permission template. The older rule files are
+  retained as historical references and are not activated by `make install`.
+- `packaging/openwrt/` contains legacy OpenWrt-era support files retained for
+  historical compatibility.
 
 ## CGI Files
 
@@ -90,7 +91,7 @@ Source archives should include:
 - `COPYING`
 - `LICENSE.md`
 - `NOTICE`
-- `docs/source-lineage.md`
+- `docs/research/source-lineage.md`
 
 Release evidence should record the exact source commit used to build and test
 the archive.

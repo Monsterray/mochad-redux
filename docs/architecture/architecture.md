@@ -27,7 +27,7 @@ clients such as nc, scripts, MQTT bridge, Home Assistant bridge
 
 ## Design Principles
 
-See [DESIGN.md](DESIGN.md) for the project-level engineering principles. The
+See [the design guide](design.md) for the project-level engineering principles. The
 architecture guidance below applies those principles to the current codebase.
 
 * USB access should be isolated from protocol logic.
@@ -129,8 +129,8 @@ documentation, licenses, administration tool, and inactive templates beneath
 the configured prefix and honors `DESTDIR`. It must never create identities,
 modify live `/etc`, call `systemctl` or `udevadm`, start a service, or access a
 controller. Native host integration is an explicit administrator action through
-`mochad-redux-setup`; see [README.md](README.md) and
-[docs/native-install-rollback.md](docs/native-install-rollback.md).
+`mochad-redux-setup`; see [README.md](../../README.md) and
+[native installation rollback](../installation/native-install-rollback.md).
 
 ## TCP Binding
 
@@ -144,7 +144,7 @@ policy may still prevent dual-stack behavior even when mochad requests it.
 
 ## Future JSON API
 
-A future generic JSON API is documented in [docs/json-api.md](docs/json-api.md).
+A future generic JSON API is documented in [the JSON API design](../protocol/json-api.md).
 It is design-only and should remain outside the active `v0.4.x` hardening scope
 until the current logging, validation, and compatibility work is complete.
 

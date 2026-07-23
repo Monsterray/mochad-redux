@@ -45,8 +45,8 @@ For each release:
 1. Finish integration work on `develop`.
 2. Run CI and the local checks documented below.
 3. Fill out release evidence from
-   [validation/release-evidence-template.md](validation/release-evidence-template.md).
-4. Complete [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+   [the release evidence template](../../validation/release-evidence-template.md).
+4. Complete [the release checklist](../release/checklist.md).
 5. Open a pull request from `develop` into `master`.
 6. Review the release diff for scope, documentation, compatibility, generated
    artifacts, and validation evidence.
@@ -73,34 +73,34 @@ keep the conflict resolutions scoped to the upstream change being replayed.
 ## Source Tree Hygiene
 
 Generated autotools files and local build outputs should not obscure source
-review. Follow [docs/generated-artifacts.md](docs/generated-artifacts.md) when
+review. Follow [the generated-artifact policy](generated-artifacts.md) when
 deciding whether generated files belong in a change.
 
 The mechanical source relocations are recorded in the
-[source layout move manifest](docs/repository-layout-source-move-manifest.md).
+[source layout move manifest](repository-layout-source-move-manifest.md).
 
 ## Local build check
 
 To compile the non-USB source files without installing libusb, run:
 
 ```sh
-sh tools/compile_without_libusb.sh
+sh scripts/build/compile-without-libusb.sh
 ```
 
 For a warning-as-error pass, run:
 
 ```sh
-sh tools/compile_without_libusb.sh --strict
+sh scripts/build/compile-without-libusb.sh --strict
 ```
 
 Optional compile/analyzer modes:
 
 ```sh
-sh tools/compile_without_libusb.sh --strict --asan --ubsan
-sh tools/compile_without_libusb.sh --clang-tidy
-sh tools/compile_without_libusb.sh --clang-format-check
-sh tools/compile_without_libusb.sh --cppcheck
-sh tools/compile_without_libusb.sh --cppcheck-style
+sh scripts/build/compile-without-libusb.sh --strict --asan --ubsan
+sh scripts/build/compile-without-libusb.sh --clang-tidy
+sh scripts/build/compile-without-libusb.sh --clang-format-check
+sh scripts/build/compile-without-libusb.sh --cppcheck
+sh scripts/build/compile-without-libusb.sh --cppcheck-style
 ```
 
 `--asan` and `--ubsan` add sanitizer compile flags. The helper compiles object
@@ -151,7 +151,7 @@ The CI workflow covers:
 - Raspberry Pi ARM cross compile for the libusb-free source files
 
 Supported platform expectations are documented in
-[docs/supported-platforms.md](docs/supported-platforms.md).
+[the supported-platform policy](../installation/supported-platforms.md).
 
 ## Native Installation Changes
 
@@ -200,7 +200,7 @@ The current safety baseline covers:
 After changing any of these areas, run:
 
 ```sh
-sh tools/compile_without_libusb.sh --strict --asan --ubsan
+sh scripts/build/compile-without-libusb.sh --strict --asan --ubsan
 git diff --check
 ```
 

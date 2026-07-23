@@ -40,7 +40,8 @@ The first maintenance milestone is intentionally conservative:
 - Keep future rebases from upstream manageable.
 
 Broader protocol, USB, TCP, and state separation work is future work.
-Engineering principles are documented in [DESIGN.md](DESIGN.md).
+Engineering principles are documented in
+[the design guide](docs/architecture/design.md).
 
 ## Versioning
 
@@ -49,7 +50,7 @@ Version files use plain semantic versions such as `0.4.0`, `0.5.0-dev`, or
 `0.5.0-rc1`; Git tags add the leading `v`. The upstream baseline remains the
 separate identity `mochad 0.1.18`.
 
-See [compatibility and versioning](docs/compatibility.md) for the maintained
+See [compatibility and versioning](docs/architecture/compatibility.md) for the maintained
 version mapping and the small, manual-friendly release preparation workflow.
 
 ## Source Notes
@@ -71,7 +72,7 @@ The `systemd` and `udev` directories were restored from the original
 service and device rules install correctly on modern systems.
 
 Legacy examples and service integration files are documented in
-[docs/support-files.md](docs/support-files.md).
+[legacy support-file documentation](docs/development/legacy-support-files.md).
 
 ## Installation
 
@@ -133,7 +134,7 @@ the controller.
 For a source-tree convenience path after a successful build:
 
 ```sh
-sudo ./scripts/install-native.sh --enable-now
+sudo ./scripts/setup/install-native.sh --enable-now
 ```
 
 `mochad-redux-setup` manages the default `mochad` user and group, the `x10`
@@ -162,7 +163,7 @@ make DESTDIR="$PWD/stage" install
 Run the daemon directly during development or use an isolated prefix. Never run
 `mochad-redux-setup` inside `mochad-docker`; container permissions are managed
 by that project instead. Removal and rollback guidance is in
-[docs/native-install-rollback.md](docs/native-install-rollback.md).
+[native installation rollback](docs/installation/native-install-rollback.md).
 
 ## Beta Testing
 
@@ -170,8 +171,8 @@ Version 0.4.0 is a cautious public beta. Use a tagged beta release or exact
 full Git SHA, not a moving branch. Source-level validation has passed; CM19A,
 CM15A, and module behavior still require physical evidence.
 
-See [docs/beta-status.md](docs/beta-status.md), the
-[hardware validation guide](docs/hardware-validation.md), and the Beta test
+See [the beta-status guide](docs/release/beta-status.md), the
+[hardware validation guide](docs/development/hardware-validation.md), and the Beta test
 report issue form before testing a non-critical controller or module.
 
 ## Testing
@@ -196,7 +197,7 @@ Use `Ctrl+C` to close `netcat`.
 For build-only checks that do not require `libusb`, use:
 
 ```sh
-sh tools/compile_without_libusb.sh --strict
+sh scripts/build/compile-without-libusb.sh --strict
 ```
 
 To syntax-check the USB-facing source on a development machine without real
@@ -231,12 +232,13 @@ In environments without libusb headers, run the clean libusb-free validation:
 scripts/validate/clean-build-test.sh --libusb-free-only
 ```
 
-Optional analyzer modes are documented in [MAINTAINING.md](MAINTAINING.md).
+Optional analyzer modes are documented in
+[the maintainer guide](docs/development/maintaining.md).
 Real controller testing is documented in
-[docs/hardware-validation.md](docs/hardware-validation.md).
+[the hardware validation guide](docs/development/hardware-validation.md).
 Release evidence is documented in [validation/README.md](validation/README.md).
 Supported platform expectations are documented in
-[docs/supported-platforms.md](docs/supported-platforms.md).
+[supported platforms](docs/installation/supported-platforms.md).
 
 ## Runtime Options
 
@@ -260,7 +262,7 @@ ports must be distinct TCP ports from `1` to `65535`. Invalid bind addresses or
 ports fail at startup with a clear error.
 
 A future generic JSON-RPC API is documented in
-[docs/json-api.md](docs/json-api.md). It is not implemented in the current
+[the JSON API design](docs/protocol/json-api.md). It is not implemented in the current
 runtime. The proposed listener is optional, disabled by default while
 experimental, and intended to use port `1102` without changing the existing
 `1099`, `1100`, or `1101` listener contracts.
@@ -386,7 +388,7 @@ enough if the device is already claimed.
 
 ## More Information
 
-- [Source lineage and upstream baseline](docs/source-lineage.md)
+- [Source lineage and upstream baseline](docs/research/source-lineage.md)
 - [Mochad on Recent Linux Distributions](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_en.html)
 - [French installation notes](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_fr.html)
 - [Andreas's systemd unit discussion](https://sourceforge.net/p/mochad/discussion/1320002/thread/764dd1ce44/#76e9)
@@ -397,4 +399,4 @@ enough if the device is already claimed.
 
 GNU General Public License version 3.0 or later (GPL-3.0-or-later). See
 [LICENSE.md](LICENSE.md), [COPYING](COPYING), [NOTICE](NOTICE), and
-[docs/source-lineage.md](docs/source-lineage.md).
+[docs/research/source-lineage.md](docs/research/source-lineage.md).

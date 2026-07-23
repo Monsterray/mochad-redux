@@ -19,6 +19,6 @@ PARTICULAR PURPOSE.
 The full GPLv3 license text is included in [COPYING](COPYING).
 
 Additional attribution and provenance notes are recorded in [NOTICE](NOTICE) and
-[docs/source-lineage.md](docs/source-lineage.md).
+[docs/research/source-lineage.md](docs/research/source-lineage.md).
 
 SPDX-License-Identifier: GPL-3.0-or-later

@@ -4,9 +4,9 @@ This repository keeps several legacy support directories from upstream
 `mochad`. They are useful references, but they do not all represent modern
 recommended deployment paths.
 
-## apps
+## contrib/apps
 
-`apps/` contains example clients and small integration scripts:
+`contrib/apps/` contains example clients and small integration scripts:
 
 - `simplemon.pl` and `mochamon.pl` monitor one or more `mochad` TCP streams.
 - `rfsectopl3.pl` and `bash.sh` translate RF security events into X10 power-line
@@ -35,9 +35,9 @@ addresses, and predates modern web security expectations. Do not expose it on a
 network without a full security review. For current deployments, prefer the
 daemon TCP interface or the separate MQTT bridge project.
 
-## hotplug2
+## OpenWrt
 
-`hotplug2/` contains OpenWrt-era hotplug/init scripts:
+`packaging/openwrt/` contains OpenWrt-era hotplug/init scripts:
 
 - `20-usb-x10` starts `/etc/init.d/mochad` when a CM15A or CM19A appears.
 - `mochad` is an `/etc/rc.common` init script using `start-stop-daemon`.
@@ -48,7 +48,9 @@ distribution-specific behavior here unless it is tested on that target.
 
 ## udev
 
-`udev/` contains USB rule templates for Linux systems:
+`packaging/linux/udev/` contains the maintained USB rule template for Linux
+systems. The root `udev/` directory retains historical references pending a
+separate provenance review:
 
 - `91-usb-x10-controllers.rules.in` is rendered by `mochad-redux-setup`; it
   assigns `root:x10` ownership and `0660` mode to supported X10 USB nodes.
@@ -60,10 +62,11 @@ the daemon directly.
 
 ## systemd
 
-`systemd/mochad.service.in` is rendered into the existing `mochad.service` unit
-name by the setup tool. It resolves the installed binary path and uses user
-`mochad`, group `mochad`, supplementary group `x10`, and `UMask=0022` by
-default.
+`packaging/linux/systemd/mochad.service.in` is rendered into the existing
+`mochad.service` unit name by the setup tool. It resolves the installed binary
+path and uses user `mochad`, group `mochad`, supplementary group `x10`, and
+`UMask=0022` by default. The root `systemd/` directory contains only a
+historical fixed-path unit pending separate disposition.
 
 Potential future hardening includes explicit device dependencies and optional
 service sandboxing. Those changes should be tested with real CM15A/CM19A

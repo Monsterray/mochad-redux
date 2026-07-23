@@ -15,13 +15,13 @@ USB, and client lifecycle diagnostics are clear enough for real deployments to
 explain themselves from logs.
 
 A future generic JSON-RPC API is being designed as a separate modernization
-milestone. It is documented in [docs/json-api.md](docs/json-api.md), remains
+milestone. It is documented in [the JSON API design](../protocol/json-api.md), remains
 disabled-by-default in concept, and must stay integration-neutral: no MQTT
 topics, Home Assistant entities, discovery payloads, or config-entry concepts
 belong in the daemon wire protocol.
 
 The engineering principles for this maintained line are documented in
-[DESIGN.md](DESIGN.md).
+[the design guide](design.md).
 
 ## Project Goals
 

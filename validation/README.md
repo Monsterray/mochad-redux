@@ -52,7 +52,7 @@ scripts/validate/native-setup-tool.sh
 scripts/validate/unit-tests.sh
 scripts/validate/tcp-diagnostics-smoke-test.sh
 scripts/validate/docker-smoke-test.sh
-scripts/validate/cm19a-hardware-validation.sh
+scripts/hardware/cm19a-validation.sh
 ```
 
 `clean-build-test.sh` removes ignored build artifacts with `git clean -fdX`
@@ -88,7 +88,7 @@ temporary fake filesystem root; neither script changes the host or opens USB.
 ## Hardware Evidence
 
 Hardware validation should follow [hardware.md](hardware.md) and
-[docs/hardware-validation.md](../docs/hardware-validation.md). CM19A validation
+[the hardware validation guide](../docs/development/hardware-validation.md). CM19A validation
 is required before a release can claim production confidence. CM15A validation
 is strongly preferred and should be called out clearly when unavailable.
 
