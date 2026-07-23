@@ -76,6 +76,9 @@ Generated autotools files and local build outputs should not obscure source
 review. Follow [docs/generated-artifacts.md](docs/generated-artifacts.md) when
 deciding whether generated files belong in a change.
 
+The mechanical source relocations are recorded in the
+[source layout move manifest](docs/repository-layout-source-move-manifest.md).
+
 ## Local build check
 
 To compile the non-USB source files without installing libusb, run:
@@ -118,9 +121,9 @@ The default cppcheck gate focuses on warnings, performance, and portability.
 Style suggestions are opt-in through `--cppcheck-style` so they do not block
 safety-focused maintenance work.
 
-This compiles `decode.c`, `encode.c`, `global.c`, `x10state.c`, and
-`x10_write.c` as object files in a temporary directory. It intentionally skips
-`mochad.c`, which owns the libusb dependency and the daemon socket/USB loop.
+This compiles the libusb-free sources under `src/` as object files in a
+temporary directory. It intentionally skips `src/core/mochad.c`, which owns the
+libusb dependency and the daemon socket/USB loop.
 
 Install the build dependencies first. On Debian or Ubuntu:
 

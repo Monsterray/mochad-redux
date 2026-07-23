@@ -138,16 +138,17 @@ cleanup() {
 trap cleanup EXIT INT HUP TERM
 
 SOURCES="
-config.c
-diagnostics.c
-decode.c
-encode.c
-global.c
-mochad_event.c
-socket_io.c
-x10state.c
-x10_write.c
+src/config/config.c
+src/net/diagnostics.c
+src/x10/decode.c
+src/x10/encode.c
+src/core/global.c
+src/x10/mochad_event.c
+src/net/socket_io.c
+src/x10/x10state.c
+src/usb/x10_write.c
 "
+INCLUDE_FLAGS="-Isrc/core -Isrc/config -Isrc/net -Isrc/usb -Isrc/x10"
 
 find_tool() {
     tool=$1
@@ -190,7 +191,7 @@ if [ "$RUN_CLANG_TIDY" -eq 1 ]; then
         # shellcheck disable=SC2086
         "$CLANG_TIDY" "$source" \
             --checks=clang-analyzer-*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling \
-            -- -I. $CFLAGS
+            -- $INCLUDE_FLAGS $CFLAGS
     done
 fi
 
@@ -205,14 +206,14 @@ if [ "$RUN_CPPCHECK" -eq 1 ]; then
     fi
     # shellcheck disable=SC2086
     cppcheck --check-level=exhaustive --enable="$CPPCHECK_ENABLE" --error-exitcode=1 \
-        --inline-suppr --quiet -I. $SOURCES
+        --inline-suppr --quiet $INCLUDE_FLAGS $SOURCES
 fi
 
 for source in $SOURCES; do
-    object="$BUILD_DIR/${source%.c}.o"
+    object="$BUILD_DIR/$(basename "${source%.c}").o"
     echo "Compiling $source"
     # shellcheck disable=SC2086
-    "$CC" $CFLAGS -I. -c "$source" -o "$object"
+    "$CC" $CFLAGS $INCLUDE_FLAGS -c "$source" -o "$object"
 done
 
 echo "libusb-free compile passed"

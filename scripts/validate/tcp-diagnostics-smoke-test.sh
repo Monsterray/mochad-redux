@@ -12,7 +12,7 @@ cleanup() {
 }
 trap cleanup EXIT INT HUP TERM
 
-CFLAGS="${CFLAGS:-} -std=c11 -D_POSIX_C_SOURCE=200809L -I. -Wall -Wextra -Werror -Wformat -Wformat-security -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wmissing-prototypes -Wstrict-prototypes -fsanitize=address,undefined -fno-omit-frame-pointer"
+CFLAGS="${CFLAGS:-} -std=c11 -D_POSIX_C_SOURCE=200809L -Isrc/core -Isrc/config -Isrc/net -Isrc/usb -Isrc/x10 -Wall -Wextra -Werror -Wformat -Wformat-security -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wmissing-prototypes -Wstrict-prototypes -fsanitize=address,undefined -fno-omit-frame-pointer"
 LDFLAGS="${LDFLAGS:-} -fsanitize=address,undefined"
 
 echo "== mochad-redux validation: TCP diagnostics smoke test =="
@@ -21,7 +21,8 @@ echo
 
 echo "+ build TCP diagnostics harness"
 # shellcheck disable=SC2086
-"$CC" $CFLAGS tests/test_tcp_diagnostics.c diagnostics.c config.c socket_io.c \
+"$CC" $CFLAGS tests/test_tcp_diagnostics.c src/net/diagnostics.c src/config/config.c \
+    src/net/socket_io.c \
     -o "$BUILD_DIR/test_tcp_diagnostics" $LDFLAGS
 
 echo "+ run TCP diagnostics harness"

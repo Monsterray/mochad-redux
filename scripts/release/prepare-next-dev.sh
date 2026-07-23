@@ -63,7 +63,7 @@ Development preparation complete for $version.
 Next commands:
   git diff --check
   scripts/validate/version-consistency.sh
-  git add VERSION version.h CHANGELOG.md "$evidence"
+  git add VERSION src/config/version.h CHANGELOG.md "$evidence"
   git commit -m "Start $version development"
 
 This script does not commit, tag, push, publish an image, or create a release.

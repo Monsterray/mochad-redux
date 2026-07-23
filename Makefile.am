@@ -1,6 +1,12 @@
 bin_PROGRAMS = mochad
 sbin_SCRIPTS = scripts/mochad-redux-setup
 
+AM_CPPFLAGS = -I$(top_srcdir)/src/core \
+		-I$(top_srcdir)/src/config \
+		-I$(top_srcdir)/src/net \
+		-I$(top_srcdir)/src/usb \
+		-I$(top_srcdir)/src/x10
+
 # These files are deliberately installed as inactive templates.  A package
 # installation must never alter the running host; mochad-redux-setup is the
 # explicit administrator action that renders them into /etc.
@@ -20,12 +26,16 @@ man_MANS = docs/mochad.1 docs/mochad-redux-setup.8
 print-sbindir:
 	@echo '$(sbindir)'
 
-mochad_SOURCES = mochad.c config.c decode.c diagnostics.c encode.c global.c \
-		mochad_event.c socket_io.c usb_endpoint_selection.c \
-		x10state.c x10_write.c \
-		config.h decode.h diagnostics.h encode.h global.h \
-		mochad_event.h socket_io.h usb_endpoint_selection.h \
-		version.h x10state.h x10_write.h
+mochad_SOURCES = src/core/mochad.c src/core/global.c src/core/global.h \
+		src/config/config.c src/config/config.h src/config/version.h \
+		src/net/diagnostics.c src/net/diagnostics.h \
+		src/net/socket_io.c src/net/socket_io.h \
+		src/usb/usb_endpoint_selection.c src/usb/usb_endpoint_selection.h \
+		src/usb/x10_write.c src/usb/x10_write.h \
+		src/x10/decode.c src/x10/decode.h \
+		src/x10/encode.c src/x10/encode.h \
+		src/x10/mochad_event.c src/x10/mochad_event.h \
+		src/x10/x10state.c src/x10/x10state.h
 EXTRA_DIST = config/mochad.conf.example \
 		systemd/mochad.service.in \
 		udev/91-usb-x10-controllers.rules.in \
@@ -63,8 +73,10 @@ EXTRA_DIST = config/mochad.conf.example \
 		tests/test_usb_endpoint_selection.c \
 		docs/compatibility.md docs/generated-artifacts.md docs/hardware-validation.md \
 		docs/json-api.md docs/milestone-1.md docs/source-lineage.md \
+		docs/repository-layout-source-move-manifest.md \
 		docs/support-files.md docs/supported-platforms.md \
-		docs/native-install-rollback.md docs/mochad-redux-setup.8 \
+		docs/native-install-rollback.md docs/mochad.1 \
+		docs/mochad-redux-setup.8 \
 		validation/README.md validation/compiler.md validation/hardware.md \
 		validation/regression.md validation/release-evidence-template.md \
 		validation/releases/README.md validation/releases/v0.4.0.md \

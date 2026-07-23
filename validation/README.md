@@ -65,7 +65,7 @@ scripts/validate/clean-build-test.sh --libusb-free-only
 scripts/validate/libusb-stub-syntax-check.sh
 ```
 
-The stub syntax check compiles `mochad.c` against a deliberately incomplete
+The stub syntax check compiles `src/core/mochad.c` against a deliberately incomplete
 development-only libusb header. It catches normal compiler errors on machines
 without libusb headers, but it is not runtime evidence and does not replace the
 full Linux/libusb build.

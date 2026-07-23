@@ -63,7 +63,7 @@ Next commands:
   git diff --check
   scripts/validate/version-consistency.sh
   # Run the documented build, test, and hardware evidence checks.
-  git add VERSION version.h CHANGELOG.md "$evidence"
+  git add VERSION src/config/version.h CHANGELOG.md "$evidence"
   git commit -m "Prepare v$release"
   # After review and merge: git tag -a v$release -m "v$release"
 
