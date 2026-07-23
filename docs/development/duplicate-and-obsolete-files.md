@@ -57,9 +57,10 @@ The checkout contained ignored generated files such as:
 - object files and the local daemon binary
 
 `git ls-files` confirms none is tracked. `.gitignore`,
-`docs/generated-artifacts.md`, `scripts/validate/repository-hygiene.sh`, and
-`scripts/validate/clean-build-test.sh` provide replacement control. No cleanup
-commit is needed for these local artifacts.
+`docs/development/generated-artifacts.md`,
+`scripts/validate/repository-hygiene.sh`, and
+`scripts/validate/clean-build-test.sh` provide replacement control. No
+cleanup commit is needed for these local artifacts.
 
 `version.h` is different: it is generated from `VERSION` but intentionally
 tracked and validated. Its runtime and release consumers make deletion a
@@ -232,12 +233,13 @@ path lists if changes reveal repeated failure points.
 
 ## Documentation
 
-`docs/static-analysis-cleanup-plan.md` and `docs/milestone-1.md` describe
-completed work. They are not obsolete facts, but they are obsolete as current
-instructions. Move them under `docs/research/`.
+`docs/research/plans/static-analysis-cleanup.md` and
+`docs/research/milestones/milestone-1.md` describe completed work. They are
+not obsolete facts, but they are obsolete as current instructions and remain
+under `docs/research/`.
 
-`docs/static-analysis-audit.md` remains useful evidence and should also move
-under the research/audit hierarchy.
+`docs/research/audits/static-analysis.md` remains useful evidence under the
+research/audit hierarchy.
 
 Do not delete:
 
