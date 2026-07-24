@@ -30,6 +30,9 @@ Use this page to distinguish current guidance from historical research.
 - [Repository layout record](development/repository-layout-proposal.md)
 - [Tracked-file inventory](development/repository-file-inventory.md)
 - [Duplicate and obsolete-file audit](development/duplicate-and-obsolete-files.md)
+- [Branch closeout inventory](development/branch-closeout-inventory.md)
+- [Branch closeout plan](development/branch-closeout-plan.md)
+- [Branch closeout results](development/branch-closeout-results.md)
 
 The inventory and obsolete-file audit are records of the pre-move audit base.
 They retain historical paths intentionally.
