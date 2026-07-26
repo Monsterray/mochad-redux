@@ -90,6 +90,9 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		tests/unit/test_usb_endpoint_selection.c \
 		docs/architecture/compatibility.md \
 		docs/development/generated-artifacts.md \
+		docs/development/branch-closeout-inventory.md \
+		docs/development/branch-closeout-plan.md \
+		docs/development/branch-closeout-results.md \
 		docs/development/hardware-lab-setup.md \
 		docs/development/hardware-validation.md \
 		docs/development/test-strategy.md \
