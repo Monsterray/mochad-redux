@@ -47,10 +47,14 @@ scripts/validate/libusb-stub-syntax-check.sh
 scripts/validate/full-libusb-build.sh
 scripts/validate/docker-build.sh
 scripts/validate/native-smoke-test.sh
+scripts/validate/staged-install-contract.sh
+scripts/validate/native-setup-tool.sh
 scripts/validate/unit-tests.sh
 scripts/validate/tcp-diagnostics-smoke-test.sh
 scripts/validate/docker-smoke-test.sh
-scripts/validate/cm19a-hardware-validation.sh
+scripts/hardware/cm19a-validation.sh
+scripts/hardware/lab-preflight.sh
+scripts/validate/release-evidence-runner.sh
 ```
 
 `clean-build-test.sh` removes ignored build artifacts with `git clean -fdX`
@@ -63,13 +67,14 @@ scripts/validate/clean-build-test.sh --libusb-free-only
 scripts/validate/libusb-stub-syntax-check.sh
 ```
 
-The stub syntax check compiles `mochad.c` against a deliberately incomplete
+The stub syntax check compiles `src/core/mochad.c` against a deliberately incomplete
 development-only libusb header. It catches normal compiler errors on machines
 without libusb headers, but it is not runtime evidence and does not replace the
 full Linux/libusb build.
 
-`unit-tests.sh` executes sanitizer-backed tests for socket writes,
-configuration precedence/validation, and diagnostic JSON builders.
+`unit-tests.sh` executes tests for socket writes, configuration
+precedence/validation, and diagnostic JSON builders. Sanitizers default to
+enabled; set `MOCHAD_SANITIZERS=disabled` only for fast local iteration.
 `tcp-diagnostics-smoke-test.sh` sends diagnostic JSON over a loopback TCP
 socket and validates each response line as JSON. In restricted sandboxes where
 loopback listeners are blocked, record that limitation and rely on CI for the
@@ -79,12 +84,18 @@ The scripts print clear console output suitable for pasting into release
 evidence. Docker scripts default to the sibling `../mochad-docker` project and
 can be pointed elsewhere with `MOCHAD_DOCKER_DIR`.
 
+`staged-install-contract.sh` proves `make DESTDIR=... install` remains
+packaging-safe. `native-setup-tool.sh` validates setup behavior against a
+temporary fake filesystem root; neither script changes the host or opens USB.
+
 ## Hardware Evidence
 
-Hardware validation should follow [hardware.md](hardware.md) and
-[docs/hardware-validation.md](../docs/hardware-validation.md). CM19A validation
-is required before a release can claim production confidence. CM15A validation
-is strongly preferred and should be called out clearly when unavailable.
+Hardware validation should follow [hardware.md](hardware.md),
+[the hardware validation guide](../docs/development/hardware-validation.md),
+and [the isolated lab setup](../docs/development/hardware-lab-setup.md). CM19A
+validation is required before a release can claim production confidence.
+CM15A validation is strongly preferred and should be called out clearly when
+unavailable.
 
 ## Stewardship Rule
 

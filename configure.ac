@@ -3,8 +3,8 @@
 
 AC_PREREQ([2.61])
 AC_INIT([mochad-redux], m4_esyscmd_s([cat VERSION]), [https://github.com/Monsterray/mochad-redux/issues])
-#AC_CONFIG_SRCDIR([mochad.c])
-AM_INIT_AUTOMAKE([foreign -Wall -Werror])
+AC_CONFIG_SRCDIR([src/core/mochad.c])
+AM_INIT_AUTOMAKE([foreign -Wall -Werror subdir-objects])
 
 # Checks for programs.
 AC_PROG_CC
@@ -29,5 +29,5 @@ AC_FUNC_FORK
 AC_FUNC_MALLOC
 AC_CHECK_FUNCS([alarm getaddrinfo gai_strerror memset select socket strerror strtol strtoul])
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile scripts/mochad-redux-setup:scripts/setup/mochad-redux-setup.in])
 AC_OUTPUT

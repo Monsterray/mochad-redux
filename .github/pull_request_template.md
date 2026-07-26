@@ -23,13 +23,13 @@
 
 ## Validation
 
-- [ ] `sh tools/compile_without_libusb.sh --strict --asan --ubsan`
-- [ ] `sh tools/compile_without_libusb.sh --cppcheck`
+- [ ] `sh scripts/build/compile-without-libusb.sh --strict --asan --ubsan`
+- [ ] `sh scripts/build/compile-without-libusb.sh --cppcheck`
 - [ ] `git diff --check`
 - [ ] Full libusb build on Linux, if available
 - [ ] CM19A hardware test, if available
 - [ ] CM15A hardware test, if available
 - [ ] Release evidence updated, if this is a release PR
-- [ ] Generated artifacts reviewed against `docs/generated-artifacts.md`
+- [ ] Generated artifacts reviewed against `docs/development/generated-artifacts.md`
 
 ## Notes

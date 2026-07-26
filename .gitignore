@@ -13,6 +13,7 @@ mochad
 *.gcno
 *.gcov
 .deps/
+.dirstamp
 autom4te.cache/
 autoscan.log
 config.log
@@ -33,5 +34,8 @@ Makefile.in
 config.h*
 !/config.h
 configure
+scripts/mochad-redux-setup
 build/
 build-*/
+/mochad-redux-*.tar.gz
+/mochad-redux-[0-9]*/

@@ -6,6 +6,28 @@ This project values release evidence over broad release claims. Each release
 entry should link to validation evidence when available.
 
 
+## [Unreleased]
+
+## [0.5.0] - 2026-07-26
+
+Repository-stewardship release focused on a packaging-safe native install,
+maintainable source and support-file organization, deterministic validation,
+and preserved legacy runtime behavior.
+
+### Changed
+
+- `make install` is now a pure, `DESTDIR`-safe packaging operation. Native
+  service, udev, and account integration moved to the explicit
+  `mochad-redux-setup` administration tool.
+- Native setup now records managed integration files, preserves configuration,
+  and refuses to replace unmanaged or locally modified files without `--force`.
+
+### Added
+
+- `mochad-redux-setup` administration commands and the source-tree
+  `scripts/install-native.sh` convenience wrapper.
+- Deterministic staged-install and fake-root native setup validation scripts.
+
 ## [0.4.0] - 07/16/2026
 
 Runtime-hardening and stewardship milestone for the maintained v0.4.x line.

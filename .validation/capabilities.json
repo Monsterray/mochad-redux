@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "repository": "mochad-redux",
+  "repository_type": "native-c-daemon",
+  "canonical_url": "https://github.com/Monsterray/mochad-redux.git",
+  "profiles": {
+    "local": {
+      "docs": {
+        "priority": 10,
+        "commands": [
+          ["scripts/validate/repository-hygiene.sh"]
+        ]
+      },
+      "fast": {
+        "priority": 20,
+        "commands": [
+          ["scripts/validate/clang-format.sh"],
+          ["scripts/validate/shellcheck.sh"],
+          ["scripts/validate/strict-libusb-free-compile.sh"],
+          ["env", "MOCHAD_SANITIZERS=disabled", "scripts/validate/unit-tests.sh"]
+        ]
+      },
+      "full": {
+        "priority": 30,
+        "commands": [
+          ["scripts/validate/clang-format.sh"],
+          ["scripts/validate/shellcheck.sh"],
+          ["scripts/validate/strict-libusb-free-compile.sh"],
+          ["env", "MOCHAD_SANITIZERS=disabled", "scripts/validate/unit-tests.sh"],
+          ["scripts/validate/tcp-diagnostics-smoke-test.sh"],
+          ["scripts/validate/staged-install-contract.sh"],
+          ["scripts/validate/native-setup-tool.sh"],
+          ["scripts/validate/version-consistency.sh"],
+          ["scripts/validate/source-archive-validation.sh"],
+          ["scripts/validate/repository-hygiene.sh"]
+        ]
+      }
+    },
+    "ubuntu": {
+      "source-fast": {
+        "priority": 20,
+        "delegate": "validate-bundle.sh"
+      },
+      "source-full": {
+        "priority": 30,
+        "delegate": "validate-bundle.sh"
+      }
+    }
+  },
+  "path_rules": [
+    {"pattern": ".validation/**", "owner": "validation-policy", "local_profile": "full", "ubuntu_profile": "source-full"},
+    {"pattern": "src/usb/**", "owner": "usb-runtime", "local_profile": "full", "ubuntu_profile": "source-full", "hardware": true},
+    {"pattern": "src/core/mochad.c", "owner": "daemon-runtime", "local_profile": "full", "ubuntu_profile": "source-full", "hardware": true},
+    {"pattern": "src/**", "owner": "daemon-runtime", "local_profile": "full", "ubuntu_profile": "source-full"},
+    {"pattern": "tests/**", "owner": "source-tests", "local_profile": "fast", "ubuntu_profile": "source-fast"},
+    {"pattern": "scripts/hardware/**", "owner": "hardware-validation", "local_profile": "fast", "ubuntu_profile": "source-fast", "hardware": true},
+    {"pattern": "scripts/**", "owner": "validation-release-tooling", "local_profile": "full", "ubuntu_profile": "source-full"},
+    {"pattern": "packaging/**", "owner": "native-packaging", "local_profile": "full", "ubuntu_profile": "source-full", "staged_install": true},
+    {"pattern": ".github/**", "owner": "ci", "local_profile": "docs", "ubuntu_profile": "source-fast"},
+    {"pattern": "docs/**", "owner": "documentation", "local_profile": "docs", "ubuntu_profile": null},
+    {"pattern": "cgi/**", "owner": "legacy-support", "local_profile": "fast", "ubuntu_profile": "source-fast"},
+    {"pattern": "contrib/**", "owner": "contributed-support", "local_profile": "fast", "ubuntu_profile": "source-fast"},
+    {"pattern": "validation/**", "owner": "release-evidence", "local_profile": "docs", "ubuntu_profile": null},
+    {"pattern": "*.md", "owner": "documentation", "local_profile": "docs", "ubuntu_profile": null},
+    {"pattern": "AGENTS.md", "owner": "policy", "local_profile": "docs", "ubuntu_profile": "source-fast"},
+    {"pattern": ".clang-format", "owner": "format-policy", "local_profile": "fast", "ubuntu_profile": "source-fast"},
+    {"pattern": ".clang-format-ignore", "owner": "format-policy", "local_profile": "fast", "ubuntu_profile": "source-fast"},
+    {"pattern": ".gitignore", "owner": "repository-metadata", "local_profile": "docs", "ubuntu_profile": null},
+    {"pattern": "Makefile.am", "owner": "build-system", "local_profile": "full", "ubuntu_profile": "source-full", "source_archive": true, "staged_install": true},
+    {"pattern": "configure.ac", "owner": "build-system", "local_profile": "full", "ubuntu_profile": "source-full", "source_archive": true, "staged_install": true},
+    {"pattern": "autogen.sh", "owner": "build-system", "local_profile": "full", "ubuntu_profile": "source-full", "source_archive": true},
+    {"pattern": "VERSION", "owner": "release-version", "local_profile": "full", "ubuntu_profile": "source-full", "source_archive": true},
+    {"pattern": "COPYING", "owner": "license", "local_profile": "docs", "ubuntu_profile": null},
+    {"pattern": "NOTICE", "owner": "license", "local_profile": "docs", "ubuntu_profile": null}
+  ],
+  "available_validation_scripts": [
+    "scripts/validate/strict-libusb-free-compile.sh",
+    "scripts/validate/unit-tests.sh",
+    "scripts/validate/tcp-diagnostics-smoke-test.sh",
+    "scripts/validate/staged-install-contract.sh",
+    "scripts/validate/source-archive-validation.sh"
+  ],
+  "docker_integration": "separate-runner",
+  "hardware_boundary": "human-approved-cm19a-workflow",
+  "source_archive_required": true,
+  "staged_install_required": true,
+  "bridge_validation_venv": null
+}

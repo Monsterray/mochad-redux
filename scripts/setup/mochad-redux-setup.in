@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Generated from this template by configure.  This is the only component that
+# performs live host integration; make install only copies this tool and its
+# inactive templates.
+CONFIGURED_PREFIX='@prefix@'
+CONFIGURED_BINDIR='@bindir@'
+CONFIGURED_PKGDATADIR='@pkgdatadir@'
+
+COMMAND=""
+PREFIX="$CONFIGURED_PREFIX"
+ROOT="/"
+SERVICE_USER="mochad"
+SERVICE_GROUP="mochad"
+USB_GROUP="x10"
+WITH_SYSTEMD=true
+WITH_UDEV=true
+ENABLE=false
+ENABLE_NOW=false
+RESTART=false
+DRY_RUN=false
+FORCE=false
+PURGE_ACCOUNTS=false
+
+usage() {
+    cat <<'EOF'
+Usage: mochad-redux-setup <install|verify|status|remove|purge> [options]
+
+Commands:
+  install  Create the service identities and render managed host integration.
+  verify   Verify managed integration files and current service settings.
+  status   Show resolved paths and integration status.
+  remove   Remove managed systemd/udev files; preserve config and identities.
+  purge    Explicitly remove managed state; --purge-accounts is additionally
+           required before any account removal is considered.
+
+Options:
+  --enable                 Enable mochad.service after installation.
+  --enable-now             Enable and start mochad.service.
+  --restart                Restart mochad.service after installation.
+  --no-systemd             Do not manage the systemd unit.
+  --no-udev                Do not manage the udev rule.
+  --service-user NAME      Service user (default: mochad).
+  --service-group NAME     Primary service group (default: mochad).
+  --usb-group NAME         Supplementary USB group (default: x10).
+  --prefix PATH            Installed prefix used for binary and templates.
+  --root PATH              Alternate filesystem root for package testing.
+  --dry-run                Print operations without changing anything.
+  --force                  Replace modified or unmanaged integration files.
+  --purge-accounts         With purge only, attempt account cleanup when safe.
+  --help                   Show this help.
+EOF
+}
+
+die() { printf 'mochad-redux-setup: %s\n' "$*" >&2; exit 1; }
+log() { printf '%s\n' "$*"; }
+run() { log "+ $*"; [ "$DRY_RUN" = true ] || "$@"; }
+
+root_path() {
+    case "$ROOT" in
+        /) printf '%s\n' "$1" ;;
+        *) printf '%s%s\n' "${ROOT%/}" "$1" ;;
+    esac
+}
+
+validate_name() {
+    case "$2" in
+        ''|*[!A-Za-z0-9_.-]*) die "$1 must contain only letters, digits, dot, underscore, or dash" ;;
+    esac
+}
+
+validate_options() {
+    validate_name "service user" "$SERVICE_USER"
+    validate_name "service group" "$SERVICE_GROUP"
+    validate_name "USB group" "$USB_GROUP"
+    case "$PREFIX" in /*) ;; *) die "--prefix must be absolute" ;; esac
+    case "$ROOT" in /*) ;; *) die "--root must be absolute" ;; esac
+    if [ "$ENABLE_NOW" = true ] || [ "$ENABLE" = true ] || [ "$RESTART" = true ]; then
+        [ "$WITH_SYSTEMD" = true ] || die "service activation options require systemd"
+    fi
+}
+
+require_privileges() {
+    if [ "$DRY_RUN" = true ] || [ "$ROOT" != / ]; then return; fi
+    [ "$(id -u)" -eq 0 ] || die "run as root or use --dry-run"
+}
+
+have() { command -v "$1" >/dev/null 2>&1; }
+sha256() {
+    if have sha256sum; then sha256sum "$1" | awk '{print $1}';
+    elif have shasum; then shasum -a 256 "$1" | awk '{print $1}';
+    else die "sha256sum or shasum is required"; fi
+}
+
+TEMPLATE_DIR=""
+BINARY=""
+ETC_DIR=""
+STATE_DIR=""
+STATE_FILE=""
+SYSTEMD_DEST=""
+UDEV_DEST=""
+CONFIG_DEST=""
+
+resolve_paths() {
+    bindir_suffix="${CONFIGURED_BINDIR#"$CONFIGURED_PREFIX"}"
+    pkgdatadir_suffix="${CONFIGURED_PKGDATADIR#"$CONFIGURED_PREFIX"}"
+    [ "$bindir_suffix" = "$CONFIGURED_BINDIR" ] && bindir_suffix=/bin
+    [ "$pkgdatadir_suffix" = "$CONFIGURED_PKGDATADIR" ] && pkgdatadir_suffix=/share/mochad-redux
+    TEMPLATE_DIR="$(root_path "$PREFIX$pkgdatadir_suffix/templates")"
+    BINARY="$(root_path "$PREFIX$bindir_suffix/mochad")"
+    ETC_DIR="$(root_path /etc/mochad-redux)"
+    STATE_DIR="$(root_path /var/lib/mochad-redux)"
+    STATE_FILE="$STATE_DIR/managed-files"
+    SYSTEMD_DEST="$(root_path /etc/systemd/system/mochad.service)"
+    UDEV_DEST="$(root_path /etc/udev/rules.d/91-usb-x10-controllers.rules)"
+    CONFIG_DEST="$ETC_DIR/mochad.conf"
+}
+
+state_hash() { [ -f "$STATE_FILE" ] && awk -F '|' -v path="$1" '$1 == path { print $2; exit }' "$STATE_FILE"; }
+write_state() {
+    path="$1" hash="$2" tmp="${STATE_FILE}.tmp.$$"
+    mkdir -p "$STATE_DIR"
+    { [ -f "$STATE_FILE" ] && awk -F '|' -v target="$path" '$1 != target { print }' "$STATE_FILE" || true; printf '%s|%s\n' "$path" "$hash"; } >"$tmp"
+    mv "$tmp" "$STATE_FILE"
+}
+remove_state() {
+    [ -f "$STATE_FILE" ] || return
+    tmp="${STATE_FILE}.tmp.$$"
+    awk -F '|' -v target="$1" '$1 != target { print }' "$STATE_FILE" >"$tmp"
+    mv "$tmp" "$STATE_FILE"
+}
+
+render() {
+    source="$1" destination="$2" tmp="$(mktemp "${TMPDIR:-/tmp}/mochad-redux-render.XXXXXX")"
+    [ -f "$source" ] || die "template not found: $source"
+    sed \
+        -e "s|@MOCHAD_BINARY@|$BINARY|g" \
+        -e "s|@SERVICE_USER@|$SERVICE_USER|g" \
+        -e "s|@SERVICE_GROUP@|$SERVICE_GROUP|g" \
+        -e "s|@USB_GROUP@|$USB_GROUP|g" "$source" >"$tmp"
+    printf '%s\n' '# Managed by mochad-redux-setup; local edits require --force to replace.' >>"$tmp"
+    printf '%s\n' "$tmp"
+}
+
+install_managed() {
+    source="$1" destination="$2" rendered="$(render "$source" "$destination")"
+    desired="$(sha256 "$rendered")" recorded="$(state_hash "$destination" || true)"
+    if [ -e "$destination" ]; then
+        actual="$(sha256 "$destination")"
+        if [ -z "$recorded" ] || [ "$actual" != "$recorded" ]; then
+            [ "$FORCE" = true ] || { rm -f "$rendered"; die "refusing to replace unmanaged or modified file: $destination"; }
+        fi
+    fi
+    if [ "$DRY_RUN" = true ]; then
+        log "+ install -m 0644 $rendered $destination"
+        rm -f "$rendered"
+        return
+    fi
+    mkdir -p "$(dirname "$destination")"
+    install -m 0644 "$rendered" "$destination"
+    rm -f "$rendered"
+    write_state "$destination" "$desired"
+}
+
+remove_managed() {
+    destination="$1" recorded="$(state_hash "$destination" || true)"
+    [ -e "$destination" ] || { remove_state "$destination"; return; }
+    actual="$(sha256 "$destination")"
+    if [ -z "$recorded" ] || [ "$actual" != "$recorded" ]; then
+        [ "$FORCE" = true ] || die "refusing to remove unmanaged or modified file: $destination"
+    fi
+    run rm -f "$destination"
+    [ "$DRY_RUN" = true ] || remove_state "$destination"
+}
+
+ensure_identities() {
+    if [ "$ROOT" != / ]; then log "[INFO] alternate root: account creation is not performed"; return; fi
+    getent group "$SERVICE_GROUP" >/dev/null 2>&1 || run groupadd --system "$SERVICE_GROUP"
+    getent group "$USB_GROUP" >/dev/null 2>&1 || run groupadd --system "$USB_GROUP"
+    if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
+        run useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin --gid "$SERVICE_GROUP" --groups "$USB_GROUP" "$SERVICE_USER"
+    else
+        run usermod -g "$SERVICE_GROUP" -a -G "$USB_GROUP" "$SERVICE_USER"
+    fi
+}
+
+systemctl_host() { [ "$ROOT" = / ] && have systemctl; }
+udevadm_host() { [ "$ROOT" = / ] && have udevadm; }
+reload_services() {
+    if [ "$WITH_SYSTEMD" = true ] && systemctl_host; then
+        run systemctl daemon-reload
+        [ "$ENABLE" = true ] && run systemctl enable mochad.service
+        [ "$ENABLE_NOW" = true ] && run systemctl enable --now mochad.service
+        [ "$RESTART" = true ] && run systemctl restart mochad.service
+    fi
+    if [ "$WITH_UDEV" = true ] && udevadm_host; then run udevadm control --reload-rules; fi
+}
+
+install_config() {
+    [ -e "$CONFIG_DEST" ] && { log "[INFO] preserving configuration: $CONFIG_DEST"; return; }
+    [ "$DRY_RUN" = true ] && { log "+ install -m 0644 $TEMPLATE_DIR/mochad.conf.example $CONFIG_DEST"; return; }
+    mkdir -p "$ETC_DIR"
+    install -m 0644 "$TEMPLATE_DIR/mochad.conf.example" "$CONFIG_DEST"
+}
+
+cmd_install() {
+    ensure_identities
+    [ "$WITH_SYSTEMD" = true ] && install_managed "$TEMPLATE_DIR/mochad.service.in" "$SYSTEMD_DEST"
+    [ "$WITH_UDEV" = true ] && install_managed "$TEMPLATE_DIR/91-usb-x10-controllers.rules.in" "$UDEV_DEST"
+    install_config
+    reload_services
+}
+cmd_verify() {
+    for destination in "$SYSTEMD_DEST" "$UDEV_DEST"; do
+        [ -e "$destination" ] || { log "MISSING $destination"; continue; }
+        recorded="$(state_hash "$destination" || true)"
+        [ -n "$recorded" ] && [ "$(sha256 "$destination")" = "$recorded" ] && log "OK $destination" || log "MODIFIED $destination"
+    done
+    [ -e "$CONFIG_DEST" ] && log "OK configuration preserved at $CONFIG_DEST" || log "MISSING $CONFIG_DEST"
+}
+cmd_status() {
+    log "prefix=$PREFIX"
+    log "binary=$BINARY"
+    log "templates=$TEMPLATE_DIR"
+    log "service_user=$SERVICE_USER service_group=$SERVICE_GROUP usb_group=$USB_GROUP"
+    systemctl_host && systemctl is-enabled mochad.service 2>/dev/null || true
+}
+cmd_remove() {
+    [ "$WITH_SYSTEMD" = true ] && remove_managed "$SYSTEMD_DEST"
+    [ "$WITH_UDEV" = true ] && remove_managed "$UDEV_DEST"
+    reload_services
+    log "[INFO] configuration and identities were preserved"
+}
+cmd_purge() {
+    cmd_remove
+    [ "$FORCE" = true ] || die "purge requires --force"
+    [ -e "$CONFIG_DEST" ] && run rm -f "$CONFIG_DEST"
+    if [ "$PURGE_ACCOUNTS" = true ]; then
+        [ "$ROOT" = / ] || die "account purge is only supported on the host root"
+        die "account purge is intentionally refused until local account usage is reviewed"
+    fi
+}
+
+[ "$#" -gt 0 ] || { usage; exit 64; }
+COMMAND="$1"; shift
+case "$COMMAND" in install|verify|status|remove|purge) ;; *) usage >&2; exit 64;; esac
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --enable) ENABLE=true;; --enable-now) ENABLE_NOW=true;; --restart) RESTART=true;;
+        --no-systemd) WITH_SYSTEMD=false;; --no-udev) WITH_UDEV=false;;
+        --service-user|--service-group|--usb-group|--prefix|--root)
+            [ "$#" -ge 2 ] || die "missing value for $1"
+            case "$1" in --service-user) SERVICE_USER="$2";; --service-group) SERVICE_GROUP="$2";; --usb-group) USB_GROUP="$2";; --prefix) PREFIX="$2";; --root) ROOT="$2";; esac; shift;;
+        --dry-run) DRY_RUN=true;; --force) FORCE=true;; --purge-accounts) PURGE_ACCOUNTS=true;;
+        --help|-h) usage; exit 0;; *) die "unknown option: $1";;
+    esac
+    shift
+done
+validate_options
+resolve_paths
+require_privileges
+case "$COMMAND" in install) cmd_install;; verify) cmd_verify;; status) cmd_status;; remove) cmd_remove;; purge) cmd_purge;; esac

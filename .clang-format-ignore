@@ -1,0 +1,2 @@
+# Development-only compatibility stub; retain its intentionally minimal form.
+tests/support/libusb-1.0/libusb.h

@@ -6,7 +6,7 @@ set -euo pipefail
 export LC_ALL=C
 export LANG=C
 
-source_dir="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+source_dir="$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$source_dir"
 
 echo "== mochad-redux validation: staged install contract =="
@@ -47,9 +47,9 @@ cd "$build_dir"
 ./configure --prefix=/usr >/dev/null
 
 make -n DESTDIR="$dest_dir" install >"$build_dir/install.plan"
-if grep -Eq '(^|[[:space:]])(systemctl|udevadm|useradd|groupadd|adduser|addgroup)([[:space:]]|$)' "$build_dir/install.plan"; then
+if grep -Eq '(^|[[:space:]])(systemctl|udevadm|useradd|groupadd|usermod|adduser|addgroup|lsusb)([[:space:]]|$)' "$build_dir/install.plan"; then
     echo "FAIL: make install plan contains live host mutation commands" >&2
-    grep -En '(systemctl|udevadm|useradd|groupadd|adduser|addgroup)' "$build_dir/install.plan" >&2
+    grep -En '(systemctl|udevadm|useradd|groupadd|usermod|adduser|addgroup|lsusb)' "$build_dir/install.plan" >&2
     exit 1
 fi
 
@@ -59,18 +59,38 @@ if grep -Eq '(^|[[:space:]])/etc/' "$build_dir/install.plan"; then
     exit 1
 fi
 
-make DESTDIR="$dest_dir" install-data >/dev/null
+# make install normally depends on a compiled binary.  A disposable executable
+# lets this contract test execute the install rules without requiring libusb.
+printf '#!/bin/sh\nexit 0\n' > mochad
+chmod 0755 mochad
+make -o mochad DESTDIR="$dest_dir" install-binPROGRAMS install-sbinSCRIPTS install-data >/dev/null
 
-test -f "$dest_dir/usr/lib/systemd/system/mochad.service" || {
-    echo "FAIL: staged systemd unit missing" >&2
+test -f "$dest_dir/usr/bin/mochad" || {
+    echo "FAIL: staged executable missing" >&2
     exit 1
 }
-test -f "$dest_dir/usr/lib/udev/rules.d/91-usb-x10-controllers.rules" || {
-    echo "FAIL: staged udev rule missing" >&2
+test -x "$dest_dir/usr/sbin/mochad-redux-setup" || {
+    echo "FAIL: staged administration tool missing" >&2
     exit 1
 }
-test -f "$dest_dir/usr/share/mochad-redux/hotplug2/20-usb-x10" || {
-    echo "FAIL: staged hotplug file missing" >&2
+test -f "$dest_dir/usr/share/mochad-redux/templates/mochad.service.in" || {
+    echo "FAIL: staged systemd template missing" >&2
+    exit 1
+}
+test -f "$dest_dir/usr/share/mochad-redux/templates/91-usb-x10-controllers.rules.in" || {
+    echo "FAIL: staged udev template missing" >&2
+    exit 1
+}
+test -f "$dest_dir/usr/share/mochad-redux/templates/mochad.conf.example" || {
+    echo "FAIL: staged config template missing" >&2
+    exit 1
+}
+test -f "$dest_dir/usr/share/man/man1/mochad.1" || {
+    echo "FAIL: staged manual page missing" >&2
+    exit 1
+}
+test -f "$dest_dir/usr/share/man/man8/mochad-redux-setup.8" || {
+    echo "FAIL: staged setup manual page missing" >&2
     exit 1
 }
 
@@ -79,7 +99,6 @@ if [ -e /etc/mochad-redux-staged-install-sentinel ]; then
     exit 1
 fi
 
-mkdir -p "$dest_dir/usr/bin"
 make DESTDIR="$dest_dir" uninstall >/dev/null
 
 if find "$dest_dir/usr" -type f | grep -q .; then

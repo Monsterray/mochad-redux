@@ -21,7 +21,7 @@ Record the exact commands and results.
 | Check | Environment | Command | Result | Notes |
 | --- | --- | --- | --- | --- |
 | libusb-free strict build |  | `scripts/validate/strict-libusb-free-compile.sh` |  |  |
-| cppcheck |  | `sh tools/compile_without_libusb.sh --cppcheck` |  |  |
+| cppcheck |  | `sh scripts/build/compile-without-libusb.sh --cppcheck` |  |  |
 | full libusb build |  | `scripts/validate/full-libusb-build.sh` |  |  |
 | Ubuntu LTS CI | GitHub Actions | CI workflow |  |  |
 | Ubuntu Latest CI | GitHub Actions | CI workflow |  |  |
@@ -32,9 +32,9 @@ Record the exact commands and results.
 
 | Tool | Command | Result | Notes |
 | --- | --- | --- | --- |
-| cppcheck | `sh tools/compile_without_libusb.sh --cppcheck` |  |  |
-| clang-tidy | `sh tools/compile_without_libusb.sh --clang-tidy` |  | Optional when available |
-| clang-format check | `sh tools/compile_without_libusb.sh --clang-format-check` |  | Optional when available |
+| cppcheck | `sh scripts/build/compile-without-libusb.sh --cppcheck` |  |  |
+| clang-tidy | `sh scripts/build/compile-without-libusb.sh --clang-tidy` |  | Optional when available |
+| clang-format check | `sh scripts/build/compile-without-libusb.sh --clang-format-check` |  | Optional when available |
 
 ## Runtime Validation
 
@@ -48,13 +48,16 @@ Record the exact commands and results.
 | Shutdown logs | native foreground |  |  |
 | Docker build | Docker |  | `scripts/validate/docker-build.sh` |
 | Docker health check | Docker |  | `scripts/validate/docker-smoke-test.sh` |
+| Staged install contract | source archive |  | `scripts/validate/staged-install-contract.sh` |
+| Native setup-tool contract | temporary fake root |  | `scripts/validate/native-setup-tool.sh` |
+| Native setup activation | Linux host |  | `mochad-redux-setup install --enable-now`; record only when run |
 
 ## Hardware Validation
 
 | Controller | Runtime | Result | Evidence |
 | --- | --- | --- | --- |
 | CM19A | Docker |  |  |
-| CM19A | Native foreground |  | `scripts/validate/cm19a-hardware-validation.sh` |
+| CM19A | Native foreground |  | `scripts/hardware/cm19a-validation.sh` |
 | CM19A | Native systemd |  |  |
 | CM15A | Docker |  |  |
 | CM15A | Native foreground |  |  |

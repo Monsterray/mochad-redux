@@ -11,6 +11,25 @@ on:
       - develop
 
 jobs:
+  style:
+    name: C format and shell safety
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install static-analysis tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format shellcheck
+
+      - name: Validate maintained C formatting
+        run: scripts/validate/clang-format.sh
+
+      - name: Validate tracked shell scripts
+        run: scripts/validate/shellcheck.sh
+
   ubuntu:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
@@ -29,7 +48,10 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Compile libusb-free sources
-        run: sh tools/compile_without_libusb.sh --strict --asan --ubsan
+        run: sh scripts/build/compile-without-libusb.sh --strict --asan --ubsan
+
+      - name: Validate version source and generated metadata
+        run: scripts/validate/version-consistency.sh
 
       - name: Run sanitizer unit tests
         run: scripts/validate/unit-tests.sh
@@ -61,6 +83,9 @@ jobs:
       - name: Run native command-line smoke test
         run: scripts/validate/native-smoke-test.sh
 
+      - name: Validate built runtime version
+        run: MOCHAD_BIN=./mochad scripts/validate/version-consistency.sh
+
   debian-stable:
     name: Debian Stable
     runs-on: ubuntu-latest
@@ -86,13 +111,15 @@ jobs:
                 libusb-1.0-0-dev \
                 pkg-config \
                 python3
-              sh tools/compile_without_libusb.sh --strict --asan --ubsan
+              sh scripts/build/compile-without-libusb.sh --strict --asan --ubsan
+              scripts/validate/version-consistency.sh
               scripts/validate/unit-tests.sh
               scripts/validate/tcp-diagnostics-smoke-test.sh
               ./autogen.sh
               ./configure
               make
               scripts/validate/native-smoke-test.sh
+              MOCHAD_BIN=./mochad scripts/validate/version-consistency.sh
             '
 
   raspberry-pi-cross:
@@ -110,6 +137,6 @@ jobs:
 
       - name: Cross compile libusb-free sources
         run: |
-          sh tools/compile_without_libusb.sh \
+          sh scripts/build/compile-without-libusb.sh \
             --strict \
             --cc arm-linux-gnueabihf-gcc

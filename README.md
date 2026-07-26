@@ -40,7 +40,18 @@ The first maintenance milestone is intentionally conservative:
 - Keep future rebases from upstream manageable.
 
 Broader protocol, USB, TCP, and state separation work is future work.
-Engineering principles are documented in [DESIGN.md](DESIGN.md).
+Engineering principles are documented in
+[the design guide](docs/architecture/design.md).
+
+## Versioning
+
+The root [VERSION](VERSION) file is the maintained project version source.
+Version files use plain semantic versions such as `0.4.0`, `0.5.0-dev`, or
+`0.5.0-rc1`; Git tags add the leading `v`. The upstream baseline remains the
+separate identity `mochad 0.1.18`.
+
+See [compatibility and versioning](docs/architecture/compatibility.md) for the maintained
+version mapping and the small, manual-friendly release preparation workflow.
 
 ## Source Notes
 
@@ -54,14 +65,33 @@ Older `mochad` sources could fail to link with errors similar to:
 ```
 
 That issue was addressed by declaring shared variables as `extern` in
-`global.h` and defining storage in `global.c`.
+`src/core/global.h` and defining storage in `src/core/global.c`.
 
 The `systemd` and `udev` directories were restored from the original
 [mochad-0.1.17](https://sourceforge.net/projects/mochad/files/) release so the
 service and device rules install correctly on modern systems.
 
 Legacy examples and service integration files are documented in
-[docs/support-files.md](docs/support-files.md).
+[legacy support-file documentation](docs/development/legacy-support-files.md).
+
+## Repository Layout
+
+Maintained code and support files are grouped by ownership:
+
+- `src/` contains the daemon, configuration, network, USB, and X10 code.
+- `tests/` contains unit, golden-output, integration, and test-support files.
+- `packaging/` contains maintained Linux templates and retained OpenWrt files.
+- `scripts/` contains build, formatting, setup, release, hardware, and
+  validation commands.
+- `contrib/` contains unsupported but reviewable client examples.
+- `docs/research/` contains historical, superseded, or provenance-sensitive
+  material that must not be treated as current installation guidance.
+- `validation/` contains release evidence policy and records.
+
+See the [documentation index](docs/README.md), the
+[architecture guide](docs/architecture/architecture.md), and the
+[repository layout record](docs/development/repository-layout-proposal.md) for
+ownership and compatibility details.
 
 ## Installation
 
@@ -90,63 +120,80 @@ git clone https://github.com/Monsterray/mochad-redux.git
 cd mochad-redux
 ```
 
-Build the project:
+Git checkouts need Autotools before configuration:
 
 ```sh
-chmod +x autogen.sh
 ./autogen.sh
+./configure
 make
 ```
 
-Install the package:
+Release archives already include `configure`, so use:
+
+```sh
+./configure
+make
+```
+
+## Native Linux Install
+
+The recommended bare-metal path is explicit and safe to repeat:
 
 ```sh
 sudo make install
+sudo mochad-redux-setup install --enable-now
 ```
 
 The Autotools install target only copies files into the configured prefix and
-honors `DESTDIR` for package builds. It does not create users, modify live
-`/etc`, reload udev, invoke systemd, or start services.
+honors `DESTDIR`. It installs inactive templates, documentation, licenses, and
+the `mochad-redux-setup` administration tool. It never creates accounts,
+modifies live `/etc`, calls `systemctl` or `udevadm`, starts services, or opens
+the controller.
 
-To prepare a native Linux host for the new non-root service permissions without
-running the full install target, use:
-
-```sh
-sudo scripts/setup-native-permissions.sh
-```
-
-Preview the operations first with:
+For a source-tree convenience path after a successful build:
 
 ```sh
-scripts/setup-native-permissions.sh --dry-run
+sudo ./scripts/setup/install-native.sh --enable-now
 ```
 
-Expected installed files include:
+`mochad-redux-setup` manages the default `mochad` user and group, the `x10`
+supplementary USB group, a `root:x10` / `0660` udev rule, and the existing
+`mochad.service` unit name. It records managed integration files and refuses to
+replace local edits unless `--force` is given. It preserves
+`/etc/mochad-redux/mochad.conf` during upgrades and does not restart an active
+service unless `--restart` or `--enable-now` is explicit.
 
-```text
-/usr/local/bin/mochad
-/etc/udev/rules.d/91-usb-x10-controllers.rules
-/etc/systemd/system/mochad.service
+Preview native integration first with:
+
+```sh
+sudo mochad-redux-setup install --dry-run
 ```
 
-Native packages create a `mochad` service user, a `mochad` primary group, and an
-`x10` device-access group when installed as root. The systemd unit runs with:
+## Package Staging
 
-```text
-User=mochad
-Group=mochad
-SupplementaryGroups=x10
-UMask=0022
+Package builders should stage only files and perform no host integration:
+
+```sh
+make DESTDIR="$PWD/stage" install
 ```
 
-The udev rules do not execute the daemon directly. They assign supported X10
-USB nodes to `root:x10` with mode `0660`; the systemd udev rule then activates
-`mochad.service`.
+## Development And Containers
 
-The service remains inactive until a supported CM15A or CM19A controller is
-connected. The installed `udev` rules handle service activation.
-Rollback steps are documented in
-[docs/native-install-rollback.md](docs/native-install-rollback.md).
+Run the daemon directly during development or use an isolated prefix. Never run
+`mochad-redux-setup` inside `mochad-docker`; container permissions are managed
+by that project instead. Removal and rollback guidance is in
+[native installation rollback](docs/installation/native-install-rollback.md).
+
+## Beta Testing
+
+Version 0.4.0 is a cautious public beta. Use a tagged beta release or exact
+full Git SHA, not a moving branch. Source-level validation has passed; CM19A,
+CM15A, and module behavior still require physical evidence.
+
+See [the beta-status guide](docs/release/beta-status.md), the
+[hardware validation guide](docs/development/hardware-validation.md), the
+[isolated hardware-lab setup](docs/development/hardware-lab-setup.md), and the
+Beta test report issue form before testing a non-critical controller or module.
 
 ## Testing
 
@@ -170,7 +217,7 @@ Use `Ctrl+C` to close `netcat`.
 For build-only checks that do not require `libusb`, use:
 
 ```sh
-sh tools/compile_without_libusb.sh --strict
+sh scripts/build/compile-without-libusb.sh --strict
 ```
 
 To syntax-check the USB-facing source on a development machine without real
@@ -181,8 +228,8 @@ scripts/validate/libusb-stub-syntax-check.sh
 ```
 
 This does not replace a real Linux/libusb build. It only keeps maintainers from
-missing ordinary C syntax or include errors in `mochad.c` while working on
-machines such as macOS.
+missing ordinary C syntax or include errors in `src/core/mochad.c` while
+working on machines such as macOS.
 
 To run sanitizer-backed unit tests and validate diagnostic JSON over a loopback
 TCP socket:
@@ -190,6 +237,7 @@ TCP socket:
 ```sh
 scripts/validate/unit-tests.sh
 scripts/validate/tcp-diagnostics-smoke-test.sh
+scripts/validate/version-consistency.sh
 ```
 
 To remove ignored build artifacts before validating, use:
@@ -204,12 +252,13 @@ In environments without libusb headers, run the clean libusb-free validation:
 scripts/validate/clean-build-test.sh --libusb-free-only
 ```
 
-Optional analyzer modes are documented in [MAINTAINING.md](MAINTAINING.md).
+Optional analyzer modes are documented in
+[the maintainer guide](docs/development/maintaining.md).
 Real controller testing is documented in
-[docs/hardware-validation.md](docs/hardware-validation.md).
+[the hardware validation guide](docs/development/hardware-validation.md).
 Release evidence is documented in [validation/README.md](validation/README.md).
 Supported platform expectations are documented in
-[docs/supported-platforms.md](docs/supported-platforms.md).
+[supported platforms](docs/installation/supported-platforms.md).
 
 ## Runtime Options
 
@@ -233,7 +282,7 @@ ports must be distinct TCP ports from `1` to `65535`. Invalid bind addresses or
 ports fail at startup with a clear error.
 
 A future generic JSON-RPC API is documented in
-[docs/json-api.md](docs/json-api.md). It is not implemented in the current
+[the JSON API design](docs/protocol/json-api.md). It is not implemented in the current
 runtime. The proposed listener is optional, disabled by default while
 experimental, and intended to use port `1102` without changing the existing
 `1099`, `1100`, or `1101` listener contracts.
@@ -359,7 +408,7 @@ enough if the device is already claimed.
 
 ## More Information
 
-- [Source lineage and upstream baseline](docs/source-lineage.md)
+- [Source lineage and upstream baseline](docs/research/source-lineage.md)
 - [Mochad on Recent Linux Distributions](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_en.html)
 - [French installation notes](https://sigmdel.ca/michel/ha/domoticz/mochad_on_recent_linux_distro_fr.html)
 - [Andreas's systemd unit discussion](https://sourceforge.net/p/mochad/discussion/1320002/thread/764dd1ce44/#76e9)
@@ -370,4 +419,4 @@ enough if the device is already claimed.
 
 GNU General Public License version 3.0 or later (GPL-3.0-or-later). See
 [LICENSE.md](LICENSE.md), [COPYING](COPYING), [NOTICE](NOTICE), and
-[docs/source-lineage.md](docs/source-lineage.md).
+[docs/research/source-lineage.md](docs/research/source-lineage.md).
