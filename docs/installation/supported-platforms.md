@@ -26,6 +26,18 @@ hardware validation evidence.
 | macOS | Build-only | libusb-free compile checks only. |
 | Windows | Not supported | No native runtime support planned. |
 
+## Historical Upstream Evidence
+
+The earlier fork line recorded successful tests on these exact systems. These
+records are historical evidence, not current release certification:
+
+- x86_64 GNU/Linux: Mint 20.1, Ubuntu 20.04 LTS, Linux 5.4.0-124.
+- aarch64 GNU/Linux: Armbian 22.05.3, Ubuntu 22.04.1 LTS, Linux
+  5.10.123-meson64.
+- aarch64 GNU/Linux: Raspberry Pi OS 2022-04-04, Debian 11.4, Linux
+  5.15.32-v8+.
+- armv6l GNU/Linux: Raspberry Pi OS 2024-01-25, Debian 12.1, Linux 6.1.0.
+
 ## Hardware
 
 | Hardware | Level | Notes |
