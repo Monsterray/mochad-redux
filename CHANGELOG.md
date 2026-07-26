@@ -5,7 +5,14 @@ All notable changes to `mochad-redux` should be recorded here.
 This project values release evidence over broad release claims. Each release
 entry should link to validation evidence when available.
 
+
 ## [Unreleased]
+
+## [0.5.0] - 2026-07-26
+
+Repository-stewardship release focused on a packaging-safe native install,
+maintainable source and support-file organization, deterministic validation,
+and preserved legacy runtime behavior.
 
 ### Changed
 
