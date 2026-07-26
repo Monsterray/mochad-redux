@@ -48,7 +48,7 @@ if [ ! -f "$evidence" ]; then
     sed \
         -e "s/^# Release Evidence: vX.Y.Z/# Release Evidence: v$release/" \
         -e "s/^- Release:$/- Release: v$release/" \
-        -e "s/^- Branch:$/- Branch: $(git branch --show-current)/" \
+        -e "s|^- Branch:$|- Branch: $(git branch --show-current)|" \
         -e "s/^- Date:$/- Date: $today/" \
         validation/release-evidence-template.md > "$evidence"
 fi
