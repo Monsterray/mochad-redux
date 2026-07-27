@@ -164,7 +164,7 @@ troubleshooting are in the
 The maintained project version comes from [VERSION](VERSION); the upstream
 baseline remains the separate identity `mochad 0.1.18`.
 
-The current `0.5.x` line focuses on compatibility, validation, installation,
+The current release line focuses on compatibility, validation, installation,
 and repository stewardship. Source and CI evidence do not prove physical RF
 delivery. CM15A and CM19A claims requiring real hardware are recorded
 separately in release evidence.
