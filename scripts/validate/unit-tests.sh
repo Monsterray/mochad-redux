@@ -82,4 +82,8 @@ echo "+ usb_endpoint_selection"
 "$BUILD_DIR/test_usb_endpoint_selection"
 
 echo
+echo "+ support_bundle"
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests/test_support_bundle.py
+
+echo
 echo "PASS: unit tests completed"

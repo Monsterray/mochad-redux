@@ -8,6 +8,11 @@ entry should link to validation evidence when available.
 
 ## [Unreleased]
 
+### Added
+
+- An offline sanitized support-bundle collector for allowlisted diagnostics
+  and bounded logs.
+
 ## [0.5.0] - 2026-07-26
 
 Repository-stewardship release focused on a packaging-safe native install,

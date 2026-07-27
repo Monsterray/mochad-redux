@@ -180,6 +180,7 @@ Use tagged releases or exact full Git SHAs for testing. See
 - [Design principles](docs/architecture/design.md)
 - [Architecture](docs/architecture/architecture.md)
 - [Runtime configuration](docs/installation/runtime-configuration.md)
+- [Sanitized support bundles](docs/operations/support-bundles.md)
 - [Native installation rollback](docs/installation/native-install-rollback.md)
 - [Supported platforms](docs/installation/supported-platforms.md)
 - [Hardware validation](docs/development/hardware-validation.md)

@@ -9,6 +9,7 @@ mochad
 *.so
 *.dylib
 *.dSYM/
+__pycache__/
 *.gcda
 *.gcno
 *.gcov
@@ -39,3 +40,4 @@ build/
 build-*/
 /mochad-redux-*.tar.gz
 /mochad-redux-[0-9]*/
+*support-bundle*.tar.gz
