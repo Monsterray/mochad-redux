@@ -17,6 +17,12 @@ Known lineage:
   Neil Cherry.
 - `mochad-redux` maintenance repository: `Monsterray/mochad-redux`.
 
+The documented fork chain is `bjonica/mochad` to `linuxha/mochad` to
+`sigmdel/mochad` to `mochad-redux`. The systemd and udev material restored
+during earlier maintenance came from the SourceForge `mochad-0.1.17` release;
+the current maintained templates and historical copies are separated as
+described below.
+
 The current repository history does not yet contain a complete machine-readable
 record of the exact upstream commit or source archive used to initialize this
 fork. Until that is reconstructed, release notes should describe the upstream
@@ -45,6 +51,11 @@ Examples of inherited files include:
 Files added or substantially expanded during `mochad-redux` maintenance include
 configuration, diagnostics, event-model, validation, and test support. They are
 distributed under the repository license unless a file states otherwise.
+
+Older source layouts could produce multiple-definition linker errors for
+shared symbols such as `RfToRf16`, `RfToPl16`, `PollTimeOut`, and `Cm19a`.
+Maintained source declares these shared variables with `extern` in
+`src/core/global.h` and defines their storage in `src/core/global.c`.
 
 ## Support Files
 
