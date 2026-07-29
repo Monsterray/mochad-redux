@@ -17,6 +17,7 @@ Use this page to distinguish current guidance from historical research.
 
 - [Supported platforms](installation/supported-platforms.md)
 - [Native rollback](installation/native-install-rollback.md)
+- [Native backup and isolated restore](installation/backup-and-restore.md)
 - [Root README](../README.md): build and installation entry point.
 
 ## Development

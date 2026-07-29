@@ -82,4 +82,8 @@ echo "+ usb_endpoint_selection"
 "$BUILD_DIR/test_usb_endpoint_selection"
 
 echo
+echo "+ native_backup_restore"
+python3 -m unittest -v tests/test_native_backup_restore.py
+
+echo
 echo "PASS: unit tests completed"

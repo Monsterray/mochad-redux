@@ -57,6 +57,7 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		scripts/build/compile-without-libusb.sh \
 		scripts/format/c.sh \
 		scripts/setup/install-native.sh scripts/setup/mochad-redux-setup.in \
+		scripts/backup/mochad-redux-backup \
 		scripts/release/prepare-next-dev.sh \
 		scripts/release/prepare-release.sh \
 		scripts/release/update-version-files.sh \
@@ -88,6 +89,7 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		tests/unit/test_x10_write.c \
 		tests/unit/test_socket_io.c tests/integration/test_tcp_diagnostics.c \
 		tests/unit/test_usb_endpoint_selection.c \
+		tests/test_native_backup_restore.py \
 		docs/architecture/compatibility.md \
 		docs/development/generated-artifacts.md \
 		docs/development/branch-closeout-inventory.md \
@@ -112,6 +114,7 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		docs/README.md \
 		docs/installation/supported-platforms.md \
 		docs/installation/native-install-rollback.md \
+		docs/installation/backup-and-restore.md \
 		packaging/linux/man/mochad.1 \
 		packaging/linux/man/mochad-redux-setup.8 \
 		validation/README.md validation/compiler.md validation/hardware.md \

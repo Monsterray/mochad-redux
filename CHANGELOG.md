@@ -8,6 +8,12 @@ entry should link to validation evidence when available.
 
 ## [Unreleased]
 
+### Added
+
+- Offline native-configuration backups and failure-atomic restore validation
+  for isolated roots. Generated systemd and udev files are reconstructed by
+  `mochad-redux-setup`; credentials remain external to the archive.
+
 ## [0.5.0] - 2026-07-26
 
 Repository-stewardship release focused on a packaging-safe native install,

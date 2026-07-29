@@ -1,0 +1,769 @@
+#!/usr/bin/env python3
+"""Create and restore mochad-redux native configuration backups."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import grp
+import hashlib
+import json
+import os
+import pathlib
+import platform
+import pwd
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tarfile
+import tempfile
+import uuid
+
+SCHEMA_VERSION = 1
+DEFAULT_CONFIG = "/etc/mochad-redux/mochad.conf"
+DEFAULT_STATE = "/var/lib/mochad-redux/managed-files"
+SYSTEMD_PATH = "/etc/systemd/system/mochad.service"
+UDEV_PATH = "/etc/udev/rules.d/91-usb-x10-controllers.rules"
+MANAGED_PATHS = {"systemd": SYSTEMD_PATH, "udev": UDEV_PATH}
+SECRET_KEY = re.compile(
+    r"(?:password|passwd|passphrase|secret|token|credential|private[_-]?key|"
+    r"api[_-]?key|user(?:name)?)",
+    re.IGNORECASE,
+)
+URL_CREDENTIAL = re.compile(r"://[^/\s:@]+:[^@\s/]+@")
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
+GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
+
+
+class BackupError(RuntimeError):
+    pass
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def sha256_file(path: pathlib.Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(131072), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def portable_sha256(path: pathlib.Path, root: pathlib.Path | str) -> str:
+    data = path.read_bytes()
+    root_text = str(root).rstrip("/")
+    if root_text:
+        data = data.replace(root_text.encode(), b"")
+    return sha256_bytes(data)
+
+
+def utc_now() -> str:
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+
+
+def rooted(root: pathlib.Path, absolute_path: str) -> pathlib.Path:
+    path = pathlib.PurePosixPath(absolute_path)
+    if not path.is_absolute() or ".." in path.parts:
+        raise BackupError(f"path must be absolute and normalized: {absolute_path}")
+    return root.joinpath(*path.parts[1:])
+
+
+def identity(path: pathlib.Path) -> dict[str, object]:
+    info = path.stat()
+    try:
+        owner = pwd.getpwuid(info.st_uid).pw_name
+    except KeyError:
+        owner = str(info.st_uid)
+    try:
+        group = grp.getgrgid(info.st_gid).gr_name
+    except KeyError:
+        group = str(info.st_gid)
+    return {
+        "owner": owner,
+        "group": group,
+        "uid": info.st_uid,
+        "gid": info.st_gid,
+        "mode": stat.S_IMODE(info.st_mode),
+    }
+
+
+def redact_config(data: bytes) -> tuple[bytes, list[dict[str, str]]]:
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise BackupError("configuration must be UTF-8 text") from error
+    if re.search(r"-----BEGIN [A-Z ]*PRIVATE KEY-----", text):
+        raise BackupError("configuration contains private key material; keep it external")
+
+    placeholders: list[dict[str, str]] = []
+    lines: list[str] = []
+    for line_number, line in enumerate(text.splitlines(keepends=True), start=1):
+        match = re.match(r"^(\s*)([A-Za-z0-9_.-]+)(\s*=\s*)(.*?)(\r?\n)?$", line)
+        secret_line = SECRET_KEY.search(line) or URL_CREDENTIAL.search(line)
+        if not secret_line:
+            lines.append(line)
+            continue
+        key = match.group(2) if match else f"unparsed_line_{line_number}"
+        placeholder = f"${{EXTERNAL_SECRET:{key}}}"
+        if match:
+            lines.append(
+                f"{match.group(1)}{key}{match.group(3)}{placeholder}{match.group(5) or ''}"
+            )
+        else:
+            lines.append(f"# {placeholder}\n")
+        placeholders.append(
+            {
+                "field": key,
+                "placeholder": placeholder,
+                "source_line": str(line_number),
+                "requirement": "supply through an operator-controlled encrypted store",
+            }
+        )
+    return "".join(lines).encode("utf-8"), placeholders
+
+
+def repository_identity(repository: pathlib.Path, sha_override: str | None) -> tuple[str, str]:
+    version = (repository / "VERSION").read_text(encoding="utf-8").strip()
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repository,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        discovered = None
+    else:
+        discovered = result.stdout.strip() if result.returncode == 0 else None
+    if sha_override and discovered and sha_override != discovered:
+        raise BackupError("--repository-sha does not match the repository HEAD")
+    sha = discovered or sha_override
+    if sha is None:
+        raise BackupError("cannot determine repository SHA; use --repository-sha")
+    if not GIT_SHA.fullmatch(sha):
+        raise BackupError("repository SHA must be exactly 40 lowercase hexadecimal characters")
+    return version, sha
+
+
+def parse_managed_state(root: pathlib.Path, state_path: str) -> dict[str, object]:
+    source = rooted(root, state_path)
+    metadata: dict[str, object] = {
+        "original_path": state_path,
+        "present": source.exists(),
+        "records": [],
+    }
+    if not source.exists():
+        return metadata
+    if not source.is_file() or source.is_symlink():
+        raise BackupError(f"managed state is not a regular file: {state_path}")
+
+    metadata.update(identity(source))
+    metadata["sha256"] = sha256_file(source)
+    seen: set[str] = set()
+    records: list[dict[str, object]] = []
+    path_to_kind = {path: kind for kind, path in MANAGED_PATHS.items()}
+    for line_number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), start=1):
+        parts = line.split("|")
+        if len(parts) != 2 or not SHA256.fullmatch(parts[1]):
+            raise BackupError(f"invalid managed state record at line {line_number}")
+        recorded_path, expected_hash = parts
+        original_path = recorded_path
+        if root != pathlib.Path("/"):
+            try:
+                relative = pathlib.Path(recorded_path).resolve().relative_to(root)
+                original_path = f"/{relative.as_posix()}"
+            except ValueError:
+                pass
+        if original_path not in path_to_kind:
+            raise BackupError(f"invalid managed state record at line {line_number}")
+        if original_path in seen:
+            raise BackupError(f"duplicate managed state record: {original_path}")
+        seen.add(original_path)
+        generated = rooted(root, original_path)
+        if not generated.is_file() or generated.is_symlink():
+            raise BackupError(f"managed integration file is missing: {original_path}")
+        if sha256_file(generated) != expected_hash:
+            raise BackupError(f"managed integration checksum mismatch: {original_path}")
+        content_root = str(root)
+        if root != pathlib.Path("/") and recorded_path.endswith(original_path):
+            content_root = recorded_path[: -len(original_path)]
+        record = {
+            "kind": path_to_kind[original_path],
+            "original_path": original_path,
+            "sha256": expected_hash,
+            "portable_sha256": portable_sha256(generated, content_root),
+            **identity(generated),
+        }
+        records.append(record)
+    metadata["records"] = sorted(records, key=lambda item: str(item["kind"]))
+    return metadata
+
+
+def create_backup(args: argparse.Namespace) -> int:
+    repository = pathlib.Path(args.repository).resolve()
+    root = pathlib.Path(args.root).resolve()
+    output = pathlib.Path(args.output).resolve()
+    version, repository_sha = repository_identity(repository, args.repository_sha)
+    config_path = DEFAULT_CONFIG
+    config_source = rooted(root, config_path)
+    if output.exists() and not args.overwrite_output:
+        raise BackupError(f"output already exists; use --overwrite-output: {output}")
+
+    entries: list[dict[str, object]] = []
+    placeholders: list[dict[str, str]] = []
+    payload: dict[str, bytes] = {}
+    if config_source.exists():
+        if not config_source.is_file() or config_source.is_symlink():
+            raise BackupError(f"configuration is not a regular file: {config_path}")
+        content, placeholders = redact_config(config_source.read_bytes())
+        archive_path = "payload/etc/mochad-redux/mochad.conf"
+        payload[archive_path] = content
+        entries.append(
+            {
+                "role": "native_config",
+                "owning_repository": "mochad-redux",
+                "original_path": config_path,
+                "archive_path": archive_path,
+                "sha256": sha256_bytes(content),
+                **identity(config_source),
+                "required": True,
+                "secret_classification": (
+                    "external_placeholders" if placeholders else "no_secret_fields_detected"
+                ),
+                "restore_order": 10,
+                "stable_identity_role": False,
+                "compatibility": {"backup_schema": SCHEMA_VERSION},
+            }
+        )
+
+    managed = parse_managed_state(root, DEFAULT_STATE)
+    if managed["present"] and not entries:
+        raise BackupError(f"managed state exists but required configuration is missing: {config_path}")
+    manifest = {
+        "schema_version": SCHEMA_VERSION,
+        "label": "UNSANITIZED OPERATIONAL BACKUP - SECRETS EXCLUDED",
+        "backup_id": str(uuid.uuid4()),
+        "created_at": utc_now(),
+        "source": {
+            "repository": "mochad-redux",
+            "version": version,
+            "sha": repository_sha,
+            "upstream_base": "mochad 0.1.18",
+        },
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "machine": platform.machine(),
+        },
+        "installation_method": args.installation_method,
+        "compatibility": {
+            "backup_schema": SCHEMA_VERSION,
+            "diagnostics_schema": 1,
+            "command_fact_schema": 1,
+        },
+        "entries": sorted(entries, key=lambda item: int(item["restore_order"])),
+        "external_placeholders": placeholders,
+        "managed_integrations": managed,
+        "setup": {
+            "service_user": args.service_user,
+            "service_group": args.service_group,
+            "usb_group": args.usb_group,
+            "prefix": args.prefix,
+        },
+        "restore_prerequisites": [
+            "restore into an isolated root",
+            "install the recorded mochad-redux version before managed-file reconstruction",
+            "supply external secrets after restore",
+        ],
+        "rollback": "activation restores pre-existing files if verification or setup reconstruction fails",
+    }
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="mochad-redux-backup-") as temp_name:
+        stage = pathlib.Path(temp_name)
+        for archive_path, content in payload.items():
+            destination = stage / archive_path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
+            os.chmod(destination, 0o600)
+        manifest_path = stage / "manifest.json"
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        os.chmod(manifest_path, 0o600)
+        temporary_output = output.with_name(f".{output.name}.tmp.{os.getpid()}")
+        try:
+            with tarfile.open(temporary_output, "w:gz") as archive:
+                for path in sorted(stage.rglob("*")):
+                    if path.is_file():
+                        archive.add(path, arcname=path.relative_to(stage), recursive=False)
+            os.chmod(temporary_output, 0o600)
+            os.replace(temporary_output, output)
+        finally:
+            temporary_output.unlink(missing_ok=True)
+
+    print(f"PASS: created unsanitized backup with secrets excluded: {output}")
+    return 0
+
+
+def safe_members(archive: tarfile.TarFile) -> dict[str, tarfile.TarInfo]:
+    members: dict[str, tarfile.TarInfo] = {}
+    for member in archive.getmembers():
+        path = pathlib.PurePosixPath(member.name)
+        if path.is_absolute() or ".." in path.parts or not member.isfile():
+            raise BackupError(f"unsafe or unsupported archive member: {member.name}")
+        if member.name in members:
+            raise BackupError(f"duplicate archive member: {member.name}")
+        members[member.name] = member
+    return members
+
+
+def validate_manifest(manifest: object, members: dict[str, tarfile.TarInfo]) -> dict[str, object]:
+    if not isinstance(manifest, dict):
+        raise BackupError("manifest must be a JSON object")
+    if manifest.get("schema_version") != SCHEMA_VERSION:
+        raise BackupError(f"unsupported backup schema: {manifest.get('schema_version')!r}")
+    source = manifest.get("source")
+    if not isinstance(source, dict) or source.get("repository") != "mochad-redux":
+        raise BackupError("manifest source.repository must be mochad-redux")
+    if not isinstance(source.get("version"), str) or not GIT_SHA.fullmatch(str(source.get("sha", ""))):
+        raise BackupError("manifest source version or SHA is invalid")
+    entries = manifest.get("entries")
+    if not isinstance(entries, list):
+        raise BackupError("manifest entries must be a list")
+    previous_order = -1
+    referenced = {"manifest.json"}
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise BackupError(f"manifest entry {index} must be an object")
+        required = {
+            "role": str,
+            "original_path": str,
+            "archive_path": str,
+            "sha256": str,
+            "uid": int,
+            "gid": int,
+            "owner": str,
+            "group": str,
+            "mode": int,
+            "restore_order": int,
+        }
+        for field, expected_type in required.items():
+            if type(entry.get(field)) is not expected_type:
+                raise BackupError(f"manifest entry {index}.{field} is invalid")
+        rooted(pathlib.Path("/"), str(entry["original_path"]))
+        archive_path = pathlib.PurePosixPath(str(entry["archive_path"]))
+        if (
+            archive_path.is_absolute()
+            or ".." in archive_path.parts
+            or not str(archive_path).startswith("payload/")
+        ):
+            raise BackupError(f"manifest entry {index}.archive_path is unsafe")
+        if not SHA256.fullmatch(str(entry["sha256"])):
+            raise BackupError(f"manifest entry {index}.sha256 is invalid")
+        order = int(entry["restore_order"])
+        if order <= previous_order:
+            raise BackupError("manifest restore_order values must be strictly increasing")
+        previous_order = order
+        referenced.add(str(archive_path))
+    if set(members) != referenced:
+        raise BackupError("archive members do not exactly match the manifest")
+
+    managed = manifest.get("managed_integrations")
+    if not isinstance(managed, dict) or not isinstance(managed.get("records"), list):
+        raise BackupError("managed_integrations records are invalid")
+    if type(managed.get("present")) is not bool or not isinstance(
+        managed.get("original_path"), str
+    ):
+        raise BackupError("managed_integrations identity is invalid")
+    seen_kinds: set[str] = set()
+    for index, record in enumerate(managed["records"]):
+        if not isinstance(record, dict) or record.get("kind") not in MANAGED_PATHS:
+            raise BackupError(f"managed integration record {index} is invalid")
+        for field, expected_type in (
+            ("original_path", str),
+            ("sha256", str),
+            ("portable_sha256", str),
+            ("uid", int),
+            ("gid", int),
+            ("owner", str),
+            ("group", str),
+            ("mode", int),
+        ):
+            if type(record.get(field)) is not expected_type:
+                raise BackupError(f"managed integration record {index}.{field} is invalid")
+        kind = str(record["kind"])
+        if kind in seen_kinds or record.get("original_path") != MANAGED_PATHS[kind]:
+            raise BackupError(f"managed integration record {index} path is invalid")
+        if not SHA256.fullmatch(str(record.get("sha256", ""))):
+            raise BackupError(f"managed integration record {index} checksum is invalid")
+        if not SHA256.fullmatch(str(record.get("portable_sha256", ""))):
+            raise BackupError(
+                f"managed integration record {index} portable checksum is invalid"
+            )
+        seen_kinds.add(kind)
+    if managed.get("present"):
+        for field, expected_type in (
+            ("original_path", str),
+            ("sha256", str),
+            ("uid", int),
+            ("gid", int),
+            ("owner", str),
+            ("group", str),
+            ("mode", int),
+        ):
+            if type(managed.get(field)) is not expected_type:
+                raise BackupError(f"managed_integrations.{field} is invalid")
+        if not SHA256.fullmatch(str(managed["sha256"])):
+            raise BackupError("managed_integrations.sha256 is invalid")
+    compatibility = manifest.get("compatibility")
+    if not isinstance(compatibility, dict) or compatibility.get("backup_schema") != SCHEMA_VERSION:
+        raise BackupError("manifest compatibility.backup_schema is invalid")
+    if not isinstance(manifest.get("external_placeholders"), list):
+        raise BackupError("manifest external_placeholders must be a list")
+    setup = manifest.get("setup")
+    if not isinstance(setup, dict) or any(
+        not isinstance(setup.get(field), str)
+        for field in ("service_user", "service_group", "usb_group", "prefix")
+    ):
+        raise BackupError("manifest setup metadata is invalid")
+    return manifest
+
+
+def load_backup(path: pathlib.Path) -> tuple[dict[str, object], dict[str, bytes]]:
+    try:
+        with tarfile.open(path, "r:*") as archive:
+            members = safe_members(archive)
+            if "manifest.json" not in members:
+                raise BackupError("archive is missing manifest.json")
+            manifest_stream = archive.extractfile(members["manifest.json"])
+            if manifest_stream is None:
+                raise BackupError("cannot read manifest.json")
+            manifest = validate_manifest(json.load(manifest_stream), members)
+            payload: dict[str, bytes] = {}
+            for entry in manifest["entries"]:
+                archive_path = str(entry["archive_path"])
+                stream = archive.extractfile(members[archive_path])
+                if stream is None:
+                    raise BackupError(f"cannot read archive member: {archive_path}")
+                data = stream.read()
+                if sha256_bytes(data) != entry["sha256"]:
+                    raise BackupError(f"checksum mismatch: {archive_path}")
+                payload[archive_path] = data
+            return manifest, payload
+    except (OSError, tarfile.TarError, json.JSONDecodeError) as error:
+        raise BackupError(f"cannot read backup archive: {error}") from error
+
+
+def inspect_backup(args: argparse.Namespace) -> int:
+    manifest, _ = load_backup(pathlib.Path(args.archive))
+    if args.json:
+        print(json.dumps(manifest, indent=2, sort_keys=True))
+    else:
+        print(f"backup_id={manifest['backup_id']}")
+        print(f"source_sha={manifest['source']['sha']}")
+        print(f"source_version={manifest['source']['version']}")
+        print(f"entries={len(manifest['entries'])}")
+        print(f"managed_integrations={len(manifest['managed_integrations']['records'])}")
+        print(f"external_placeholders={len(manifest['external_placeholders'])}")
+    return 0
+
+
+def ensure_isolated_root(root: pathlib.Path) -> pathlib.Path:
+    resolved = root.resolve()
+    if resolved == pathlib.Path("/"):
+        raise BackupError("restore refuses host root; choose an isolated --root")
+    resolved.mkdir(parents=True, exist_ok=True)
+    return resolved
+
+
+def ensure_safe_destination(root: pathlib.Path, destination: pathlib.Path) -> None:
+    if root not in destination.parents:
+        raise BackupError(f"restore destination escapes isolated root: {destination}")
+    current = root
+    for part in destination.relative_to(root).parts[:-1]:
+        current = current / part
+        if current.is_symlink():
+            raise BackupError(f"restore destination traverses a symlink: {current}")
+
+
+def snapshot(
+    paths: list[pathlib.Path], rollback: pathlib.Path
+) -> dict[pathlib.Path, tuple[pathlib.Path | None, int, int, int] | None]:
+    saved: dict[pathlib.Path, tuple[pathlib.Path | None, int, int, int] | None] = {}
+    for index, path in enumerate(paths):
+        if path.exists():
+            if not path.is_file() or path.is_symlink():
+                raise BackupError(f"cannot snapshot non-regular restore target: {path}")
+            target = rollback / str(index)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+            info = path.stat()
+            saved[path] = (
+                target,
+                stat.S_IMODE(info.st_mode),
+                info.st_uid,
+                info.st_gid,
+            )
+        else:
+            saved[path] = None
+    return saved
+
+
+def rollback_files(
+    saved: dict[pathlib.Path, tuple[pathlib.Path | None, int, int, int] | None]
+) -> None:
+    for destination, record in reversed(list(saved.items())):
+        if record is None:
+            destination.unlink(missing_ok=True)
+        else:
+            source, mode, uid, gid = record
+            assert source is not None
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(source, destination)
+            os.chmod(destination, mode)
+            if (destination.stat().st_uid, destination.stat().st_gid) != (uid, gid):
+                os.chown(destination, uid, gid)
+
+
+def run_setup_tool(
+    tool: pathlib.Path,
+    root: pathlib.Path,
+    manifest: dict[str, object],
+    kinds: set[str],
+    force: bool,
+) -> None:
+    if not tool.is_file() or tool.is_symlink():
+        raise BackupError(f"setup tool is not a regular file: {tool}")
+    setup = manifest["setup"]
+    command = ([] if os.access(tool, os.X_OK) else ["bash"]) + [
+        str(tool),
+        "install",
+        "--root",
+        str(root),
+        "--prefix",
+        str(setup["prefix"]),
+        "--service-user",
+        str(setup["service_user"]),
+        "--service-group",
+        str(setup["service_group"]),
+        "--usb-group",
+        str(setup["usb_group"]),
+    ]
+    if force:
+        command.append("--force")
+    if "systemd" not in kinds:
+        command.append("--no-systemd")
+    if "udev" not in kinds:
+        command.append("--no-udev")
+    try:
+        result = subprocess.run(
+            command, text=True, capture_output=True, check=False, timeout=30
+        )
+    except subprocess.TimeoutExpired as error:
+        raise BackupError("setup-tool reconstruction timed out") from error
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or f"exit {result.returncode}"
+        raise BackupError(f"setup-tool reconstruction failed: {detail}")
+
+
+def restore_backup(args: argparse.Namespace) -> int:
+    manifest, payload = load_backup(pathlib.Path(args.archive))
+    root = pathlib.Path(args.root).resolve()
+    if root == pathlib.Path("/"):
+        raise BackupError("restore refuses host root; choose an isolated --root")
+
+    plan: list[tuple[dict[str, object], pathlib.Path, str]] = []
+    for entry in manifest["entries"]:
+        destination = rooted(root, str(entry["original_path"]))
+        ensure_safe_destination(root, destination)
+        action = "create"
+        if destination.exists():
+            if not destination.is_file() or destination.is_symlink():
+                raise BackupError(f"restore target is not a regular file: {destination}")
+            action = "unchanged" if sha256_file(destination) == entry["sha256"] else "overwrite"
+            if action == "overwrite" and not args.overwrite:
+                raise BackupError(f"restore would overwrite {destination}; use --overwrite")
+        plan.append((entry, destination, action))
+
+    managed_records = manifest["managed_integrations"]["records"]
+    kinds = {str(record["kind"]) for record in managed_records}
+    if managed_records and args.apply and not args.setup_tool:
+        raise BackupError("--setup-tool is required to reconstruct managed integration files")
+    for record in managed_records:
+        destination = rooted(root, str(record["original_path"]))
+        ensure_safe_destination(root, destination)
+        if destination.exists():
+            if not destination.is_file() or destination.is_symlink():
+                raise BackupError(f"managed restore target is not a regular file: {destination}")
+            if portable_sha256(destination, root) != record["portable_sha256"] and not args.overwrite:
+                raise BackupError(
+                    f"restore would overwrite {destination}; use --overwrite"
+                )
+    managed_state = manifest["managed_integrations"]
+    state_destination = rooted(root, str(managed_state["original_path"]))
+    expected_state_lines = []
+    for record in managed_records:
+        generated = rooted(root, str(record["original_path"]))
+        checksum = sha256_file(generated) if generated.is_file() else str(record["sha256"])
+        expected_state_lines.append(f"{generated}|{checksum}\n")
+    expected_managed_state = "".join(expected_state_lines)
+    if managed_state.get("present") and state_destination.exists():
+        if not state_destination.is_file() or state_destination.is_symlink():
+            raise BackupError(f"managed state target is not a regular file: {state_destination}")
+        if (
+            state_destination.read_text(encoding="utf-8") != expected_managed_state
+            and not args.overwrite
+        ):
+            raise BackupError(
+                f"restore would overwrite {state_destination}; use --overwrite"
+            )
+
+    print("inspect=PASS validate=PASS plan=PASS")
+    for _, destination, action in plan:
+        print(f"{action}: {destination}")
+    if not args.apply:
+        print("dry_run=PASS apply=NOT RUN")
+        return 0
+
+    root = ensure_isolated_root(root)
+    stage = root / ".mochad-redux-restore-stage"
+    if stage.exists():
+        if stage.is_symlink() or not stage.is_dir():
+            raise BackupError(f"unsafe stale stage path: {stage}")
+        shutil.rmtree(stage)
+    payload_stage = stage / "payload"
+    rollback = stage / "rollback"
+    payload_stage.mkdir(parents=True, mode=0o700)
+    rollback.mkdir(mode=0o700)
+
+    tracked_paths = [destination for _, destination, _ in plan]
+    tracked_paths.extend(rooted(root, str(record["original_path"])) for record in managed_records)
+    tracked_paths.append(rooted(root, str(manifest["managed_integrations"]["original_path"])))
+    saved: dict[pathlib.Path, tuple[pathlib.Path | None, int, int, int] | None] = {}
+    try:
+        for entry, _, action in plan:
+            if action == "unchanged":
+                continue
+            staged = payload_stage / str(entry["restore_order"])
+            staged.write_bytes(payload[str(entry["archive_path"])])
+            os.chmod(staged, int(entry["mode"]))
+            if sha256_file(staged) != entry["sha256"]:
+                raise BackupError(f"staged checksum mismatch: {entry['archive_path']}")
+
+        saved = snapshot(list(dict.fromkeys(tracked_paths)), rollback)
+        for entry, destination, action in plan:
+            if action == "unchanged":
+                continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            staged = payload_stage / str(entry["restore_order"])
+            os.replace(staged, destination)
+            os.chmod(destination, int(entry["mode"]))
+            if (destination.stat().st_uid, destination.stat().st_gid) != (
+                int(entry["uid"]),
+                int(entry["gid"]),
+            ):
+                os.chown(destination, int(entry["uid"]), int(entry["gid"]))
+
+        if managed_records:
+            run_setup_tool(
+                pathlib.Path(args.setup_tool).resolve(),
+                root,
+                manifest,
+                kinds,
+                args.overwrite,
+            )
+            for record in managed_records:
+                generated = rooted(root, str(record["original_path"]))
+                if (
+                    not generated.is_file()
+                    or portable_sha256(generated, root) != record["portable_sha256"]
+                ):
+                    raise BackupError(
+                        f"reconstructed integration checksum mismatch: {record['original_path']}"
+                    )
+                os.chmod(generated, int(record["mode"]))
+                if (generated.stat().st_uid, generated.stat().st_gid) != (
+                    int(record["uid"]),
+                    int(record["gid"]),
+                ):
+                    os.chown(generated, int(record["uid"]), int(record["gid"]))
+            state_path = rooted(root, str(managed_state["original_path"]))
+            expected_managed_state = "".join(
+                f"{rooted(root, str(record['original_path']))}|"
+                f"{sha256_file(rooted(root, str(record['original_path'])))}\n"
+                for record in managed_records
+            )
+            if state_path.read_text(encoding="utf-8") != expected_managed_state:
+                raise BackupError("reconstructed managed-state records do not match")
+            os.chmod(state_path, int(managed_state["mode"]))
+            if (state_path.stat().st_uid, state_path.stat().st_gid) != (
+                int(managed_state["uid"]),
+                int(managed_state["gid"]),
+            ):
+                os.chown(state_path, int(managed_state["uid"]), int(managed_state["gid"]))
+
+        for entry, destination, _ in plan:
+            if sha256_file(destination) != entry["sha256"]:
+                raise BackupError(f"activated checksum mismatch: {destination}")
+        shutil.rmtree(stage)
+    except BaseException:
+        if saved:
+            rollback_files(saved)
+        shutil.rmtree(stage, ignore_errors=True)
+        raise
+
+    print("stage=PASS verify=PASS activate=PASS")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Offline mochad-redux native configuration backup and isolated restore"
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    create = subparsers.add_parser("create", help="create an unsanitized backup")
+    create.add_argument("--output", required=True)
+    create.add_argument("--root", default="/")
+    create.add_argument("--repository", default=pathlib.Path(__file__).resolve().parents[2])
+    create.add_argument("--repository-sha")
+    create.add_argument("--installation-method", default="native")
+    create.add_argument("--service-user", default="mochad")
+    create.add_argument("--service-group", default="mochad")
+    create.add_argument("--usb-group", default="x10")
+    create.add_argument("--prefix", default="/usr/local")
+    create.add_argument("--overwrite-output", action="store_true")
+    create.set_defaults(handler=create_backup)
+
+    inspect = subparsers.add_parser("inspect", help="validate and inspect a backup")
+    inspect.add_argument("archive")
+    inspect.add_argument("--json", action="store_true")
+    inspect.set_defaults(handler=inspect_backup)
+
+    restore = subparsers.add_parser("restore", help="restore only into an isolated root")
+    restore.add_argument("archive")
+    restore.add_argument("--root", required=True)
+    restore.add_argument("--apply", action="store_true")
+    restore.add_argument("--overwrite", action="store_true")
+    restore.add_argument("--setup-tool")
+    restore.set_defaults(handler=restore_backup)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        args = build_parser().parse_args(argv)
+        return int(args.handler(args))
+    except BackupError as error:
+        print(f"FAIL: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
