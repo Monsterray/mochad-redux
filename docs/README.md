@@ -41,6 +41,8 @@ They retain historical paths intentionally.
 
 - [JSON API design](protocol/json-api.md): design-only future work, not an
   implemented listener.
+- [Transport evidence](operations/transport-evidence.md): bounded Redux-owned
+  command, USB, acknowledgement, and decode facts.
 
 The implemented native TCP, XMLSocket, and OpenRemote behavior is documented
 in the root README and architecture guide.

@@ -1,6 +1,7 @@
 #include "mochad_event.h"
 
 #include "global.h"
+#include "transport_evidence.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -24,6 +25,25 @@ static const char *transport_label(mochad_event_transport_t transport) {
     }
 
     return "UNKNOWN";
+}
+
+static const char *evidence_direction(mochad_event_direction_t direction) {
+    return direction == MOCHAD_EVENT_DIRECTION_TX ? "tx" : "rx";
+}
+
+static const char *evidence_transport(mochad_event_transport_t transport) {
+    switch (transport) {
+    case MOCHAD_EVENT_TRANSPORT_PL:
+        return "powerline";
+    case MOCHAD_EVENT_TRANSPORT_RF:
+        return "rf";
+    case MOCHAD_EVENT_TRANSPORT_RFSEC:
+        return "security_rf";
+    case MOCHAD_EVENT_TRANSPORT_RFCAM:
+        return "camera_rf";
+    }
+
+    return "unknown";
 }
 
 static int format_checked(char *buffer, size_t buffer_len, const char *fmt, ...) {
@@ -149,5 +169,7 @@ int mochad_dispatch_event(int fd, const mochad_event_t *event) {
     if (mochad_event_format_legacy_body(event, body, sizeof(body)) < 0)
         return -1;
 
+    mochad_transport_evidence_receive(evidence_direction(event->direction),
+                                      evidence_transport(event->transport), "decoded");
     return sockprintf(fd, "%s\n", body);
 }

@@ -28,11 +28,13 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include "global.h"
+#include "transport_evidence.h"
 #include "x10_write.h"
 
 typedef struct x10out {
     size_t outlen;
     unsigned char outdata[8];
+    mochad_transport_attempt attempt;
 } x10out_t;
 
 static x10out_t Outrecs[256];
@@ -43,7 +45,7 @@ static int Outbusy = 0;
 
 static int next_index(int idx) { return ((idx + 1) % OUTPTRSSIZE); }
 
-static int add_x10out(unsigned char *buf, size_t buflen) {
+static int add_x10out(unsigned char *buf, size_t buflen, const mochad_transport_attempt *attempt) {
     int nxt;
     x10out_t *nxtrec;
 
@@ -55,13 +57,16 @@ static int add_x10out(unsigned char *buf, size_t buflen) {
     }
     if ((nxt = next_index(Outtail)) == Outhead) {
         dbprintf("Outptrs full Outhead/tail %d/%d\n", Outhead, Outtail);
+        mochad_transport_evidence_usb_queue_failed(attempt);
         return -1;
     }
 
     nxtrec = &Outrecs[nxt];
     nxtrec->outlen = buflen;
     memcpy(nxtrec->outdata, buf, buflen);
+    nxtrec->attempt = *attempt;
     Outtail = nxt;
+    mochad_transport_evidence_usb_queued(attempt);
     return buflen;
 }
 
@@ -82,17 +87,32 @@ int send_next_x10out(void) {
             r = write_usb(outrec->outdata, outrec->outlen);
             if (r < 0) {
                 dbprintf("queued USB write failed %d\n", r);
+                mochad_transport_evidence_usb_submit_failed(&outrec->attempt, r);
+                outrec->attempt = mochad_transport_evidence_attempt_retry(&outrec->attempt);
+                mochad_transport_evidence_usb_queued(&outrec->attempt);
                 PollTimeOut = 2 * 1000;
                 return r;
             }
+            mochad_transport_evidence_usb_submitted(&outrec->attempt);
             Outhead = next;
         }
     }
     return 0;
 }
 
+void cancel_pending_x10out(void) {
+    while (Outhead != Outtail) {
+        Outhead = next_index(Outhead);
+        mochad_transport_evidence_attempt_terminal_for(&Outrecs[Outhead].attempt, "cancelled",
+                                                       "shutdown_before_submission");
+    }
+    Outbusy = 0;
+    PollTimeOut = -1;
+}
+
 int x10_write(unsigned char *buf, size_t buflen) {
     int r;
+    mochad_transport_attempt attempt;
 
     dbprintf("Outbusy=%d\n", Outbusy);
     if (buflen > sizeof(Outrecs[0].outdata)) {
@@ -100,16 +120,20 @@ int x10_write(unsigned char *buf, size_t buflen) {
                  (unsigned long)sizeof(Outrecs[0].outdata));
         return -1;
     }
+    attempt = mochad_transport_evidence_attempt_begin();
     if (Outbusy) {
-        return add_x10out(buf, buflen);
+        return add_x10out(buf, buflen, &attempt);
     } else {
         Outbusy = 1;
+        mochad_transport_evidence_usb_queued(&attempt);
         r = write_usb(buf, buflen);
         if (r < 0) {
             Outbusy = 0;
             PollTimeOut = -1;
+            mochad_transport_evidence_usb_submit_failed(&attempt, r);
             return r;
         }
+        mochad_transport_evidence_usb_submitted(&attempt);
         PollTimeOut = 2 * 1000; /* 2 seconds */
     }
     return buflen;

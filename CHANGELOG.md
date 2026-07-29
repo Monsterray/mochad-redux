@@ -8,6 +8,11 @@ entry should link to validation evidence when available.
 
 ## [Unreleased]
 
+### Added
+
+- Bounded, read-only Redux transport evidence for command acceptance, USB
+  attempts, genuine controller acknowledgements, and normalized decode facts.
+
 ## [0.5.0] - 2026-07-26
 
 Repository-stewardship release focused on a packaging-safe native install,

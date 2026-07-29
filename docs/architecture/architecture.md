@@ -130,6 +130,7 @@ capabilities
 health
 clients
 version
+evidence
 ```
 
 These must not break existing clients.

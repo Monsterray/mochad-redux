@@ -64,6 +64,7 @@
 #include "global.h"
 #include "encode.h"
 #include "socket_io.h"
+#include "transport_evidence.h"
 #include "usb_endpoint_selection.h"
 #include "version.h"
 #include "x10_write.h"
@@ -292,6 +293,7 @@ static void maybe_finish_x10_transmit(void) {
      * commands are not artificially paced by the ACK timeout.
      */
     if (Cm19a) {
+        mochad_transport_evidence_attempt_terminal("succeeded", "usb_completed_ack_not_applicable");
         X10_ack_received = 0;
         X10_ack_timed_out = 0;
         send_next_x10out();
@@ -301,6 +303,10 @@ static void maybe_finish_x10_transmit(void) {
     if (!X10_ack_received && !X10_ack_timed_out)
         return;
 
+    if (X10_ack_timed_out)
+        mochad_transport_evidence_attempt_terminal("unknown", "ack_timeout");
+    else
+        mochad_transport_evidence_attempt_terminal("succeeded", "controller_ack");
     X10_ack_received = 0;
     X10_ack_timed_out = 0;
     send_next_x10out();
@@ -373,6 +379,18 @@ int mochad_diag_version(int fd) {
 
     return send_diag_json(fd, mochad_diag_json_version(json, sizeof(json), MOCHAD_UPSTREAM_BASE),
                           json);
+}
+
+int mochad_diag_evidence(int fd) {
+    char json[CLIENT_OUTPUT_QUEUE_SIZE];
+    int result;
+
+    result = mochad_transport_evidence_json(json, sizeof(json) - 1);
+    if (result < 0)
+        return statusprintf(fd, "{\"ok\":false,\"error\":\"diagnostic output too large\"}\n");
+
+    json[result++] = '\n';
+    return queue_client_bytes(fd, json, (size_t)result);
 }
 
 static int xmlclient(int fd) {
@@ -1376,6 +1394,7 @@ static void IntrOut_cb(struct libusb_transfer *transfer) {
         dbprintf("IntrOut callback len %d\n", transfer->actual_length);
         IntrOut_completed = 1;
         UsbOutCompletedCount++;
+        mochad_transport_evidence_usb_completed();
         maybe_finish_x10_transmit();
         return;
     }
@@ -1383,12 +1402,16 @@ static void IntrOut_cb(struct libusb_transfer *transfer) {
     if (transfer->status == LIBUSB_TRANSFER_CANCELLED) {
         syslog(LOG_NOTICE, "[USB] interrupt output transfer cancelled");
         IntrOut_completed = 1;
+        mochad_transport_evidence_usb_cancelled();
+        mochad_transport_evidence_attempt_terminal("cancelled", "transfer_cancelled");
         return;
     }
 
     syslog(LEVEL, "[USB] interrupt output transfer failed status=%s(%d)",
            transfer_status_name(transfer->status), transfer->status);
     IntrOut_completed = 1;
+    mochad_transport_evidence_usb_failed(transfer->status);
+    mochad_transport_evidence_attempt_terminal("failed", transfer_status_name(transfer->status));
     Do_exit = 2;
 }
 
@@ -1422,6 +1445,7 @@ static void IntrIn_cb(struct libusb_transfer *transfer) {
         if (*transfer->buffer == 0x55) {
             X10_ack_received = 1;
             UsbAckReceivedCount++;
+            mochad_transport_evidence_controller_acked();
             maybe_finish_x10_transmit();
         } else {
             UsbUnexpectedOneByteCount++;
@@ -1896,6 +1920,7 @@ static int mydaemon(void) {
             libusb_handle_events_timeout(UsbCtx, &timeout);
             X10_ack_timed_out = 1;
             UsbAckTimeoutCount++;
+            mochad_transport_evidence_usb_timed_out(Cm19a ? "transfer_timeout" : "ack_timeout");
             syslog(LOG_INFO, "[USB] X10 ACK timeout; command outcome unknown, advancing queue "
                              "without retransmit");
             maybe_finish_x10_transmit();
@@ -1991,6 +2016,8 @@ static int mydaemon(void) {
     cancel_transfer_if_active("output", IntrOut_transfer, &IntrOut_submitted, &IntrOut_canceling);
     cancel_transfer_if_active("input", IntrIn_transfer, &IntrIn_submitted, &IntrIn_canceling);
     drain_cancelled_transfers(100);
+    mochad_transport_evidence_attempt_terminal("unknown", "shutdown_before_callback");
+    cancel_pending_x10out();
 
     if (Do_exit == 1) {
         syslog(LOG_NOTICE, "[SHUTDOWN] requested by %s (%d)", signal_name(Exit_signal),

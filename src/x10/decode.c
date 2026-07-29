@@ -31,6 +31,7 @@
 #include "x10_write.h"
 #include "encode.h"
 #include "mochad_event.h"
+#include "transport_evidence.h"
 
 union x10addr {
     unsigned char houseunit; // Normalized codes 7..4 house 3..0 unit
@@ -733,6 +734,11 @@ static int dup_filter(const unsigned char *buf, int len) {
                 } else {
                     /* Entry has not expired so ignore it */
                     /* printf("dup_filter ignore @ %d\n", i); */
+                    mochad_transport_evidence_duplicate(
+                        buf[0] == 0x5d ? "rx" : "tx",
+                        buf[1] == 0x29 || (buf[1] == 0x20 && len > 3 && (buf[2] ^ buf[3]) == 0x0f)
+                            ? "security_rf"
+                            : (buf[1] == 0x14 ? "camera_rf" : "rf"));
                     return 1;
                 }
             } else {
@@ -1001,8 +1007,10 @@ void cm15a_decode(int fd, unsigned char *buf, unsigned int len) {
     unsigned char bufcm19a[9];
     unsigned char *p = buf;
 
-    if (len < 4)
+    if (len < 4) {
+        mochad_transport_evidence_receive("rx", "usb", "too_short");
         return;
+    }
     if (Cm19a) {
         /* Add 0x5d to front so USB packet from the CM19A looks just like
          * a USB packet from the CM15A. Call the same decode function.
@@ -1010,6 +1018,7 @@ void cm15a_decode(int fd, unsigned char *buf, unsigned int len) {
          */
         if (len > sizeof(bufcm19a) - 1) {
             dbprintf("CM19A packet too long %u/%lu\n", len, (unsigned long)(sizeof(bufcm19a) - 1));
+            mochad_transport_evidence_receive("rx", "usb", "too_long");
             return;
         }
         p = bufcm19a;
@@ -1067,6 +1076,7 @@ void cm15a_decode(int fd, unsigned char *buf, unsigned int len) {
         cm15a_decode_rf(fd, p, len);
         break;
     default:
+        mochad_transport_evidence_receive("rx", "usb", "unsupported");
         break;
     }
 }

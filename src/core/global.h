@@ -56,3 +56,4 @@ int mochad_diag_health(int fd);
 int mochad_diag_clients(int fd);
 int mochad_diag_config(int fd);
 int mochad_diag_version(int fd);
+int mochad_diag_evidence(int fd);
