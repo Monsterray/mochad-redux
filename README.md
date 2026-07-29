@@ -177,6 +177,7 @@ Use tagged releases or exact full Git SHAs for testing. See
 ## Documentation
 
 - [Documentation index](docs/README.md)
+- [Native backup and isolated restore](docs/installation/backup-and-restore.md)
 - [Design principles](docs/architecture/design.md)
 - [Architecture](docs/architecture/architecture.md)
 - [Runtime configuration](docs/installation/runtime-configuration.md)

@@ -14,6 +14,9 @@ entry should link to validation evidence when available.
   and bounded logs.
 - Bounded, read-only Redux transport evidence for command acceptance, USB
   attempts, genuine controller acknowledgements, and normalized decode facts.
+- Offline native-configuration backups and failure-atomic restore validation
+  for isolated roots. Generated systemd and udev files are reconstructed by
+  `mochad-redux-setup`; credentials remain external to the archive.
 
 ## [0.5.0] - 2026-07-26
 

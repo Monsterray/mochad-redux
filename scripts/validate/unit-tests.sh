@@ -95,4 +95,8 @@ echo "+ support_bundle"
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests/test_support_bundle.py
 
 echo
+echo "+ native_backup_restore"
+python3 -m unittest -v tests/test_native_backup_restore.py
+
+echo
 echo "PASS: unit tests completed"

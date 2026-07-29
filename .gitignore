@@ -8,6 +8,8 @@ mochad
 *.a
 *.so
 *.dylib
+*.pyc
+__pycache__/
 *.dSYM/
 __pycache__/
 *.gcda
