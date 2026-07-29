@@ -37,6 +37,10 @@ Use this page to distinguish current guidance from historical research.
 The inventory and obsolete-file audit are records of the pre-move audit base.
 They retain historical paths intentionally.
 
+## Operations
+
+- [Sanitized support bundles](operations/support-bundles.md)
+
 ## Protocol
 
 - [JSON API design](protocol/json-api.md): design-only future work, not an
