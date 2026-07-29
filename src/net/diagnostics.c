@@ -41,7 +41,7 @@ int mochad_diag_json_hello(char *buffer, size_t buffer_len, const char *upstream
 int mochad_diag_json_capabilities(char *buffer, size_t buffer_len, int raw_data) {
     return checked_snprintf(buffer, buffer_len,
                             "{\"ok\":true,\"commands\":[\"hello\",\"capabilities\","
-                            "\"health\",\"clients\",\"config\",\"version\"],"
+                            "\"health\",\"clients\",\"config\",\"version\",\"evidence\"],"
                             "\"legacy_commands\":[\"pl\",\"rf\",\"rfsec\",\"rfcam\",\"pt\","
                             "\"rftopl\",\"rftorf\",\"st\",\"getstatus\",\"getstatussec\"],"
                             "\"json\":true,\"single_line\":true,\"raw_data\":%s}",

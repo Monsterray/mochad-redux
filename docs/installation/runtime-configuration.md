@@ -99,11 +99,14 @@ printf 'health\n' | nc localhost 1099
 printf 'clients\n' | nc localhost 1099
 printf 'config\n' | nc localhost 1099
 printf 'version\n' | nc localhost 1099
+printf 'evidence\n' | nc localhost 1099
 ```
 
 These commands are used by health checks, the MQTT bridge, and release
 validation. The future generic JSON-RPC design is documented in
 [JSON API design](../protocol/json-api.md); port `1102` is not implemented.
+The bounded `evidence` response is documented in
+[Transport evidence](../operations/transport-evidence.md).
 
 ## USB Troubleshooting
 

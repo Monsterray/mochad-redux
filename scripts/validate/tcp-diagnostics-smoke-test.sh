@@ -22,7 +22,7 @@ echo
 echo "+ build TCP diagnostics harness"
 # shellcheck disable=SC2086
 "$CC" $CFLAGS tests/integration/test_tcp_diagnostics.c src/net/diagnostics.c \
-    src/config/config.c src/net/socket_io.c \
+    src/config/config.c src/net/socket_io.c src/net/transport_evidence.c \
     -o "$BUILD_DIR/test_tcp_diagnostics" $LDFLAGS
 
 echo "+ run TCP diagnostics harness"
@@ -38,8 +38,8 @@ version = sys.argv[2]
 with open(path, "r", encoding="utf-8") as handle:
     lines = [line.strip() for line in handle if line.strip()]
 
-if len(lines) != 5:
-    raise SystemExit(f"expected 5 JSON diagnostic lines, got {len(lines)}")
+if len(lines) != 6:
+    raise SystemExit(f"expected 6 JSON diagnostic lines, got {len(lines)}")
 
 objects = [json.loads(line) for line in lines]
 
@@ -58,12 +58,18 @@ if objects[0].get("daemon") != "mochad-redux":
     raise SystemExit("hello response missing legacy daemon identity")
 if "health" not in objects[1].get("commands", []):
     raise SystemExit("capabilities response missing health command")
+if "evidence" not in objects[1].get("commands", []):
+    raise SystemExit("capabilities response missing evidence command")
 if "listeners" not in objects[2]:
     raise SystemExit("health response missing listeners")
 if objects[3].get("listeners", {}).get("main", {}).get("port") != 1099:
     raise SystemExit("config response missing default main port")
 if "version" not in objects[4]:
     raise SystemExit("version response missing version")
+if objects[5].get("external_correlation") != "unavailable":
+    raise SystemExit("evidence response must report unavailable external correlation")
+if not any(fact.get("kind") == "redux.receive_decoded" for fact in objects[5].get("facts", [])):
+    raise SystemExit("evidence response missing receive fact")
 PY
 
 echo

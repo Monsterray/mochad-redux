@@ -27,8 +27,8 @@ the separate projects above.
 - Backward-compatible native, XMLSocket, and OpenRemote TCP listeners.
 - CM15A RF and power-line support plus CM19A RF support through libusb.
 - Clear startup, listener, USB, client, and shutdown diagnostics.
-- Read-only `hello`, `capabilities`, `health`, `clients`, `config`, and
-  `version` diagnostic commands.
+- Read-only `hello`, `capabilities`, `health`, `clients`, `config`, `version`,
+  and bounded `evidence` diagnostic commands.
 - Validated configuration from defaults, file, environment, and CLI.
 - A package-safe `make install` plus an explicit native setup tool.
 - Strict compilation, sanitizers, static analysis, TCP regression tests, and

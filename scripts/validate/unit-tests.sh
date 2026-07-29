@@ -49,20 +49,22 @@ echo
 echo "+ mochad_event"
 # shellcheck disable=SC2086
 "$CC" $CFLAGS tests/golden/test_mochad_event.c src/x10/mochad_event.c \
+    src/net/transport_evidence.c \
     -o "$BUILD_DIR/test_mochad_event" $LDFLAGS
 "$BUILD_DIR/test_mochad_event"
 
 echo
 echo "+ x10_write"
 # shellcheck disable=SC2086
-"$CC" $CFLAGS tests/unit/test_x10_write.c src/usb/x10_write.c \
+"$CC" $CFLAGS tests/unit/test_x10_write.c src/usb/x10_write.c src/net/transport_evidence.c \
     -o "$BUILD_DIR/test_x10_write" $LDFLAGS
 "$BUILD_DIR/test_x10_write"
 
 echo
 echo "+ encode_rf"
 # shellcheck disable=SC2086
-"$CC" $CFLAGS tests/unit/test_encode_rf.c src/x10/encode.c \
+"$CC" $CFLAGS tests/unit/test_encode_rf.c src/x10/encode.c src/usb/x10_write.c \
+    src/net/transport_evidence.c \
     -o "$BUILD_DIR/test_encode_rf" $LDFLAGS
 "$BUILD_DIR/test_encode_rf"
 
@@ -73,6 +75,13 @@ echo "+ diagnostics"
     -o "$BUILD_DIR/test_diagnostics" $LDFLAGS
 "$BUILD_DIR/test_diagnostics" >/dev/null
 echo "PASS: diagnostics"
+
+echo
+echo "+ transport_evidence"
+# shellcheck disable=SC2086
+"$CC" $CFLAGS tests/unit/test_transport_evidence.c src/net/transport_evidence.c \
+    -o "$BUILD_DIR/test_transport_evidence" $LDFLAGS
+"$BUILD_DIR/test_transport_evidence"
 
 echo
 echo "+ usb_endpoint_selection"

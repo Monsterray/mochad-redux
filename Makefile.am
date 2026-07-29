@@ -33,6 +33,7 @@ mochad_SOURCES = src/core/mochad.c src/core/global.c src/core/global.h \
 		src/config/config.c src/config/config.h src/config/version.h \
 		src/net/diagnostics.c src/net/diagnostics.h \
 		src/net/socket_io.c src/net/socket_io.h \
+		src/net/transport_evidence.c src/net/transport_evidence.h \
 		src/usb/usb_endpoint_selection.c src/usb/usb_endpoint_selection.h \
 		src/usb/x10_write.c src/usb/x10_write.h \
 		src/x10/decode.c src/x10/decode.h \
@@ -84,6 +85,7 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		scripts/validate/unit-tests.sh \
 		scripts/validate/version-consistency.sh \
 		tests/unit/test_config.c tests/unit/test_diagnostics.c \
+		tests/unit/test_transport_evidence.c \
 		tests/golden/test_mochad_event.c \
 		tests/unit/test_encode_rf.c \
 		tests/unit/test_x10_write.c \
@@ -123,6 +125,7 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		docs/architecture/architecture.md CHANGELOG.md CONTRIBUTING.md \
 		docs/architecture/design.md docs/development/maintaining.md \
 		docs/architecture/project-status.md README.md \
+		docs/operations/transport-evidence.md \
 		docs/release/beta-status.md docs/release/checklist.md \
 		docs/release/roadmap.md \
 		AGENTS.md SECURITY.md COPYING LICENSE.md NOTICE VERSION \

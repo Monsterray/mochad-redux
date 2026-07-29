@@ -7,6 +7,7 @@
 #include "encode.h"
 #include "global.h"
 #include "socket_io.h"
+#include "transport_evidence.h"
 #include "x10state.h"
 #include "x10_write.h"
 
@@ -67,11 +68,11 @@ void hexdump(void *p, size_t len) {
     (void)len;
 }
 
-int x10_write(unsigned char *buf, size_t len) {
+int write_usb(unsigned char *buf, size_t len) {
     usb_write_calls++;
     last_usb_write_len = len;
     memcpy(last_usb_write, buf, len);
-    return (int)len;
+    return 0;
 }
 
 void cm15a_decode_plc(int fd, unsigned char *buf, size_t len) {
@@ -167,6 +168,10 @@ int mochad_diag_version(int fd) {
     (void)fd;
     return 0;
 }
+int mochad_diag_evidence(int fd) {
+    (void)fd;
+    return 0;
+}
 
 static int expect(int condition, const char *message) {
     if (!condition) {
@@ -178,20 +183,48 @@ static int expect(int condition, const char *message) {
 
 static int test_rf_a2_on_cm19a_encoding(void) {
     char command[] = "rf A2 on";
+    char evidence[4096];
     unsigned char expected[] = {0x20, 0x60, 0x9f, 0x10, 0xef};
 
+    mochad_transport_evidence_reset();
     processcommandline(-1, command);
 
     if (expect(usb_write_calls == 1, "rf A2 on should submit one USB write"))
         return 1;
     if (expect(last_usb_write_len == sizeof(expected), "rf A2 on CM19A write length mismatch"))
         return 1;
-    return expect(memcmp(last_usb_write, expected, sizeof(expected)) == 0,
-                  "rf A2 on CM19A bytes changed");
+    if (expect(memcmp(last_usb_write, expected, sizeof(expected)) == 0,
+               "rf A2 on CM19A bytes changed"))
+        return 1;
+    if (expect(mochad_transport_evidence_json(evidence, sizeof(evidence)) > 0,
+               "RF command evidence should fit"))
+        return 1;
+    if (strstr(evidence, "\"kind\":\"redux.command_accepted\"") == NULL ||
+        strstr(evidence, "\"kind\":\"redux.usb_submitted\"") == NULL) {
+        fprintf(stderr, "Evidence: %s\n", evidence);
+        return expect(0, "valid RF command evidence missing");
+    }
+    return 0;
+}
+
+static int test_invalid_rf_command_is_rejected(void) {
+    char command[] = "rf A17 on";
+    char evidence[4096];
+    int calls_before = usb_write_calls;
+
+    mochad_transport_evidence_reset();
+    processcommandline(-1, command);
+    if (expect(usb_write_calls == calls_before, "invalid RF command reached USB"))
+        return 1;
+    if (expect(mochad_transport_evidence_json(evidence, sizeof(evidence)) > 0,
+               "rejection evidence should fit"))
+        return 1;
+    return expect(strstr(evidence, "\"kind\":\"redux.command_rejected\"") != NULL,
+                  "invalid RF command rejection evidence missing");
 }
 
 int main(void) {
-    if (test_rf_a2_on_cm19a_encoding())
+    if (test_rf_a2_on_cm19a_encoding() || test_invalid_rf_command_is_rejected())
         return 1;
 
     puts("PASS: encode_rf");

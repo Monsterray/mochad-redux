@@ -20,5 +20,6 @@
 #include <stddef.h>
 
 int send_next_x10out(void);
+void cancel_pending_x10out(void);
 
 int x10_write(unsigned char *buf, size_t buflen);

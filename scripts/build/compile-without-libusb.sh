@@ -140,6 +140,7 @@ trap cleanup EXIT INT HUP TERM
 SOURCES="
 src/config/config.c
 src/net/diagnostics.c
+src/net/transport_evidence.c
 src/x10/decode.c
 src/x10/encode.c
 src/core/global.c

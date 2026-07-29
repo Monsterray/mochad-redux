@@ -82,6 +82,7 @@
 #include <sys/socket.h>
 #include "global.h"
 #include "socket_io.h"
+#include "transport_evidence.h"
 #include "encode.h"
 #include "decode.h"
 #include "x10state.h"
@@ -671,7 +672,7 @@ static const char DOMAINPOLICY[] = "<?xml version=\"1.0\"?>"
  * rf a1 on
  * getstatus a1
  */
-int processcommandline(int fd, char *aLine) {
+static int processcommandline_impl(int fd, char *aLine) {
     char *command, *arg1;
     command_tokens_t tokens;
     int house, unit, func, param;
@@ -706,6 +707,8 @@ int processcommandline(int fd, char *aLine) {
             return mochad_diag_config(fd);
         } else if (strcmp(command, "VERSION") == 0) {
             return mochad_diag_version(fd);
+        } else if (strcmp(command, "EVIDENCE") == 0) {
+            return mochad_diag_evidence(fd);
         } else if (strcmp(command, "PL") == 0) {
             if (or20client(fd))
                 statusprintf(fd, "ok\n\r");
@@ -922,6 +925,17 @@ int processcommandline(int fd, char *aLine) {
         }
     }
     return 0;
+}
+
+int processcommandline(int fd, char *aLine) {
+    uint64_t command_id = 0;
+    int result;
+
+    if (mochad_transport_evidence_tracks_command(aLine))
+        command_id = mochad_transport_evidence_command_begin();
+    result = processcommandline_impl(fd, aLine);
+    mochad_transport_evidence_command_finish(command_id);
+    return result;
 }
 
 /*

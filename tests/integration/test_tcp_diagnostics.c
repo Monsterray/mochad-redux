@@ -1,5 +1,6 @@
 #include "diagnostics.h"
 #include "socket_io.h"
+#include "transport_evidence.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -85,9 +86,11 @@ static int connect_client(int port) {
 }
 
 static int emit_diagnostic_lines(int fd) {
-    char json[2048];
+    char json[16384];
     mochad_config config;
     mochad_diag_runtime runtime;
+    mochad_transport_attempt attempt;
+    uint64_t command_id;
 
     mochad_config_defaults(&config);
     snprintf(config.bind_address, sizeof(config.bind_address), "%s", "127.0.0.1");
@@ -112,6 +115,18 @@ static int emit_diagnostic_lines(int fd) {
         return -1;
     if (mochad_diag_json_version(json, sizeof(json), "mochad 0.1.18") < 0 ||
         send_json_line(fd, json) < 0)
+        return -1;
+    mochad_transport_evidence_reset();
+    command_id = mochad_transport_evidence_command_begin();
+    attempt = mochad_transport_evidence_attempt_begin();
+    mochad_transport_evidence_usb_queued(&attempt);
+    mochad_transport_evidence_usb_submitted(&attempt);
+    mochad_transport_evidence_usb_completed();
+    mochad_transport_evidence_controller_acked();
+    mochad_transport_evidence_attempt_terminal("succeeded", "controller_ack");
+    mochad_transport_evidence_command_finish(command_id);
+    mochad_transport_evidence_receive("rx", "rf", "decoded");
+    if (mochad_transport_evidence_json(json, sizeof(json)) < 0 || send_json_line(fd, json) < 0)
         return -1;
 
     return 0;

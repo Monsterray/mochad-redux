@@ -12,6 +12,8 @@ entry should link to validation evidence when available.
 
 - An offline sanitized support-bundle collector for allowlisted diagnostics
   and bounded logs.
+- Bounded, read-only Redux transport evidence for command acceptance, USB
+  attempts, genuine controller acknowledgements, and normalized decode facts.
 
 ## [0.5.0] - 2026-07-26
 

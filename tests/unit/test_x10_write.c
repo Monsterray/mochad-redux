@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "global.h"
+#include "transport_evidence.h"
 #include "x10_write.h"
 
 int PollTimeOut = -1;
@@ -77,10 +78,29 @@ static int test_queued_submit_failure_does_not_advance_head(void) {
                   "queued item changed after failed submit retry");
 }
 
+static int test_shutdown_cancels_pending_attempts(void) {
+    char evidence[16384];
+    unsigned char queued[] = {0x08, 0x09};
+
+    if (expect(x10_write(queued, sizeof(queued)) == (int)sizeof(queued),
+               "busy write should queue before shutdown"))
+        return 1;
+
+    cancel_pending_x10out();
+    if (expect(mochad_transport_evidence_json(evidence, sizeof(evidence)) > 0,
+               "shutdown evidence should fit"))
+        return 1;
+    return expect(strstr(evidence, "\"reason\":\"shutdown_before_submission\"") != NULL,
+                  "shutdown should terminate queued evidence");
+}
+
 int main(void) {
+    mochad_transport_evidence_reset();
     if (test_initial_submit_failure_does_not_leave_queue_busy())
         return 1;
     if (test_queued_submit_failure_does_not_advance_head())
+        return 1;
+    if (test_shutdown_cancels_pending_attempts())
         return 1;
 
     puts("PASS: x10_write");
