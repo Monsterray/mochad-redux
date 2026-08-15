@@ -49,7 +49,6 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		packaging/openwrt/hotplug2/20-usb-x10 \
 		packaging/openwrt/init.d/mochad \
 		docs/research/legacy-packaging/systemd/mochad.service \
-		cgi/x10.pl cgi/netcat.pl cgi/getsensors.pl cgi/cgi-lib.pl \
 		contrib/apps/mochamon.pl contrib/apps/simplemon.pl \
 		contrib/apps/bash.sh contrib/apps/rfsectopl3.pl \
 		docs/research/legacy-apps/x10-tk.py \

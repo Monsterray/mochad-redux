@@ -55,7 +55,7 @@ records are historical evidence, not current release certification:
 
 ## Legacy Support Files
 
-The `contrib/`, `cgi/`, `packaging/`, and `docs/research/legacy-*` folders are
+The `contrib/`, `packaging/`, and `docs/research/legacy-*` folders are
 described in [legacy support files](../development/legacy-support-files.md).
 They are not equal support surfaces:
 
@@ -65,8 +65,9 @@ They are not equal support surfaces:
 - `packaging/openwrt/` is legacy embedded Linux support.
 - `contrib/apps/` contains unsupported examples.
 - `docs/research/legacy-*` contains non-authoritative historical artifacts.
-- `cgi/` remains under review and must not be exposed without a security and
-  provenance review.
+- `docs/research/legacy-cgi/` is a withdrawn Perl CGI interface. A security
+  review found unauthenticated, remotely reachable defects, so it is no longer
+  distributed and must not be deployed.
 
 ## Updating This Matrix
 
