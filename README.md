@@ -218,6 +218,108 @@ Contributions should keep mechanical moves, formatting, behavior, tests, and
 release changes separate. Do not add MQTT or named device-model semantics to
 the daemon.
 
+## Windows Development
+
+`mochad-redux` is a Linux daemon. It depends on libusb-1.0, `poll()`,
+`syslog`, `daemon()`, and termios, and it cannot be compiled or run natively
+on Windows, with MSVC or with MinGW. Windows is an editing and
+partial-testing environment only. Building, running, and the C unit tests
+require WSL2 (or a real Linux host).
+
+### Where Each Task Runs
+
+| Task | Where |
+| --- | --- |
+| Edit code, `git` operations | Windows native |
+| C build (`./autogen.sh && ./configure && make`) | WSL2 or Linux host |
+| C unit tests | WSL2 or Linux host |
+| Python tests (`pytest tests`) | Either, with reduced coverage on Windows (see below) |
+| shellcheck | Either, after disabling CRLF conversion on Windows (see below) |
+| Docker validation | WSL2 or Linux host |
+
+### WSL2 Setup
+
+WSL2 with Ubuntu 24.04 has no build toolchain on a bare install. Install one
+with:
+
+```sh
+sudo apt update && sudo apt install -y build-essential autoconf automake libtool pkg-config libusb-1.0-0-dev shellcheck
+```
+
+### Cloning on Windows
+
+Clone with CRLF conversion disabled:
+
+```sh
+git clone -c core.autocrlf=false https://github.com/Monsterray/mochad-redux.git
+```
+
+For an existing checkout:
+
+```sh
+git config core.autocrlf false
+```
+
+Otherwise Git rewrites the shell scripts under `scripts/` and `packaging/` to
+CRLF line endings, and shellcheck reports thousands of spurious
+`SC1017 literal carriage return` findings. Measured: 2255 spurious findings
+on a CRLF checkout versus 22 real findings on a clean LF checkout.
+
+### Python Tests on Windows
+
+Running `python -m pytest tests` natively on Windows measured 4 passed, 17
+failed. Every one of the 17 failures is a Windows platform artifact, not a
+product bug:
+
+- 15 of them subprocess-execute `scripts/backup/mochad-redux-backup`, which
+  Windows cannot execute directly:
+  `OSError: [WinError 193] %1 is not a valid Win32 application`.
+- One creates a symlink and fails with
+  `OSError: [WinError 1314] A required privilege is not held by the client`.
+  Creating symlinks on Windows requires Developer Mode or an elevated shell;
+  see the gotchas below.
+- The last is a POSIX file-mode assertion that Windows does not honor:
+  `AssertionError: 438 != 384` (`0o666` versus an expected `0o600`).
+
+Effective Windows coverage of the backup/restore tooling is near zero: 16 of
+its 20 tests cannot run, including the tests that cover credential exclusion
+and root-restore refusal. Run the Python tests under WSL2 for real coverage
+of that tooling.
+
+Two other native-Windows mismatches affect test and script invocation:
+
+- `python3` does not exist on Windows; the command is `python`. Anything
+  that invokes `python3` fails with exit code 9009.
+- Tests that call `bash -n` require `bash` on `PATH`; without it they fail
+  with exit code 127. Git Bash provides it.
+- Creating symlinks requires elevated privileges. Enable Developer Mode
+  (Settings, System, For developers) or run from an elevated shell, otherwise
+  symlink operations fail with
+  `OSError: [WinError 1314] A required privilege is not held by the client`.
+
+### Linting on Windows
+
+`scripts/backup/mochad-redux-backup` is a Python script with no `.py`
+extension. `ruff` and `bandit` silently skip it unless pointed at it
+explicitly, and `shellcheck` refuses it (`SC1071`). The same applies to
+`packaging/openwrt/hotplug2/20-usb-x10` and
+`packaging/openwrt/init.d/mochad` (both `#!/bin/sh`). Point linters at these
+paths by name, or they get zero coverage.
+
+A venv runs `ruff`, `bandit`, and the Python tests natively:
+
+```sh
+python -m venv .venv
+.venv\Scripts\python -m pip install pytest ruff bandit shellcheck-py
+```
+
+### Summary
+
+Editing, `git`, reading code, and running the passing subset of the
+pure-Python test files all work natively on Windows. Compiling, running the
+daemon, the C unit tests, and full backup/restore test coverage require
+WSL2 or a real Linux host.
+
 ## Related Projects
 
 - [mochad-docker](https://github.com/Monsterray/mochad-docker)
