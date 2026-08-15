@@ -220,105 +220,106 @@ the daemon.
 
 ## Windows Development
 
-`mochad-redux` is a Linux daemon. It depends on libusb-1.0, `poll()`,
-`syslog`, `daemon()`, and termios, and it cannot be compiled or run natively
-on Windows, with MSVC or with MinGW. Windows is an editing and
-partial-testing environment only. Building, running, and the C unit tests
-require WSL2 (or a real Linux host).
+`mochad-redux` is a Linux daemon (libusb, `poll()`, `syslog`, `daemon()`). **It cannot be compiled or
+run on Windows** — not with MSVC, not with MinGW. Edit on Windows, build and test in WSL2.
 
-### Where Each Task Runs
+### Minimum setup
 
-| Task | Where |
-| --- | --- |
-| Edit code, `git` operations | Windows native |
-| C build (`./autogen.sh && ./configure && make`) | WSL2 or Linux host |
-| C unit tests | WSL2 or Linux host |
-| Python tests (`pytest tests`) | Either, with reduced coverage on Windows (see below) |
-| shellcheck | Either, after disabling CRLF conversion on Windows (see below) |
-| Docker validation | WSL2 or Linux host |
+Two commands. WSL2 with Ubuntu is assumed — `wsl --install` if you don't have it.
 
-### WSL2 Setup
+**1. Install the toolchain** (`-u root` avoids needing your WSL password):
 
-WSL2 with Ubuntu 24.04 has no build toolchain on a bare install. Install one
-with:
-
-```sh
-sudo apt update && sudo apt install -y build-essential autoconf automake libtool pkg-config libusb-1.0-0-dev shellcheck
+```powershell
+wsl -u root -- apt-get update
+wsl -u root -- apt-get install -y build-essential autoconf automake libtool pkg-config libusb-1.0-0-dev shellcheck
 ```
 
-### Cloning on Windows
+**2. Clone with CRLF conversion off** — not optional, see below:
 
-Clone with CRLF conversion disabled:
-
-```sh
+```powershell
 git clone -c core.autocrlf=false https://github.com/Monsterray/mochad-redux.git
 ```
 
-For an existing checkout:
+### Build and test
 
-```sh
-git config core.autocrlf false
+```powershell
+wsl -- bash -c "./autogen.sh && ./configure && make && bash scripts/validate/unit-tests.sh"
 ```
 
-Otherwise Git rewrites the shell scripts under `scripts/` and `packaging/` to
-CRLF line endings, and shellcheck reports thousands of spurious
-`SC1017 literal carriage return` findings. Measured: 2255 spurious findings
-on a CRLF checkout versus 22 real findings on a clean LF checkout.
+That produces a green run: 7 C unit binaries, plus 21 Python tests covering backup/restore and
+support bundles.
 
-### Python Tests on Windows
+> [!IMPORTANT]
+> **Always clone with `core.autocrlf=false`.** Git otherwise rewrites every shell script to CRLF,
+> which breaks them under Linux and makes shellcheck emit thousands of phantom
+> `SC1017 literal carriage return` errors — measured 2255 spurious versus 23 real.
+>
+> Already cloned the wrong way? `git config` alone does not rewrite the working tree:
+> ```bash
+> git config core.autocrlf false && git rm --cached -r . && git reset --hard
+> ```
 
-Running `python -m pytest tests` natively on Windows measured 4 passed, 17
-failed. Every one of the 17 failures is a Windows platform artifact, not a
-product bug:
+<details>
+<summary><b>Running the Python tests natively on Windows (optional, reduced coverage)</b></summary>
 
-- 15 of them subprocess-execute `scripts/backup/mochad-redux-backup`, which
-  Windows cannot execute directly:
-  `OSError: [WinError 193] %1 is not a valid Win32 application`.
-- One creates a symlink and fails with
-  `OSError: [WinError 1314] A required privilege is not held by the client`.
-  Creating symlinks on Windows requires Developer Mode or an elevated shell;
-  see the gotchas below.
-- The last is a POSIX file-mode assertion that Windows does not honor:
-  `AssertionError: 438 != 384` (`0o666` versus an expected `0o600`).
+<br>
 
-Effective Windows coverage of the backup/restore tooling is near zero: 16 of
-its 20 tests cannot run, including the tests that cover credential exclusion
-and root-restore refusal. Run the Python tests under WSL2 for real coverage
-of that tooling.
-
-Two other native-Windows mismatches affect test and script invocation:
-
-- `python3` does not exist on Windows; the command is `python`. Anything
-  that invokes `python3` fails with exit code 9009.
-- Tests that call `bash -n` require `bash` on `PATH`; without it they fail
-  with exit code 127. Git Bash provides it.
-- Creating symlinks requires elevated privileges. Enable Developer Mode
-  (Settings, System, For developers) or run from an elevated shell, otherwise
-  symlink operations fail with
-  `OSError: [WinError 1314] A required privilege is not held by the client`.
-
-### Linting on Windows
-
-`scripts/backup/mochad-redux-backup` is a Python script with no `.py`
-extension. `ruff` and `bandit` silently skip it unless pointed at it
-explicitly, and `shellcheck` refuses it (`SC1071`). The same applies to
-`packaging/openwrt/hotplug2/20-usb-x10` and
-`packaging/openwrt/init.d/mochad` (both `#!/bin/sh`). Point linters at these
-paths by name, or they get zero coverage.
-
-A venv runs `ruff`, `bandit`, and the Python tests natively:
-
-```sh
+```powershell
 python -m venv .venv
 .venv\Scripts\python -m pip install pytest ruff bandit shellcheck-py
+.venv\Scripts\python -m pytest tests
 ```
 
-### Summary
+Expect **4 passed, 17 failed**. All 17 failures are Windows platform artifacts, not product bugs:
 
-Editing, `git`, reading code, and running the passing subset of the
-pure-Python test files all work natively on Windows. Compiling, running the
-daemon, the C unit tests, and full backup/restore test coverage require
-WSL2 or a real Linux host.
+| Count | Cause |
+| --- | --- |
+| 15 | Tests subprocess-execute `scripts/backup/mochad-redux-backup`; Windows cannot run it directly — `WinError 193` |
+| 1 | Symlink creation without privilege — `WinError 1314`. Needs Developer Mode (Settings → System → For developers) |
+| 1 | POSIX file-mode assertion — `438 != 384` (`0o666` vs `0o600`). Windows has no POSIX permission bits |
+
+Because 16 of the backup tool's 20 tests cannot run here, native Windows gives **near-zero coverage
+of the backup/restore tooling** — including the credential-exclusion and root-restore-refusal tests.
+Those all pass under WSL2. Use WSL for anything you intend to trust.
+
+</details>
+
+<details>
+<summary><b>Gotchas and troubleshooting</b></summary>
+
+<br>
+
+- **`python3` does not exist on Windows** — the command is `python`. Anything invoking `python3` exits `9009`.
+- **Keep `bash` on PATH** (Git Bash) or tests calling `bash -n` exit `127`.
+- **Set `PYTHONUTF8=1`** — the console is cp1252/IBM437 and printing any non-ASCII character raises
+  `UnicodeEncodeError`. Persist it with
+  `[Environment]::SetEnvironmentVariable('PYTHONUTF8','1','User')`, then open a new terminal.
+- **Never "fix" a POSIX file-mode failure on Windows.** The assertion is correct; the platform is wrong.
+- **Linting misses `scripts/backup/mochad-redux-backup`** — it is Python with no `.py` extension, so
+  `ruff` and `bandit` skip it silently and `shellcheck` refuses it (`SC1071`). Point tools at it
+  explicitly. Same for `packaging/openwrt/hotplug2/20-usb-x10` and `packaging/openwrt/init.d/mochad`.
+- Building under `/mnt/c` works but is slow; for heavy C work clone inside the WSL filesystem instead.
+
+| Symptom | Fix |
+| --- | --- |
+| `UnicodeEncodeError: 'charmap' codec` | Set `PYTHONUTF8=1` |
+| `exit code 9009` | Something called `python3`; use `python` |
+| `exit code 127` | `bash` not on PATH |
+| `WinError 193` | Executing a `.sh` directly — expected, run it in WSL |
+| `WinError 1314` | Enable Developer Mode |
+| `assert 438 == 384` | Expected on Windows; do not "fix" |
+
+</details>
+
+### Where each task runs
+
+| Task | Windows | WSL2 / Linux |
+| --- | --- | --- |
+| Edit code, `git` | Yes | Yes |
+| C build and C unit tests | **No** | Yes |
+| Python tests | Partial — 4 of 21 | Yes, all pass |
+| shellcheck | Yes (`shellcheck-py`) | Yes |
+| USB / CM15A hardware validation | No | Linux host or Pi only |
 
 ## Related Projects
 
