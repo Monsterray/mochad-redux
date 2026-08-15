@@ -91,8 +91,11 @@ DIAGNOSTIC_SCHEMAS: dict[str, Any] = {
 }
 
 SECRET_ASSIGNMENT_RE = re.compile(
-    r"(?i)\b(password|passwd|token|secret|authorization|credential|"
-    r"mqtt_password|mqtt_tls_key_password)\b(\s*[=:]\s*)([^\s,;]+)"
+    r"(?i)(?:^|(?<=[^A-Za-z0-9]))"
+    r"((?:[A-Za-z0-9]+_)*(?:password|passwd|token|secret|authorization|"
+    r"credential|api[_-]?key)(?:_[A-Za-z0-9]+)*)"
+    r"(\s*[=:]\s*)"
+    r"((?:(?:Bearer|Basic)\s+)?[^\s,;]+)"
 )
 PEM_PRIVATE_RE = re.compile(
     r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----",
@@ -128,8 +131,9 @@ CONTENT_RULES = (
     ("raw_x10_identity", re.compile(r"(?i)HouseUnit:\s*[A-P](?:1[0-6]|[1-9])\b")),
     ("raw_ipv4", IPV4_RE),
     ("secret_assignment", re.compile(
-        r"(?i)\b(password|passwd|token|secret|authorization|credential|"
-        r"mqtt_password|mqtt_tls_key_password)\b\s*[=:]\s*[\"']?"
+        r"(?i)(?:^|(?<=[^A-Za-z0-9]))(?:[A-Za-z0-9]+_)*"
+        r"(?:password|passwd|token|secret|authorization|credential|api[_-]?key)"
+        r"(?:_[A-Za-z0-9]+)*\s*[=:]\s*[\"']?(?:(?:Bearer|Basic)\s+)?"
         r"(?!\[REDACTED:secret\])[^\s,\"'}]{4,}"
     )),
 )
