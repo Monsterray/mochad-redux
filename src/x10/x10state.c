@@ -220,7 +220,10 @@ int hua_getstatus_sec(int rf8bitaddr, unsigned long rfaddr) {
 static int cmpX10sensor(const void *e1, const void *e2) {
     const x10secsensor_t *sen1 = e1, *sen2 = e2;
 
-    return sen1->secaddr - sen2->secaddr;
+    /* secaddr is unsigned long; a plain subtraction truncated to int can
+     * invert the sign and give qsort an inconsistent comparator.
+     */
+    return (sen1->secaddr > sen2->secaddr) - (sen1->secaddr < sen2->secaddr);
 }
 
 void hua_show(int fd) {

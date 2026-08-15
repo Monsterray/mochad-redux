@@ -416,6 +416,13 @@ void cm15a_decode_plc(int fd, unsigned char *buf, size_t len) {
             dbprintf("codelen must be 3 != %d\n", codelen);
             return;
         }
+        /* buf[4] is read below; the entry guard only guarantees len >= 4.
+         * Mirrors the re-validation already done in case 0x07 / case 0x08.
+         */
+        if (len < 5) {
+            dbprintf("too short for dim/bright %d\n", len);
+            return;
+        }
         dims = (buf[3] & 0xF8) >> 3;
         funcint = hfc_decode(buf[4], &housechar);
         dispatch_pl_house_level(fd, buf[0], housechar, Funcname[funcint], dims);
@@ -885,6 +892,14 @@ void cm15a_decode_rf(int fd, unsigned char *buf, unsigned int len) {
         }
         break;
     case 0x20: // standard X10 RF
+        /* Both sub-branches below read buf[5]; the entry guard only
+         * guarantees len >= 5.
+         */
+        if (len < 6) {
+            sockprintf(fd, "too short %d\n", len);
+            sockhexdump(fd, buf, len);
+            return;
+        }
         chksum = buf[2] ^ buf[3];
         if (chksum == 0x0f) {
             /* 5D 20 E2 ED 0A F5 from SH624

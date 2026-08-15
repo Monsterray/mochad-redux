@@ -55,6 +55,13 @@
 /**** socket ****/
 
 #include <sys/socket.h>
+
+/* Matches the fallback in src/net/socket_io.c so a platform without
+ * MSG_NOSIGNAL still compiles. See flush_client_output().
+ */
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -750,7 +757,11 @@ static int flush_client_output(int fd, struct client_output_queue *queue, size_t
         if (wanted > *write_budget)
             wanted = *write_budget;
 
-        written = send(fd, chunk, wanted, 0);
+        /* MSG_NOSIGNAL: a client that closes its socket between queueing and
+         * this flush would otherwise raise SIGPIPE, whose default disposition
+         * terminates the daemon and drops every other client.
+         */
+        written = send(fd, chunk, wanted, MSG_NOSIGNAL);
         if (written < 0) {
             if (errno == EINTR)
                 continue;
