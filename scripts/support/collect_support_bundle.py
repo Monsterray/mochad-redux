@@ -101,7 +101,11 @@ PEM_PRIVATE_RE = re.compile(
     r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----",
     re.DOTALL,
 )
-URL_USERINFO_RE = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/@\s]+@")
+# The "not already redacted" guard keeps this from matching its own output.
+# Without it the post-redaction scan flags every sanitised broker URL and the
+# bundle build fails closed, making the tool unusable on exactly the systems
+# that need it.
+URL_USERINFO_RE = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)(?!\[REDACTED:)[^/@\s]+@")
 RFSEC_RE = re.compile(
     r"(?i)(RFSEC\s+Addr:\s*)(?:0x[0-9a-f]{2}|[0-9a-f]{2}(?::[0-9a-f]{2}){2})"
 )
@@ -124,7 +128,8 @@ FILENAME_RULES = (
 )
 CONTENT_RULES = (
     ("private_key", PEM_PRIVATE_RE),
-    ("url_credentials", re.compile(r"(?i)\b[a-z][a-z0-9+.-]*://[^/@\s]+@")),
+    ("url_credentials",
+     re.compile(r"(?i)\b[a-z][a-z0-9+.-]*://(?!\[REDACTED:)[^/@\s]+@")),
     ("raw_security_id", re.compile(
         r"(?i)RFSEC\s+Addr:\s*(?:0x[0-9a-f]{2}|[0-9a-f]{2}(?::[0-9a-f]{2}){2})"
     )),
