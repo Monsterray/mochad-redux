@@ -1,6 +1,6 @@
 # Beta Status
 
-mochad-redux 0.4.0 is a compatibility-focused beta line. It preserves the
+mochad-redux 0.5.0 is a compatibility-focused beta line. It preserves the
 legacy main TCP listener while improving installation, diagnostics, validation,
 and maintainability.
 
