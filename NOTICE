@@ -14,7 +14,7 @@ states different terms.
 
 Bundled third-party component:
 
-- cgi/cgi-lib.pl is cgi-lib.pl 2.18 by Steven E. Brenner, copyright
+- docs/research/legacy-cgi/cgi-lib.pl is cgi-lib.pl 2.18 by Steven E. Brenner, copyright
   1993-1999. Its embedded notice grants permission to use and modify the
   library as long as the copyright is maintained, modifications are documented,
   and credit is given.
