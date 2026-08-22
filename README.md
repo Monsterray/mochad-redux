@@ -220,8 +220,15 @@ the daemon.
 
 ## Windows Development
 
-`mochad-redux` is a Linux daemon (libusb, `poll()`, `syslog`, `daemon()`). **It cannot be compiled or
-run on Windows** — not with MSVC, not with MinGW. Edit on Windows, build and test in WSL2.
+`mochad-redux` targets POSIX systems. **It does not currently compile on Windows** — not with MSVC,
+not with MinGW. Edit on Windows, build and test in WSL2.
+
+The obstacle is not USB access: `libusb-1.0` is itself cross-platform. What is POSIX-only is the
+surrounding runtime — `syslog`/`openlog` for logging, `daemon()` for backgrounding, and the
+`poll()`/`sys/socket.h`/`unistd.h` service layer. Porting to Windows would mean a compatibility shim
+for those three areas (Windows offers `WSAPoll`, services instead of `daemon()`, and its own event
+log), not a rewrite of the X10 or USB logic. macOS is a much smaller gap, since all three exist
+there natively; it is simply untested and unsupported today.
 
 ### Minimum setup
 
