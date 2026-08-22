@@ -10,8 +10,11 @@ moving development branch.
 | Area | Status | Notes |
 | --- | --- | --- |
 | Strict libusb-free compile, formatting, shell safety, unit tests, diagnostics harness | PASS | Recorded source-level validation passed. |
-| Live TCP listener, XMLSocket, and OpenRemote listener smoke tests | NOT RUN | Require runtime evidence in a suitable environment. |
-| CM19A and CM15A USB receive/transmit/recovery | HARDWARE REQUIRED | Requires an approved locked hardware-lab session and human observation. |
+| Main TCP listener and diagnostics | PASS | Native Linux evidence and the exact-SHA macOS CM19A run cover the main listener. |
+| XMLSocket and OpenRemote listener smoke tests | NOT RUN | No new macOS runtime evidence was collected for the optional legacy listeners. |
+| CM19A native foreground receive/transmit/shutdown | PASS | Recorded on Linux and on macOS 13 x86_64; see the linked hardware evidence. |
+| CM19A hotplug and in-flight shutdown | HARDWARE REQUIRED | Requires a separate approved locked hardware-lab session. |
+| CM15A USB receive/transmit/recovery | HARDWARE REQUIRED | Requires CM15A hardware and recorded physical evidence. |
 | Module-specific behavior | HARDWARE REQUIRED | Requires a controller, module, and physical result. |
 
 Do not run two mochad processes against one controller. Do not expose the
