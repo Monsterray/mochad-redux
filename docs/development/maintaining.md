@@ -32,13 +32,10 @@ Small, single-purpose commits will make future rebases and reviews easier.
 
 ## Release Flow
 
-`v0.3.0` is the current baseline release. The active milestone is the `v0.4.x`
-runtime-hardening and observability line.
-
-For `v0.4.x`, prioritize clear startup, shutdown, listener, USB, and client
-lifecycle diagnostics before adding protocol features. New commands and larger
-modernization work should wait until runtime logs are strong enough for users
-to diagnose common deployment failures from the daemon output.
+The authoritative maintained-project version is [VERSION](../../VERSION).
+`v0.5.0` is the current baseline. Determine later milestone scope from the
+roadmap and reviewed issues rather than carrying an old version assumption into
+new work.
 
 For each release:
 
@@ -54,6 +51,30 @@ For each release:
 8. Tag the release from `master`.
 
 Do not tag releases from `develop`.
+
+## Develop Maintenance Record: 2026-08-22
+
+Baseline `d981f46ba9bdb1913272f31bd707303d9c5bf163` closes the release-audit
+branch merged as PR #24. The fixes are intentionally narrow:
+
+- RF and power-line decode paths now bound reads before accessing packet
+  fields. Keep malformed and truncated input tests when changing decoders.
+- Socket output can no longer terminate the daemon through `SIGPIPE`; callers
+  still handle and report write failures normally.
+- Backup inspection bounds archive-member size before reading data into
+  memory. Do not replace this with an unbounded convenience read.
+- Support-bundle redaction covers quoted credential assignments without
+  repeatedly matching its own replacement text. New secret formats require a
+  focused regression fixture.
+- Legacy Perl CGI files are preserved under `docs/research/legacy-cgi/` for
+  lineage only. They are not installed, supported, or an approved interface.
+- `.gitattributes` enforces LF for maintained source and scripts so Windows
+  checkouts cannot silently break Linux builds.
+
+The branch passed strict libusb-free compilation, the unit suite, and an
+exact-SHA Ubuntu libusb build. CM19A preflight passed, but physical activation
+and shutdown during an in-flight transfer remain separate hardware evidence.
+Do not infer those outcomes from source or transport tests.
 
 ## Syncing upstream
 
