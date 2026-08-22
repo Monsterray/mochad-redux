@@ -3,8 +3,8 @@
 A web interface for controlling X10 devices, written around 2010 by the original mochad author. It
 was previously kept in `cgi/` at the repository root and distributed in release tarballs.
 
-**It is retained for historical reference only. It is not part of the supported interface, is not
-distributed, and must not be deployed.**
+**It is retained in the source tree for historical reference only. It is not installed, is not part
+of the supported interface, and must not be deployed.**
 
 ## Why it was withdrawn
 
@@ -26,5 +26,7 @@ general-purpose interface, which is why it was withdrawn rather than repaired.
 
 ## If you want a web interface
 
-Use the JSON API (`docs/protocol/json-api.md`) behind your own authenticated front end, or the
-Home Assistant integration via [mochad-mqtt-bridge](https://github.com/Monsterray/mochad-mqtt-bridge).
+Use the Home Assistant integration via
+[mochad-mqtt-bridge](https://github.com/Monsterray/mochad-mqtt-bridge). A custom client may use the
+existing newline-delimited TCP interface only on a trusted, isolated network; it has no built-in
+authentication. The JSON API in `docs/protocol/json-api.md` is design-only and is not implemented.

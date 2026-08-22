@@ -17,9 +17,10 @@ The cleanup branch followed the conservative audit result:
   `docs/research/legacy-apps/`;
 - current examples moved to `contrib/apps/`;
 - OpenWrt support remains under `packaging/openwrt/`;
-- the complete CGI set was withdrawn to `docs/research/legacy-cgi/` and is no
-  longer distributed, after a security review found unauthenticated, remotely
-  reachable defects (see that folder's README).
+- the complete CGI set was withdrawn to `docs/research/legacy-cgi/` as tracked
+  historical source that is not installed or supported, after a security
+  review found unauthenticated, remotely reachable defects (see that folder's
+  README).
 
 Paths in the findings below describe the audit base unless an implemented
 destination is stated.
@@ -262,7 +263,7 @@ Do not delete:
 | Mixed udev README | Merge current text, archive historical text | NOT APPROVED |
 | Python 2 Tk app | Archive as research | NOT APPROVED |
 | Raw FIFO/MisterHouse script | Archive as research | NOT APPROVED |
-| CGI application set | Withdrawn to research archive, not distributed | RESOLVED |
+| CGI application set | Withdrawn to tracked research source; not installed or supported | RESOLVED |
 | OpenWrt hotplug2 files | Keep | NOT APPLICABLE |
 | Generated local build outputs | Ignored local cleanup only | NOT APPLICABLE |
 

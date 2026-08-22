@@ -66,8 +66,9 @@ They are not equal support surfaces:
 - `contrib/apps/` contains unsupported examples.
 - `docs/research/legacy-*` contains non-authoritative historical artifacts.
 - `docs/research/legacy-cgi/` is a withdrawn Perl CGI interface. A security
-  review found unauthenticated, remotely reachable defects, so it is no longer
-  distributed and must not be deployed.
+  review found unauthenticated, remotely reachable defects. It remains tracked
+  as historical source, but it is not installed or supported and must not be
+  deployed.
 
 ## Updating This Matrix
 
