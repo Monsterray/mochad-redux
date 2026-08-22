@@ -7,11 +7,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <stddef.h>
-#include <sys/socket.h>
-
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
-#endif
+#include "platform.h"
 
 static ssize_t real_send(int fd, const void *buffer, size_t length, int flags, void *context) {
     (void)context;
