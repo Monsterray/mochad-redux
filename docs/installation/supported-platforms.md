@@ -50,6 +50,11 @@ The recorded macOS CM19A run is in
 It demonstrates one exact host, controller, and commit; it is not evidence for
 CM15A, Apple silicon, launchd integration, or every supported macOS release.
 
+CM19A hotplug removal and arrival are logged, but automatic recovery is not
+currently supported. Restart `mochad` after reconnecting the controller. The
+`usb_connected` diagnostic may remain stale after removal; `transfers_ready`
+must also be true before treating the controller as usable.
+
 ## Networking
 
 | Mode | Level | Notes |

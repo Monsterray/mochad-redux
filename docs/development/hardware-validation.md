@@ -226,6 +226,11 @@ The restart passes if:
 - RF events are still received.
 - No USB claim error appears.
 
+Current hotplug limitation: removal and arrival are logged, but the daemon does
+not reopen the controller or restart USB transfers. Restart `mochad` after a
+controller reconnect. A running process alone is not evidence that RF receive
+or transmit recovered.
+
 ## Docker Notes
 
 When testing Docker, record the exact run or Compose configuration and confirm
