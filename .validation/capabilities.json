@@ -58,7 +58,7 @@
     {"pattern": "packaging/**", "owner": "native-packaging", "local_profile": "full", "ubuntu_profile": "source-full", "staged_install": true},
     {"pattern": ".github/**", "owner": "ci", "local_profile": "docs", "ubuntu_profile": "source-fast"},
     {"pattern": "docs/**", "owner": "documentation", "local_profile": "docs", "ubuntu_profile": null},
-    {"pattern": "cgi/**", "owner": "legacy-support", "local_profile": "fast", "ubuntu_profile": "source-fast"},
+    {"pattern": "docs/research/legacy-cgi/**", "owner": "legacy-support", "local_profile": "fast", "ubuntu_profile": "source-fast"},
     {"pattern": "contrib/**", "owner": "contributed-support", "local_profile": "fast", "ubuntu_profile": "source-fast"},
     {"pattern": "validation/**", "owner": "release-evidence", "local_profile": "docs", "ubuntu_profile": null},
     {"pattern": "*.md", "owner": "documentation", "local_profile": "docs", "ubuntu_profile": null},

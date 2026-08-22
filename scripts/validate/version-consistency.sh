@@ -54,6 +54,8 @@ require_contains src/config/version.h "#define MOCHAD_REDUX_DISPLAY_VERSION \"mo
 require_contains src/config/version.h '#define MOCHAD_UPSTREAM_BASE "mochad 0.1.18"' \
     "upstream base"
 require_contains CHANGELOG.md "## [$version]" "changelog heading"
+require_contains docs/release/beta-status.md "mochad-redux $version" \
+    "beta status version"
 require_contains src/net/diagnostics.c 'MOCHAD_REDUX_VERSION' \
     "diagnostic plain version macro"
 require_not_contains src/net/diagnostics.c 'MOCHAD_REDUX_DISPLAY_VERSION' \

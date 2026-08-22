@@ -27,6 +27,11 @@ DEFAULT_STATE = "/var/lib/mochad-redux/managed-files"
 SYSTEMD_PATH = "/etc/systemd/system/mochad.service"
 UDEV_PATH = "/etc/udev/rules.d/91-usb-x10-controllers.rules"
 MANAGED_PATHS = {"systemd": SYSTEMD_PATH, "udev": UDEV_PATH}
+# Bounds the decompressed size of any single archive member, so a crafted or
+# corrupted backup cannot exhaust memory during inspect/restore. Matches the
+# limit used by mochad-mqtt-bridge; the files this tool handles are config
+# fragments measured in kilobytes.
+MAX_MEMBER_BYTES = 10 * 1024 * 1024
 SECRET_KEY = re.compile(
     r"(?:password|passwd|passphrase|secret|token|credential|private[_-]?key|"
     r"api[_-]?key|user(?:name)?)",
@@ -317,6 +322,8 @@ def safe_members(archive: tarfile.TarFile) -> dict[str, tarfile.TarInfo]:
         path = pathlib.PurePosixPath(member.name)
         if path.is_absolute() or ".." in path.parts or not member.isfile():
             raise BackupError(f"unsafe or unsupported archive member: {member.name}")
+        if member.size > MAX_MEMBER_BYTES:
+            raise BackupError(f"archive member exceeds size limit: {member.name}")
         if member.name in members:
             raise BackupError(f"duplicate archive member: {member.name}")
         members[member.name] = member

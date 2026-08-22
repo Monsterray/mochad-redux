@@ -22,8 +22,12 @@ evidence, not supported programs, and must not be executed without review.
 
 ## cgi
 
-`cgi/` contains an old Perl CGI interface for controlling X10 devices and
-displaying status. It includes:
+`docs/research/legacy-cgi/` contains an old Perl CGI interface for controlling
+X10 devices and displaying status. A security review found unauthenticated,
+remotely reachable defects in it. It remains tracked as historical source, but
+it is not installed or supported and must not be deployed; see
+[the folder README](../research/legacy-cgi/README.md) for the specifics. It
+includes:
 
 - `x10.pl`, the web entrypoint.
 - `netcat.pl`, a small TCP command helper.
@@ -83,4 +87,4 @@ detaching can be sensitive to service permissions.
 | OpenWrt | `packaging/openwrt/` | Legacy compatibility surface |
 | Example clients | `contrib/apps/` | Unsupported examples |
 | Obsolete applications | None | `docs/research/legacy-apps/` |
-| CGI | Undecided | Root `cgi/`, retained pending provenance/support decision |
+| CGI | Withdrawn | `docs/research/legacy-cgi/`, retained source only; not installed or supported |

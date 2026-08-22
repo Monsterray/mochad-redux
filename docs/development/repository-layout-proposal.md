@@ -17,9 +17,11 @@ series:
 | `cleanup/remove-obsolete-files` | Superseded files archived as research; no tracked file irreversibly deleted. |
 | `docs/repository-architecture` | Public navigation, ownership, and implementation records finalized. |
 
-The historical CGI set remains at `cgi/` with status `NEEDS REVIEW`. The
-implemented tree therefore intentionally differs from the proposed tree by not
-moving it to `contrib/cgi/`. Empty proposed directories were not created.
+The historical CGI set was withdrawn to `docs/research/legacy-cgi/` after a
+security review. It remains tracked as research source, but it is not installed
+or supported. The implemented tree therefore intentionally differs from the
+proposed tree by archiving it as research rather than moving it to
+`contrib/cgi/`. Empty proposed directories were not created.
 
 Historical file names and paths later in this document describe the audit base.
 Current authoritative paths are shown in the populated tree and documentation

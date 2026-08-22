@@ -60,12 +60,13 @@ class SupportBundleTests(unittest.TestCase):
             "Rx RF HouseUnit: A1 Func: On",
             "Rx RFSEC Addr: 01:23:45 Func: CONTACT_ALERT",
             "password=hunter2",
+            '"MQTT_PASSWORD": "json-hunter2"',
             "this line must be truncated",
         ])
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "support.tar.gz"
             result = self.run_collector(
-                input_document(log), output, "--max-log-lines", "4"
+                input_document(log), output, "--max-log-lines", "5"
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(os.stat(output).st_mode & 0o777, 0o600)
@@ -118,6 +119,7 @@ class SupportBundleTests(unittest.TestCase):
             self.assertIn("[REDACTED:security_id]", saved_log)
             self.assertNotIn("hunter2", saved_log)
             self.assertIn("password=[REDACTED:secret]", saved_log)
+            self.assertIn('"MQTT_PASSWORD": [REDACTED:secret]', saved_log)
             self.assertNotIn("this line must be truncated", saved_log)
 
     def test_unresolved_high_entropy_value_fails_closed(self):

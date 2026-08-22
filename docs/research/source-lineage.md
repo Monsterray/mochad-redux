@@ -81,7 +81,8 @@ Current understanding:
 
 The CGI examples are legacy support files.
 
-- `cgi/cgi-lib.pl` is a bundled third-party CGI parsing library. Its embedded
+- `docs/research/legacy-cgi/cgi-lib.pl` is a bundled third-party CGI parsing
+  library, withdrawn from distribution. Its embedded
   notice identifies it as cgi-lib.pl 2.18 by Steven E. Brenner and gives
   permission terms that are not GPL text.
 - Other CGI files carry mochad/Brian Uechi GPL-style notices.
