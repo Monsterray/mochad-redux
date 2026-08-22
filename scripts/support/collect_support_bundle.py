@@ -90,12 +90,17 @@ DIAGNOSTIC_SCHEMAS: dict[str, Any] = {
     },
 }
 
+_SECRET_KEY = (
+    r"(?:[A-Za-z0-9]+_)*(?:password|passwd|token|secret|authorization|"
+    r"credential|api[_-]?key)(?:_[A-Za-z0-9]+)*"
+)
+_SECRET_VALUE = (
+    r'''(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|'''
+    r"(?:(?:Bearer|Basic)\s+)?[^\s,;{\[]+)"
+)
 SECRET_ASSIGNMENT_RE = re.compile(
-    r"(?i)(?:^|(?<=[^A-Za-z0-9]))"
-    r"((?:[A-Za-z0-9]+_)*(?:password|passwd|token|secret|authorization|"
-    r"credential|api[_-]?key)(?:_[A-Za-z0-9]+)*)"
-    r"(\s*[=:]\s*)"
-    r"((?:(?:Bearer|Basic)\s+)?[^\s,;]+)"
+    rf'''(?i)(?:^|(?<=[^A-Za-z0-9]))(["']?{_SECRET_KEY}["']?)'''
+    rf"(\s*[=:]\s*)({_SECRET_VALUE})"
 )
 PEM_PRIVATE_RE = re.compile(
     r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----",
@@ -135,12 +140,7 @@ CONTENT_RULES = (
     )),
     ("raw_x10_identity", re.compile(r"(?i)HouseUnit:\s*[A-P](?:1[0-6]|[1-9])\b")),
     ("raw_ipv4", IPV4_RE),
-    ("secret_assignment", re.compile(
-        r"(?i)(?:^|(?<=[^A-Za-z0-9]))(?:[A-Za-z0-9]+_)*"
-        r"(?:password|passwd|token|secret|authorization|credential|api[_-]?key)"
-        r"(?:_[A-Za-z0-9]+)*\s*[=:]\s*[\"']?(?:(?:Bearer|Basic)\s+)?"
-        r"(?!\[REDACTED:secret\])[^\s,\"'}]{4,}"
-    )),
+    ("secret_assignment", SECRET_ASSIGNMENT_RE),
 )
 
 
