@@ -23,7 +23,7 @@ hardware validation evidence.
 | Ubuntu LTS | Supported | CI build. |
 | Ubuntu Latest | Supported | CI build. |
 | Docker on Linux | Supported | Docker packaging validation plus USB passthrough notes. |
-| macOS | Build-only | libusb-free compile checks only. |
+| macOS 13 x86_64 | Best effort | Native libusb build and CM19A foreground receive/transmit validation at `fde2bb21`; other macOS versions and Apple silicon remain unvalidated. |
 | Windows | Not supported | No native runtime support planned. |
 
 ## Historical Upstream Evidence
@@ -44,6 +44,16 @@ records are historical evidence, not current release certification:
 | --- | --- | --- |
 | CM19A / CM19Pro | Supported after validation | RF path. Required release evidence for production claims. |
 | CM15A / CM15Pro | Best effort until validated | RF and power-line path. Record clearly when not tested. |
+
+The recorded macOS CM19A run is in
+[macOS 13 CM19A validation](../../validation/hardware/macos-13-cm19a-2026-08-22.md).
+It demonstrates one exact host, controller, and commit; it is not evidence for
+CM15A, Apple silicon, launchd integration, or every supported macOS release.
+
+CM19A hotplug removal and arrival are logged, but automatic recovery is not
+currently supported. Restart `mochad` after reconnecting the controller. The
+`usb_connected` diagnostic may remain stale after removal; `transfers_ready`
+must also be true before treating the controller as usable.
 
 ## Networking
 

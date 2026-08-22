@@ -44,6 +44,16 @@ If `lsusb` is not installed:
 sudo apt install usbutils
 ```
 
+On macOS, use this command instead of `lsusb`:
+
+```sh
+system_profiler SPUSBDataType
+```
+
+macOS uses `/var/run/x10-hardware.lock` as the runtime-lock equivalent of
+Linux `/run/lock/x10-hardware.lock`. USB access is mediated by IOKit/libusb;
+Linux `x10` groups, udev rules, `/sys`, and `/dev/bus/usb` checks do not apply.
+
 ## Foreground Startup Test
 
 Run in the foreground so startup logs are visible:
@@ -55,7 +65,7 @@ Run in the foreground so startup logs are visible:
 Expected startup milestones:
 
 ```text
-[STARTUP] mochad-redux v0.4.0 starting
+[STARTUP] mochad-redux 0.5.0 starting
 [STARTUP] TCP configuration bind=0.0.0.0 main=enabled:1099 xml=enabled:1100 openremote=enabled:1101
 [USB] initializing libusb
 [USB] libusb initialized
@@ -215,6 +225,11 @@ The restart passes if:
 - Port 1099 accepts a new `nc` connection.
 - RF events are still received.
 - No USB claim error appears.
+
+Current hotplug limitation: removal and arrival are logged, but the daemon does
+not reopen the controller or restart USB transfers. Restart `mochad` after a
+controller reconnect. A running process alone is not evidence that RF receive
+or transmit recovered.
 
 ## Docker Notes
 
