@@ -57,6 +57,15 @@ surface (branch `feature/portability-seam`, not yet merged);
   unified event loop; libusb needs its own thread, which forces the first shared
   mutable state into a daemon that has none today. Graduated ticket 12; raises
   the cost of the destination materially.
+- [libusb on Windows: backend and driver for CM19A/CM15A](issues/03-libusb-windows-backend.md):
+  manageable, not a blocker. WinUSB via Zadig works, at the cost of a per-machine
+  driver swap that blocks other X10 software and is not cleanly reversible.
+  Hotplug **is** supported as of libusb 1.0.30 (2026-05-17) but is opt-in at
+  build time and still being patched; the daemon already guards on
+  `LIBUSB_CAP_HAS_HOTPLUG` and degrades gracefully, so no code change is needed
+  for correctness. The unsupported kernel-driver calls sit in a fallback that the
+  good path never reaches. Graduated ticket 13. Independently corroborates 07:
+  `libusb_get_pollfds()` returns NULL on Windows by design.
 
 ## Not yet specified
 
@@ -70,9 +79,6 @@ surface (branch `feature/portability-seam`, not yet merged);
   platform-specific default. Hangs on 02.
 - **CI coverage.** Whether a Windows job joins the workflows, and what it can
   honestly assert. Hangs on 02 and 11.
-- **Hardware reality on Windows.** Whether a CM19A is actually reachable
-  through the chosen libusb backend, and what driver the user must install.
-  Sharpens once 03 resolves.
 - **Whether the destination is still worth reaching.** Ticket 07 turned this
   from a shim into a concurrency redesign. Once 03 reports on hotplug support,
   there may be a real question of whether a Windows build earns its cost, or
