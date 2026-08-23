@@ -51,6 +51,13 @@ surface (branch `feature/portability-seam`, not yet merged);
 
 <!-- one line per resolved ticket -->
 
+- [poll() to WSAPoll: semantic differences](issues/07-wsapoll-semantics.md):
+  `poll` **cannot** be aliased to `WSAPoll`. WSAPoll is sockets-only and
+  `libusb_get_pollfds()` returns NULL on Windows by design, so there is no
+  unified event loop; libusb needs its own thread, which forces the first shared
+  mutable state into a daemon that has none today. Graduated ticket 12; raises
+  the cost of the destination materially.
+
 ## Not yet specified
 
 - **Service installation and lifecycle.** If a Windows service is chosen, how
@@ -66,6 +73,11 @@ surface (branch `feature/portability-seam`, not yet merged);
 - **Hardware reality on Windows.** Whether a CM19A is actually reachable
   through the chosen libusb backend, and what driver the user must install.
   Sharpens once 03 resolves.
+- **Whether the destination is still worth reaching.** Ticket 07 turned this
+  from a shim into a concurrency redesign. Once 03 reports on hotplug support,
+  there may be a real question of whether a Windows build earns its cost, or
+  whether Docker Desktop remains the honest answer for Windows users. That is a
+  scope question for the human, not a ticket to resolve alone.
 
 ## Out of scope
 
