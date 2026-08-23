@@ -91,6 +91,13 @@ echo "+ usb_endpoint_selection"
 "$BUILD_DIR/test_usb_endpoint_selection"
 
 echo
+echo "+ usb_recovery"
+# shellcheck disable=SC2086
+"$CC" $CFLAGS tests/unit/test_usb_recovery.c src/usb/usb_recovery.c \
+    -o "$BUILD_DIR/test_usb_recovery" $LDFLAGS
+"$BUILD_DIR/test_usb_recovery"
+
+echo
 echo "+ support_bundle"
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests/test_support_bundle.py
 

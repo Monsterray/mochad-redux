@@ -94,6 +94,41 @@ static int test_shutdown_cancels_pending_attempts(void) {
                   "shutdown should terminate queued evidence");
 }
 
+static int test_disconnect_cancels_pending_attempts(void) {
+    char evidence[16384];
+    unsigned char active[] = {0x0a};
+    unsigned char after_recovery[] = {0x0c};
+    unsigned char queued[] = {0x0b};
+    int calls_before;
+
+    write_usb_result = 0;
+    if (expect(x10_write(active, sizeof(active)) == (int)sizeof(active),
+               "active write should submit before disconnect") ||
+        expect(x10_write(queued, sizeof(queued)) == (int)sizeof(queued),
+               "second write should queue before disconnect"))
+        return 1;
+
+    cancel_pending_x10out_with_reason("controller_disconnected_before_submission");
+    calls_before = write_usb_calls;
+    if (expect(send_next_x10out() == 0, "cancelled queue should remain empty") ||
+        expect(write_usb_calls == calls_before, "cancelled packet was replayed"))
+        return 1;
+
+    if (expect(x10_write(after_recovery, sizeof(after_recovery)) == (int)sizeof(after_recovery),
+               "new command should submit after recovery") ||
+        expect(last_write_len == sizeof(after_recovery) &&
+                   memcmp(last_write, after_recovery, sizeof(after_recovery)) == 0,
+               "new command did not use a fresh submission"))
+        return 1;
+
+    if (expect(mochad_transport_evidence_json(evidence, sizeof(evidence)) > 0,
+               "disconnect evidence should fit"))
+        return 1;
+    return expect(strstr(evidence, "\"reason\":\"controller_disconnected_before_submission\"") !=
+                      NULL,
+                  "disconnect should terminate queued evidence explicitly");
+}
+
 int main(void) {
     mochad_transport_evidence_reset();
     if (test_initial_submit_failure_does_not_leave_queue_busy())
@@ -101,6 +136,8 @@ int main(void) {
     if (test_queued_submit_failure_does_not_advance_head())
         return 1;
     if (test_shutdown_cancels_pending_attempts())
+        return 1;
+    if (test_disconnect_cancels_pending_attempts())
         return 1;
 
     puts("PASS: x10_write");

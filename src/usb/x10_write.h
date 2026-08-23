@@ -21,5 +21,6 @@
 
 int send_next_x10out(void);
 void cancel_pending_x10out(void);
+void cancel_pending_x10out_with_reason(const char *reason);
 
 int x10_write(unsigned char *buf, size_t buflen);
