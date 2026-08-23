@@ -23,7 +23,7 @@ hardware validation evidence.
 | Ubuntu LTS | Supported | CI build. |
 | Ubuntu Latest | Supported | CI build. |
 | Docker on Linux | Supported | Docker packaging validation plus USB passthrough notes. |
-| macOS 13 x86_64 | Best effort | Native libusb build and CM19A foreground receive/transmit validation at `fde2bb21`; other macOS versions and Apple silicon remain unvalidated. |
+| macOS 13 x86_64 | Best effort | Native libusb build, CM19A foreground receive/transmit, and two-cycle hotplug recovery validation at `6dcc3473`; other macOS versions and Apple silicon remain unvalidated. |
 | Windows | Not supported | No native runtime support planned. |
 
 ## Historical Upstream Evidence
@@ -50,10 +50,13 @@ The recorded macOS CM19A run is in
 It demonstrates one exact host, controller, and commit; it is not evidence for
 CM15A, Apple silicon, launchd integration, or every supported macOS release.
 
-CM19A hotplug removal and arrival are logged, but automatic recovery is not
-currently supported. Restart `mochad` after reconnecting the controller. The
-`usb_connected` diagnostic may remain stale after removal; `transfers_ready`
-must also be true before treating the controller as usable.
+CM19A automatic hotplug recovery was validated for two native macOS cycles at
+exact SHA `6dcc347308fda8f8724cd2e35b62393ad95939f3`. Removal marks USB,
+endpoints, and transfers unavailable; reconnect reopens the same controller
+class and restarts its transfers. Treat this as exact-host evidence, not a
+claim for CM15A, Docker USB passthrough, Apple silicon, or every libusb host.
+macOS may also print libusb capture-entitlement warnings even when interface
+claim and recovery succeed.
 
 ## Networking
 
