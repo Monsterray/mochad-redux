@@ -54,6 +54,7 @@
 #include "socket_io.h"
 #include "transport_evidence.h"
 #include "usb_endpoint_selection.h"
+#include "usb_recovery.h"
 #include "version.h"
 #include "x10_write.h"
 
@@ -127,6 +128,11 @@ static unsigned long UsbOutCompletedCount = 0;
 static unsigned long UsbAckReceivedCount = 0;
 static unsigned long UsbAckTimeoutCount = 0;
 static unsigned long UsbUnexpectedOneByteCount = 0;
+static mochad_usb_recovery UsbRecovery;
+static uint16_t ActiveProductId = 0;
+static int UsbDetachStarted = 0;
+static uint64_t UsbDetachDeadlineMs = 0;
+static int UsbDetachStallLogged = 0;
 /* libusb owns the authoritative pollfd set and can change it at runtime. */
 static struct pollfd *UsbPollfds = NULL;
 static nfds_t NUsbPollfds = 0;
@@ -255,19 +261,21 @@ static unsigned long uptime_seconds(void) {
 }
 
 static const char *controller_model(void) {
-    if (!Devh)
+    if (!Devh || !mochad_usb_recovery_ready(&UsbRecovery))
         return "none";
 
     return Cm19a ? "CM19A" : "CM15A";
 }
 
-static int usb_connected(void) { return Devh != NULL; }
+static int usb_connected(void) { return Devh != NULL && mochad_usb_recovery_ready(&UsbRecovery); }
 
-static int endpoints_ready(void) { return InEndpoint != 0 && OutEndpoint != 0; }
+static int endpoints_ready(void) {
+    return mochad_usb_recovery_ready(&UsbRecovery) && InEndpoint != 0 && OutEndpoint != 0;
+}
 
 static int transfers_ready(void) {
-    return IntrIn_transfer != NULL && IntrOut_transfer != NULL && IntrIn_submitted &&
-           !IntrIn_canceling && !IntrOut_canceling;
+    return mochad_usb_recovery_ready(&UsbRecovery) && IntrIn_transfer != NULL &&
+           IntrOut_transfer != NULL && IntrIn_submitted && !IntrIn_canceling && !IntrOut_canceling;
 }
 
 static void maybe_finish_x10_transmit(void) {
@@ -974,6 +982,7 @@ static const char *hotplug_event_name(libusb_hotplug_event event) {
 static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hotplug_event event,
                           void *user_data) {
     struct libusb_device_descriptor desc;
+    int active_device = Devh != NULL && libusb_get_device(Devh) == device;
     int r;
 
     (void)ctx;
@@ -981,6 +990,11 @@ static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hot
 
     r = libusb_get_device_descriptor(device, &desc);
     if (r < 0) {
+        if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT && active_device) {
+            mochad_usb_recovery_removed(&UsbRecovery, ActiveProductId);
+            syslog(LOG_NOTICE,
+                   "[USB] active controller disconnected; descriptor is no longer available");
+        }
         syslog(LEVEL, "[USB] hotplug event received but descriptor lookup failed rc=%d error=%s", r,
                usb_error_name(r));
         return 0;
@@ -992,6 +1006,10 @@ static int usb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hot
     syslog(LOG_NOTICE, "[USB] controller %s model=%s vendor=0x%04X product=0x%04X",
            hotplug_event_name(event), controller_model_from_product(desc.idProduct), desc.idVendor,
            desc.idProduct);
+    if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT && active_device)
+        mochad_usb_recovery_removed(&UsbRecovery, desc.idProduct);
+    else if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED)
+        mochad_usb_recovery_arrived(&UsbRecovery, desc.idProduct);
     return 0;
 }
 
@@ -1039,19 +1057,23 @@ static void cleanup_usb_hotplug_monitor(void) {}
 ** vendor and product IDs, respectively.
 */
 
-static int find_cm15a(struct libusb_device_handle **devhptr) {
+static int find_cm15a(struct libusb_device_handle **devhptr, uint16_t expected_product) {
     int r;
 
     Cm19a = 0;
-    *devhptr = libusb_open_device_with_vid_pid(UsbCtx, X10_VENDOR_ID, CM15A_PRODUCT_ID);
-    if (!*devhptr) {
+    Reattach = 0;
+    *devhptr = NULL;
+    if (expected_product == 0 || expected_product == CM15A_PRODUCT_ID)
+        *devhptr = libusb_open_device_with_vid_pid(UsbCtx, X10_VENDOR_ID, CM15A_PRODUCT_ID);
+    if (!*devhptr && (expected_product == 0 || expected_product == CM19A_PRODUCT_ID)) {
         *devhptr = libusb_open_device_with_vid_pid(UsbCtx, X10_VENDOR_ID, CM19A_PRODUCT_ID);
-        if (!*devhptr) {
-            syslog(LEVEL, "[USB] CM15A/CM19A not found; in Docker, verify /dev/bus/usb is mapped "
-                          "and the container has USB permissions");
-            return -EIO;
-        }
-        Cm19a = 1;
+        if (*devhptr)
+            Cm19a = 1;
+    }
+    if (!*devhptr) {
+        syslog(LEVEL, "[USB] CM15A/CM19A not found; in Docker, verify /dev/bus/usb is mapped "
+                      "and the container has USB permissions");
+        return -EIO;
     }
     syslog(LOG_NOTICE, "[USB] controller candidate found model=%s", (Cm19a) ? "CM19A" : "CM15A");
 
@@ -1075,7 +1097,7 @@ static int find_cm15a(struct libusb_device_handle **devhptr) {
     r = libusb_kernel_driver_active(*devhptr, 0);
     if (r < 0) {
         syslog(LEVEL, "[USB] kernel driver check failed rc=%d error=%s", r, usb_error_name(r));
-        return -EIO;
+        goto fail;
     }
     syslog(LOG_NOTICE, "[USB] kernel driver active=%d; trying detach", r);
     r = libusb_detach_kernel_driver(*devhptr, 0);
@@ -1083,17 +1105,25 @@ static int find_cm15a(struct libusb_device_handle **devhptr) {
         syslog(LEVEL,
                "[USB] kernel driver detach failed rc=%d error=%s; check drivers such as ati_remote",
                r, usb_error_name(r));
-        return -EIO;
+        goto fail;
     }
     Reattach = 1;
     r = libusb_claim_interface(*devhptr, 0);
     if (r < 0) {
         syslog(LEVEL, "[USB] claim interface failed after detach rc=%d error=%s", r,
                usb_error_name(r));
-        return -EIO;
+        goto fail;
     }
     syslog(LOG_NOTICE, "[USB] controller found model=%s", (Cm19a) ? "CM19A" : "CM15A");
     return 0;
+
+fail:
+    if (Reattach)
+        libusb_attach_kernel_driver(*devhptr, 0);
+    libusb_close(*devhptr);
+    *devhptr = NULL;
+    Reattach = 0;
+    return -EIO;
 }
 
 /* Find the in and out endpoint address in the device descriptors.
@@ -1395,7 +1425,19 @@ static void IntrOut_cb(struct libusb_transfer *transfer) {
         syslog(LOG_NOTICE, "[USB] interrupt output transfer cancelled");
         IntrOut_completed = 1;
         mochad_transport_evidence_usb_cancelled();
-        mochad_transport_evidence_attempt_terminal("cancelled", "transfer_cancelled");
+        if (mochad_usb_recovery_ready(&UsbRecovery))
+            mochad_transport_evidence_attempt_terminal("cancelled", "transfer_cancelled");
+        else
+            mochad_transport_evidence_attempt_terminal("unknown", "controller_disconnected");
+        return;
+    }
+
+    if (transfer->status == LIBUSB_TRANSFER_NO_DEVICE) {
+        syslog(LOG_NOTICE, "[USB] interrupt output transfer lost controller");
+        IntrOut_completed = 1;
+        mochad_transport_evidence_usb_failed(transfer->status);
+        mochad_transport_evidence_attempt_terminal("unknown", "controller_disconnected");
+        mochad_usb_recovery_removed(&UsbRecovery, ActiveProductId);
         return;
     }
 
@@ -1422,6 +1464,12 @@ static void IntrIn_cb(struct libusb_transfer *transfer) {
         return;
     }
     IntrIn_canceling = 0;
+
+    if (transfer->status == LIBUSB_TRANSFER_NO_DEVICE) {
+        syslog(LOG_NOTICE, "[USB] interrupt input transfer lost controller");
+        mochad_usb_recovery_removed(&UsbRecovery, ActiveProductId);
+        return;
+    }
 
     if (transfer->status != LIBUSB_TRANSFER_COMPLETED) {
         syslog(LEVEL, "[USB] interrupt input transfer failed status=%s(%d)",
@@ -1461,6 +1509,11 @@ static void IntrIn_cb(struct libusb_transfer *transfer) {
 
     r = libusb_submit_transfer(IntrIn_transfer);
     if (r < 0) {
+        if (r == LIBUSB_ERROR_NO_DEVICE) {
+            syslog(LOG_NOTICE, "[USB] input resubmit found controller disconnected");
+            mochad_usb_recovery_removed(&UsbRecovery, ActiveProductId);
+            return;
+        }
         syslog(LEVEL,
                "[USB] interrupt input transfer resubmit failed rc=%d error=%s; shutting down", r,
                usb_error_name(r));
@@ -1520,7 +1573,7 @@ int write_usb(unsigned char *buf, size_t len) {
 
     dbprintf("usb len %lu\n", (unsigned long)len);
     hexdump(buf, len);
-    if (IntrOut_transfer == NULL || Devh == NULL) {
+    if (!mochad_usb_recovery_ready(&UsbRecovery) || IntrOut_transfer == NULL || Devh == NULL) {
         syslog(LEVEL, "[USB] interrupt output transfer is not available");
         return -ENODEV;
     }
@@ -1554,6 +1607,182 @@ int write_usb(unsigned char *buf, size_t len) {
     IntrOut_submitted = 1;
     IntrOut_canceling = 0;
     return 0;
+}
+
+static uint64_t monotonic_ms(void) {
+    struct timespec now;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &now) < 0)
+        return 0;
+    return (uint64_t)now.tv_sec * 1000U + (uint64_t)now.tv_nsec / 1000000U;
+}
+
+static void clear_controller_resources(void) {
+    Devh = NULL;
+    InEndpoint = 0;
+    OutEndpoint = 0;
+    IntrIn_submitted = 0;
+    IntrIn_canceling = 0;
+    IntrOut_submitted = 0;
+    IntrOut_canceling = 0;
+    IntrOut_completed = 1;
+    X10_ack_received = 0;
+    X10_ack_timed_out = 0;
+    Reattach = 0;
+}
+
+static void release_controller_handle(const char *context) {
+    int release_result;
+    int reattach_result;
+
+    if (Devh == NULL)
+        return;
+
+    release_result = libusb_release_interface(Devh, 0);
+    if (release_result < 0 && release_result != LIBUSB_ERROR_NO_DEVICE) {
+        syslog(LEVEL, "[USB] interface release failed context=%s rc=%d error=%s", context,
+               release_result, usb_error_name(release_result));
+    }
+    if (Reattach && release_result != LIBUSB_ERROR_NO_DEVICE) {
+        reattach_result = libusb_attach_kernel_driver(Devh, 0);
+        if (reattach_result < 0 && reattach_result != LIBUSB_ERROR_NO_DEVICE) {
+            syslog(LEVEL, "[USB] kernel driver reattach failed context=%s rc=%d error=%s", context,
+                   reattach_result, usb_error_name(reattach_result));
+        }
+    }
+    libusb_close(Devh);
+    Devh = NULL;
+    Reattach = 0;
+}
+
+static void cleanup_unsubmitted_controller(void) {
+    free_transfer_if_inactive("input", &IntrIn_transfer, IntrIn_submitted, IntrIn_canceling);
+    free_transfer_if_inactive("output", &IntrOut_transfer, IntrOut_submitted, IntrOut_canceling);
+    release_controller_handle("attach_failure");
+    clear_controller_resources();
+}
+
+static int attach_controller(uint16_t expected_product) {
+    int r;
+
+    syslog(LOG_NOTICE, "[USB] opening controller expected_model=%s",
+           expected_product ? controller_model_from_product(expected_product) : "CM15A/CM19A");
+    r = find_cm15a(&Devh, expected_product);
+    if (r < 0)
+        return r;
+
+    ActiveProductId = Cm19a ? CM19A_PRODUCT_ID : CM15A_PRODUCT_ID;
+    r = get_endpoint_address(Devh, &InEndpoint, &OutEndpoint);
+    if (r < 0)
+        goto fail;
+
+    r = do_init();
+    if (r < 0)
+        goto fail;
+
+    r = alloc_transfers();
+    if (r < 0)
+        goto fail;
+
+    r = start_transfers();
+    if (r < 0)
+        goto fail;
+
+    syslog(LOG_NOTICE, "[USB] controller attached model=%s in=0x%02X out=0x%02X",
+           controller_model_from_product(ActiveProductId), InEndpoint, OutEndpoint);
+    return 0;
+
+fail:
+    cleanup_unsubmitted_controller();
+    return r;
+}
+
+static void initialize_attached_controller(void) {
+    if (Cm19a)
+        initcm1Xa(initcm19abinary);
+    else
+        initcm1Xa(initcm15abinary);
+}
+
+static int detach_disconnected_controller(void) {
+    uint64_t now_ms = monotonic_ms();
+
+    if (!UsbDetachStarted) {
+        UsbDetachStarted = 1;
+        UsbDetachDeadlineMs = now_ms + 2000U;
+        UsbDetachStallLogged = 0;
+        cancel_pending_x10out_with_reason("controller_disconnected_before_submission");
+        cancel_transfer_if_active("output", IntrOut_transfer, &IntrOut_submitted,
+                                  &IntrOut_canceling);
+        cancel_transfer_if_active("input", IntrIn_transfer, &IntrIn_submitted, &IntrIn_canceling);
+    }
+
+    if (transfer_is_active(IntrIn_submitted, IntrIn_canceling) ||
+        transfer_is_active(IntrOut_submitted, IntrOut_canceling)) {
+        if (!UsbDetachStallLogged && now_ms >= UsbDetachDeadlineMs) {
+            UsbDetachStallLogged = 1;
+            syslog(LEVEL,
+                   "[USB] transfer cancellation still pending after disconnect; resources remain "
+                   "owned by libusb until callbacks complete");
+        }
+        return -EAGAIN;
+    }
+
+    mochad_transport_evidence_attempt_terminal("unknown", "controller_disconnected");
+    free_transfer_if_inactive("input", &IntrIn_transfer, IntrIn_submitted, IntrIn_canceling);
+    free_transfer_if_inactive("output", &IntrOut_transfer, IntrOut_submitted, IntrOut_canceling);
+    release_controller_handle("disconnect");
+    clear_controller_resources();
+    UsbDetachStarted = 0;
+    UsbDetachDeadlineMs = 0;
+    UsbDetachStallLogged = 0;
+    syslog(LOG_NOTICE, "[USB] disconnected controller resources released; waiting for reconnect");
+    return 0;
+}
+
+static void process_usb_recovery(void) {
+    mochad_usb_recovery_action action;
+    uint64_t now_ms = monotonic_ms();
+    int r;
+
+    action = mochad_usb_recovery_next(&UsbRecovery, now_ms);
+    if (action == MOCHAD_USB_ACTION_DETACH) {
+        r = detach_disconnected_controller();
+        if (r == 0)
+            mochad_usb_recovery_detached(&UsbRecovery);
+        return;
+    }
+    if (action != MOCHAD_USB_ACTION_ATTACH)
+        return;
+
+    r = attach_controller(UsbRecovery.expected_product);
+    mochad_usb_recovery_attach_result(&UsbRecovery, r == 0, now_ms);
+    if (r < 0) {
+        if (mochad_usb_recovery_retrying(&UsbRecovery)) {
+            syslog(LOG_INFO, "[USB] controller recovery deferred rc=%d error=%s retry_ms=500", r,
+                   usb_error_name(r));
+        } else {
+            syslog(LEVEL,
+                   "[USB] controller recovery retry limit reached rc=%d error=%s; waiting for a "
+                   "new arrival event",
+                   r, usb_error_name(r));
+        }
+        return;
+    }
+
+    initialize_attached_controller();
+    syslog(LOG_NOTICE, "[USB] controller recovery complete model=%s",
+           controller_model_from_product(ActiveProductId));
+}
+
+static int recovery_poll_timeout_ms(int current_timeout) {
+    int recovery_timeout = mochad_usb_recovery_timeout_ms(&UsbRecovery, monotonic_ms());
+
+    if (recovery_timeout < 0)
+        return current_timeout;
+    if (current_timeout < 0 || recovery_timeout < current_timeout)
+        return recovery_timeout;
+    return current_timeout;
 }
 
 static void sighandler(int signum) {
@@ -1748,6 +1977,7 @@ static int mydaemon(void) {
     }
     syslog(LOG_NOTICE, "[USB] libusb initialized");
     libusb_set_debug(UsbCtx, 3);
+    mochad_usb_recovery_init(&UsbRecovery, 0, 0);
     register_usb_hotplug_monitor();
 
 #if 0
@@ -1759,7 +1989,7 @@ static int mydaemon(void) {
     }
 #endif
     syslog(LOG_NOTICE, "[USB] looking for CM15A/CM19A controller");
-    r = find_cm15a(&Devh);
+    r = attach_controller(0);
     if (r < 0) {
         syslog(LEVEL,
                "[USB] could not open CM15A/CM19A rc=%d error=%s; check USB passthrough, "
@@ -1768,30 +1998,8 @@ static int mydaemon(void) {
         dbprintf("Could not find/open CM15A/CM19A %d\n", r);
         goto out;
     }
-
-    r = get_endpoint_address(Devh, &InEndpoint, &OutEndpoint);
-    if (r < 0) {
-        syslog(LEVEL,
-               "[USB] could not find interrupt endpoints rc=%d error=%s; unsupported or "
-               "unavailable controller descriptor",
-               r, usb_error_name(r));
-        dbprintf("Could not find endpoints %d\n", r);
-        goto out_deinit;
-    }
-    syslog(LOG_NOTICE, "[USB] endpoints ready in=0x%02X out=0x%02X", InEndpoint, OutEndpoint);
-
-    r = do_init();
-    if (r < 0)
-        goto out_deinit;
+    mochad_usb_recovery_init(&UsbRecovery, ActiveProductId, 1);
     syslog(LOG_NOTICE, "[USB] controller initialized");
-
-    r = alloc_transfers();
-    if (r < 0)
-        goto out_deinit;
-
-    r = start_transfers();
-    if (r < 0)
-        goto out_deinit;
     syslog(LOG_NOTICE, "[USB] transfers started");
 
     sigact.sa_handler = sighandler;
@@ -1808,10 +2016,7 @@ static int mydaemon(void) {
         goto out_deinit;
     memset(&timeout, 0, sizeof(timeout));
 
-    if (Cm19a)
-        initcm1Xa(initcm19abinary);
-    else
-        initcm1Xa(initcm15abinary);
+    initialize_attached_controller();
 
     /**** sockets ****/
     listenfd = create_listener("main", ServerPort);
@@ -1851,7 +2056,11 @@ static int mydaemon(void) {
         int nsockclients;
         int npollfds;
         int poll_timeout;
+        nfds_t polled_usb_count;
         nfds_t usb_index;
+
+        process_usb_recovery();
+        polled_usb_count = NUsbPollfds;
 
         if (UsbPollfdError < 0) {
             syslog(LEVEL, "[USB] poll descriptor update failed rc=%d; shutting down",
@@ -1860,7 +2069,7 @@ static int mydaemon(void) {
             break;
         }
 
-        npollfds = 3 + (int)NUsbPollfds + (int)(NClients + NxmlClients + Nor20Clients);
+        npollfds = 3 + (int)polled_usb_count + (int)(NClients + NxmlClients + Nor20Clients);
         r = ensure_main_poll_capacity((nfds_t)npollfds);
         if (r < 0) {
             Do_exit = 2;
@@ -1879,15 +2088,15 @@ static int mydaemon(void) {
         Pollfds[2].events = or20fd >= 0 ? POLLIN : 0;
         Pollfds[2].revents = 0;
 
-        for (usb_index = 0; usb_index < NUsbPollfds; usb_index++) {
+        for (usb_index = 0; usb_index < polled_usb_count; usb_index++) {
             Pollfds[3 + usb_index] = UsbPollfds[usb_index];
             Pollfds[3 + usb_index].revents = 0;
         }
 
         /* Start appending socket clients after listener and USB records. */
-        nsockclients = copy_clients(&Pollfds[3 + NUsbPollfds]);
-        npollfds = 3 + (int)NUsbPollfds + nsockclients;
-        poll_timeout = combined_poll_timeout_ms(PollTimeOut);
+        nsockclients = copy_clients(&Pollfds[3 + polled_usb_count]);
+        npollfds = 3 + (int)polled_usb_count + nsockclients;
+        poll_timeout = recovery_poll_timeout_ms(combined_poll_timeout_ms(PollTimeOut));
         nready = poll(Pollfds, (nfds_t)npollfds, poll_timeout);
         if (nready < 0) {
             if (errno == EINTR) {
@@ -1910,15 +2119,19 @@ static int mydaemon(void) {
         /**** Time out ****/
         if (nready == 0) {
             libusb_handle_events_timeout(UsbCtx, &timeout);
-            X10_ack_timed_out = 1;
-            UsbAckTimeoutCount++;
-            mochad_transport_evidence_usb_timed_out(Cm19a ? "transfer_timeout" : "ack_timeout");
-            syslog(LOG_INFO, "[USB] X10 ACK timeout; command outcome unknown, advancing queue "
-                             "without retransmit");
-            maybe_finish_x10_transmit();
+            process_usb_recovery();
+            if (PollTimeOut >= 0 && mochad_usb_recovery_ready(&UsbRecovery)) {
+                X10_ack_timed_out = 1;
+                UsbAckTimeoutCount++;
+                mochad_transport_evidence_usb_timed_out(Cm19a ? "transfer_timeout" : "ack_timeout");
+                syslog(LOG_INFO, "[USB] X10 ACK timeout; command outcome unknown, advancing queue "
+                                 "without retransmit");
+                maybe_finish_x10_transmit();
+            }
         } else {
             /**** USB ****/
             libusb_handle_events_timeout(UsbCtx, &timeout);
+            process_usb_recovery();
 
             /**** listen sockets ****/
             if (Pollfds[0].revents & POLLIN) {
@@ -1962,7 +2175,7 @@ static int mydaemon(void) {
                     continue;
             }
 
-            for (i = 3 + (int)NUsbPollfds; i < npollfds; i++) {
+            for (i = 3 + (int)polled_usb_count; i < npollfds; i++) {
                 if ((clifd = Pollfds[i].fd) >= 0) {
                     if (Pollfds[i].revents & POLLOUT) {
                         struct client_output_queue *queue;
@@ -2003,7 +2216,7 @@ static int mydaemon(void) {
             }
         }
     }
-    syslog(LOG_NOTICE, "[SHUTDOWN] detaching controller model=%s", (Cm19a) ? "CM19A" : "CM15A");
+    syslog(LOG_NOTICE, "[SHUTDOWN] detaching controller model=%s", controller_model());
 
     cancel_transfer_if_active("output", IntrOut_transfer, &IntrOut_submitted, &IntrOut_canceling);
     cancel_transfer_if_active("input", IntrIn_transfer, &IntrIn_submitted, &IntrIn_canceling);
@@ -2031,27 +2244,10 @@ out_deinit:
     syslog(LOG_NOTICE, "[SHUTDOWN] releasing USB resources");
     free_transfer_if_inactive("input", &IntrIn_transfer, IntrIn_submitted, IntrIn_canceling);
     free_transfer_if_inactive("output", &IntrOut_transfer, IntrOut_submitted, IntrOut_canceling);
-    /* out_release: */
-    if (Devh) {
-        r = libusb_release_interface(Devh, 0);
-        if (r < 0) {
-            syslog(LEVEL, "[SHUTDOWN] release interface failed rc=%d error=%s", r,
-                   usb_error_name(r));
-        }
-        if (Reattach) {
-            r = libusb_attach_kernel_driver(Devh, 0);
-            if (r < 0) {
-                syslog(LEVEL, "[SHUTDOWN] kernel driver reattach failed rc=%d error=%s", r,
-                       usb_error_name(r));
-            } else {
-                syslog(LOG_NOTICE, "[SHUTDOWN] kernel driver reattached");
-            }
-        }
-    }
+    release_controller_handle("shutdown");
+    clear_controller_resources();
 out:
     cleanup_usb_hotplug_monitor();
-    if (Devh)
-        libusb_close(Devh);
     if (UsbCtx) {
         libusb_exit(UsbCtx);
         UsbCtx = NULL;

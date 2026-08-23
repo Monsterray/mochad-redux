@@ -100,14 +100,18 @@ int send_next_x10out(void) {
     return 0;
 }
 
-void cancel_pending_x10out(void) {
+void cancel_pending_x10out_with_reason(const char *reason) {
     while (Outhead != Outtail) {
         Outhead = next_index(Outhead);
         mochad_transport_evidence_attempt_terminal_for(&Outrecs[Outhead].attempt, "cancelled",
-                                                       "shutdown_before_submission");
+                                                       reason);
     }
     Outbusy = 0;
     PollTimeOut = -1;
+}
+
+void cancel_pending_x10out(void) {
+    cancel_pending_x10out_with_reason("shutdown_before_submission");
 }
 
 int x10_write(unsigned char *buf, size_t buflen) {

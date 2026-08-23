@@ -23,7 +23,7 @@ hardware validation evidence.
 | Ubuntu LTS | Supported | CI build. |
 | Ubuntu Latest | Supported | CI build. |
 | Docker on Linux | Supported | Docker packaging validation plus USB passthrough notes. |
-| macOS | Build-only | libusb-free compile checks only. |
+| macOS 13 x86_64 | Best effort | Native libusb build, CM19A foreground receive/transmit, and two-cycle hotplug recovery validation at `6dcc3473`; other macOS versions and Apple silicon remain unvalidated. |
 | Windows | Not supported | No native runtime support planned. |
 
 ## Historical Upstream Evidence
@@ -44,6 +44,19 @@ records are historical evidence, not current release certification:
 | --- | --- | --- |
 | CM19A / CM19Pro | Supported after validation | RF path. Required release evidence for production claims. |
 | CM15A / CM15Pro | Best effort until validated | RF and power-line path. Record clearly when not tested. |
+
+The recorded macOS CM19A run is in
+[macOS 13 CM19A validation](../../validation/hardware/macos-13-cm19a-2026-08-22.md).
+It demonstrates one exact host, controller, and commit; it is not evidence for
+CM15A, Apple silicon, launchd integration, or every supported macOS release.
+
+CM19A automatic hotplug recovery was validated for two native macOS cycles at
+exact SHA `6dcc347308fda8f8724cd2e35b62393ad95939f3`. Removal marks USB,
+endpoints, and transfers unavailable; reconnect reopens the same controller
+class and restarts its transfers. Treat this as exact-host evidence, not a
+claim for CM15A, Docker USB passthrough, Apple silicon, or every libusb host.
+macOS may also print libusb capture-entitlement warnings even when interface
+claim and recovery succeed.
 
 ## Networking
 

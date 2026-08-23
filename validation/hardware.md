@@ -10,12 +10,22 @@ step-by-step checklists.
 For interactive CM19A evidence collection, use:
 
 ```sh
-scripts/hardware/cm19a-validation.sh
+scripts/hardware/run-cm19a-validation.sh
 ```
 
 The default run does not transmit. Set `MOCHAD_BIN`, `MOCHAD_LAB_PORT`, or
 `EVIDENCE_FILE` to override safe defaults. Transmission requires `--transmit`,
 an address under housecode `D`, and the exact interactive approval phrase.
+
+The automated script currently targets the restricted Linux lab. On macOS,
+use `/var/run/x10-hardware.lock`, verify the controller with
+`system_profiler SPUSBDataType`, and keep the same reserved ports, house-code
+`D` restriction, displayed-command, and explicit-approval rules. macOS does
+not expose Linux `/sys` or `/dev/bus/usb` device nodes.
+
+Recorded macOS evidence:
+
+- [macOS 13 x86_64 with CM19A](hardware/macos-13-cm19a-2026-08-22.md)
 
 ## Minimum Release Evidence
 
