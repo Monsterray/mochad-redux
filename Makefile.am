@@ -35,6 +35,7 @@ mochad_SOURCES = src/core/mochad.c src/core/global.c src/core/global.h \
 		src/net/socket_io.c src/net/socket_io.h \
 		src/net/transport_evidence.c src/net/transport_evidence.h \
 		src/usb/usb_endpoint_selection.c src/usb/usb_endpoint_selection.h \
+		src/usb/usb_recovery.c src/usb/usb_recovery.h \
 		src/usb/x10_write.c src/usb/x10_write.h \
 		src/x10/decode.c src/x10/decode.h \
 		src/x10/encode.c src/x10/encode.h \
@@ -91,6 +92,7 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		tests/unit/test_x10_write.c \
 		tests/unit/test_socket_io.c tests/integration/test_tcp_diagnostics.c \
 		tests/unit/test_usb_endpoint_selection.c \
+		tests/unit/test_usb_recovery.c \
 		tests/test_support_bundle.py \
 		tests/test_native_backup_restore.py \
 		docs/architecture/compatibility.md \

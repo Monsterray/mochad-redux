@@ -147,6 +147,7 @@ src/core/global.c
 src/x10/mochad_event.c
 src/net/socket_io.c
 src/x10/x10state.c
+src/usb/usb_recovery.c
 src/usb/x10_write.c
 "
 INCLUDE_FLAGS="-Isrc/core -Isrc/config -Isrc/net -Isrc/usb -Isrc/x10"

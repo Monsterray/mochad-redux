@@ -226,10 +226,11 @@ The restart passes if:
 - RF events are still received.
 - No USB claim error appears.
 
-Current hotplug limitation: removal and arrival are logged, but the daemon does
-not reopen the controller or restart USB transfers. Restart `mochad` after a
-controller reconnect. A running process alone is not evidence that RF receive
-or transmit recovered.
+Hotplug recovery must prove more than process survival. Verify that removal
+changes `usb_connected`, `endpoints_ready`, and `transfers_ready` to false;
+reconnect returns all three to true; and fresh RF receive and transmit work.
+Repeat the cycle at least once. CM19A recovery has exact-SHA macOS evidence;
+CM15A and Docker USB recovery remain separate hardware validations.
 
 ## Docker Notes
 
