@@ -90,7 +90,7 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		tests/golden/test_mochad_event.c \
 		tests/unit/test_encode_rf.c \
 		tests/unit/test_x10_write.c \
-		tests/unit/test_socket_io.c tests/integration/test_tcp_diagnostics.c \
+		tests/unit/test_socket_io.c tests/integration/test_tcp_diagnostics.c 		tests/unit/test_sigpipe.c \
 		tests/unit/test_usb_endpoint_selection.c \
 		tests/unit/test_usb_recovery.c \
 		tests/test_support_bundle.py \

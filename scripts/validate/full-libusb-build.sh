@@ -17,6 +17,14 @@ echo
 echo "+ ./configure"
 ./configure
 
+# Discard any objects already in the tree.  Other validation scripts compile
+# into this same directory with different headers and CPPFLAGS, and make would
+# happily reuse those, which would make this check a statement about whatever
+# ran last rather than about a full libusb build.
+echo
+echo "+ make clean"
+make clean
+
 echo
 echo "+ make"
 make

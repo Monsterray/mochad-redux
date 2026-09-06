@@ -58,6 +58,10 @@
 
 /* Matches the fallback in src/net/socket_io.c so a platform without
  * MSG_NOSIGNAL still compiles. See flush_client_output().
+ *
+ * On such a platform the flag is a no-op, so the SIGPIPE protection comes
+ * instead from mochad_ignore_sigpipe(), installed in mydaemon() before any
+ * listener exists. Neither mechanism alone covers every supported platform.
  */
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
@@ -767,7 +771,8 @@ static int flush_client_output(int fd, struct client_output_queue *queue, size_t
 
         /* MSG_NOSIGNAL: a client that closes its socket between queueing and
          * this flush would otherwise raise SIGPIPE, whose default disposition
-         * terminates the daemon and drops every other client.
+         * terminates the daemon and drops every other client. The flag does
+         * not exist on macOS or the BSDs; mochad_ignore_sigpipe() covers those.
          */
         written = send(fd, chunk, wanted, MSG_NOSIGNAL);
         if (written < 0) {
@@ -971,6 +976,26 @@ static const char *usb_error_name(int rc) {
     return libusb_error_name(rc);
 }
 
+/*
+ * What to actually do about a controller the daemon could not claim.
+ *
+ * The remedy is entirely platform-specific and naming the wrong one wastes the
+ * reader's time: `ati_remote` is a Linux kernel module and means nothing on
+ * macOS, which is now a validated CM19A platform. Kept as one function so the
+ * advice cannot drift between the two places that give it.
+ */
+static const char *usb_claim_hint(void) {
+#if defined(__linux__)
+    return "check udev permissions, whether a kernel module such as ati_remote claimed the "
+           "device, and in Docker that /dev/bus/usb is mapped";
+#elif defined(__APPLE__)
+    return "check that no other application holds the controller and that this process may "
+           "access USB devices; macOS has no kernel driver to detach";
+#else
+    return "check device permissions and whether another driver holds the controller";
+#endif
+}
+
 static const char *controller_model_from_product(uint16_t product_id) {
     switch (product_id) {
     case CM15A_PRODUCT_ID:
@@ -1109,11 +1134,23 @@ static int find_cm15a(struct libusb_device_handle **devhptr, uint16_t expected_p
         syslog(LOG_NOTICE, "[USB] controller found model=%s", (Cm19a) ? "CM19A" : "CM15A");
         return 0;
     }
-    syslog(LEVEL,
-           "[USB] claim interface failed rc=%d error=%s; check permissions, Docker USB "
-           "passthrough, or kernel drivers",
-           r, usb_error_name(r));
+    syslog(LEVEL, "[USB] claim interface failed rc=%d error=%s; %s", r, usb_error_name(r),
+           usb_claim_hint());
+
+    /* Only Linux has a kernel driver to take the device away from, so
+     * LIBUSB_ERROR_NOT_SUPPORTED here is the platform answering "there is
+     * nothing to detach", not something going wrong. Reporting it as a failure
+     * sent macOS readers looking for a driver problem they do not have. The
+     * claim has still failed either way, so both paths give up -- but only one
+     * of them describes a fault.
+     */
     r = libusb_kernel_driver_active(*devhptr, 0);
+    if (r == LIBUSB_ERROR_NOT_SUPPORTED) {
+        syslog(LEVEL,
+               "[USB] this platform has no kernel driver to detach; the claim failure above is "
+               "the whole story");
+        goto fail;
+    }
     if (r < 0) {
         syslog(LEVEL, "[USB] kernel driver check failed rc=%d error=%s", r, usb_error_name(r));
         goto fail;
@@ -1979,6 +2016,7 @@ static int mydaemon(void) {
 
     /**** USB ****/
     struct sigaction sigact;
+    int sigpipe_ignored;
     int r = 1;
     struct timeval timeout;
 
@@ -2010,16 +2048,33 @@ static int mydaemon(void) {
     syslog(LOG_NOTICE, "[USB] looking for CM15A/CM19A controller");
     r = attach_controller(0);
     if (r < 0) {
-        syslog(LEVEL,
-               "[USB] could not open CM15A/CM19A rc=%d error=%s; check USB passthrough, "
-               "permissions, and kernel drivers such as ati_remote",
-               r, usb_error_name(r));
+        syslog(LEVEL, "[USB] could not open CM15A/CM19A rc=%d error=%s; %s", r, usb_error_name(r),
+               usb_claim_hint());
         dbprintf("Could not find/open CM15A/CM19A %d\n", r);
         goto out;
     }
     mochad_usb_recovery_init(&UsbRecovery, ActiveProductId, 1);
     syslog(LOG_NOTICE, "[USB] controller initialized");
     syslog(LOG_NOTICE, "[USB] transfers started");
+
+    /* Ignore SIGPIPE before the first listener exists.  On Linux every send()
+     * carries MSG_NOSIGNAL, but that flag is absent on macOS and the BSDs,
+     * where it degrades to 0 and the default disposition kills the daemon --
+     * and every other connected client -- the moment one client disconnects
+     * between a response being queued and the next flush.  Ignoring it makes
+     * send() and write() report -1/EPIPE instead, which flush_client_output()
+     * and send_all() already handle.
+     *
+     * Process-wide rather than SO_NOSIGPIPE per accepted socket: the daemon
+     * never exec()s, so nothing inherits the disposition, and one
+     * unconditional call cannot be forgotten at a future socket call site.
+     */
+    sigpipe_ignored = (mochad_ignore_sigpipe() == 0);
+    if (!sigpipe_ignored)
+        syslog(LOG_WARNING,
+               "[STARTUP] could not ignore SIGPIPE errno=%d error=%s; a client that "
+               "disconnects mid-write may terminate the daemon",
+               errno, strerror(errno));
 
     sigact.sa_handler = sighandler;
     sigemptyset(&sigact.sa_mask);
@@ -2028,7 +2083,9 @@ static int mydaemon(void) {
     sigaction(SIGINT, &sigact, NULL);
     sigaction(SIGTERM, &sigact, NULL);
     sigaction(SIGQUIT, &sigact, NULL);
-    syslog(LOG_NOTICE, "[STARTUP] signal handlers installed signals=SIGINT,SIGTERM,SIGQUIT");
+    syslog(LOG_NOTICE,
+           "[STARTUP] signal handlers installed signals=SIGINT,SIGTERM,SIGQUIT sigpipe=%s",
+           sigpipe_ignored ? "ignored" : "DEFAULT");
 
     r = initialize_usb_pollfds();
     if (r < 0)

@@ -7,6 +7,19 @@ echo "== mochad-redux validation: libusb stub syntax check =="
 echo "Working directory: $PWD"
 echo
 
+# This check compiles src/core/mochad.o against the development stub rather
+# than the real libusb headers, and make writes it into the source tree.  The
+# stub declares libusb_fill_interrupt_transfer() out of line where the real
+# header defines it "static inline", so an object left behind here does not
+# link against the real library -- and a later "make" sees it as newer than
+# mochad.c and reuses it instead of rebuilding.  The result is that a
+# subsequent full libusb build fails with an undefined reference that has
+# nothing to do with the code under test.  Never leave the artifact behind.
+cleanup() {
+    rm -f src/core/mochad.o src/core/.deps/mochad.Po
+}
+trap cleanup EXIT INT HUP TERM
+
 if [ ! -f tests/support/libusb-1.0/libusb.h ]; then
     echo "FAIL: tests/support/libusb-1.0/libusb.h is missing" >&2
     exit 2

@@ -18,6 +18,25 @@ entry should link to validation evidence when available.
   for isolated roots. Generated systemd and udev files are reconstructed by
   `mochad-redux-setup`; credentials remain external to the archive.
 
+### Fixed
+
+- SIGPIPE is now ignored process-wide before the first listener opens. Every
+  `send()` on the client output path already asked for `MSG_NOSIGNAL`, but that
+  flag is a Linux extension and fell back to `0` on macOS and the BSDs, where a
+  client disconnecting between a queued response and the next flush terminated
+  the daemon and dropped every other client. Proven on Linux through a
+  forced-fallback unit test; not verified on macOS hardware.
+- `scripts/validate/libusb-stub-syntax-check.sh` no longer leaves a
+  stub-compiled `src/core/mochad.o` in the tree, which a following
+  `full-libusb-build.sh` reused instead of rebuilding, and which failed to link
+  against the real libusb. That build now also discards existing objects, so it
+  describes a full libusb build rather than whatever ran before it.
+- USB claim failures now give platform-appropriate advice instead of pointing
+  every reader at `ati_remote`, a Linux kernel module. A
+  `LIBUSB_ERROR_NOT_SUPPORTED` from the kernel-driver check is also reported as
+  the expected answer on platforms with no driver to detach, rather than as a
+  failure of its own.
+
 ## [0.5.0] - 2026-07-26
 
 Repository-stewardship release focused on a packaging-safe native install,
