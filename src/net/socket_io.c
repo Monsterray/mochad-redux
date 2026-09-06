@@ -9,16 +9,8 @@
 #include <signal.h>
 #include <stddef.h>
 #include <string.h>
-#include <sys/socket.h>
 
-/*
- * Absent on macOS and the BSDs, which offer SO_NOSIGPIPE per socket instead.
- * Compiling the flag to 0 keeps send() valid, but it also silently removes the
- * protection, so mochad_ignore_sigpipe() carries it on those platforms.
- */
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
-#endif
+#include "platform.h"
 
 int mochad_ignore_sigpipe(void) {
     struct sigaction ignore;

@@ -79,7 +79,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <sys/socket.h>
+#include "platform.h"
 #include "global.h"
 #include "socket_io.h"
 #include "transport_evidence.h"
