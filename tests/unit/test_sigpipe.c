@@ -29,7 +29,7 @@
 #include <unistd.h>
 
 /* Child exit codes. */
-#define CHILD_EPIPE 0        /* write failed with EPIPE, as it should */
+#define CHILD_EPIPE 0 /* write failed with EPIPE, as it should */
 #define CHILD_UNEXPECTED_OK 1
 #define CHILD_WRONG_ERRNO 2
 #define CHILD_SETUP_FAILED 3
@@ -135,8 +135,7 @@ int main(void) {
         return 1;
     }
     check(!WIFSIGNALED(status), "child was not killed by a signal");
-    check(WIFEXITED(status) && WEXITSTATUS(status) == CHILD_EPIPE,
-          "send() returned -1 with EPIPE");
+    check(WIFEXITED(status) && WEXITSTATUS(status) == CHILD_EPIPE, "send() returned -1 with EPIPE");
 
     printf("send_all() survives the same disconnect on a flagless host\n");
     if (run_child(child_send_all, 0, &status) != 0) {
