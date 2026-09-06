@@ -1,4 +1,3 @@
-import io
 import json
 import os
 import subprocess
@@ -7,7 +6,6 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 COLLECTOR = ROOT / "scripts/support/collect_support_bundle.py"
