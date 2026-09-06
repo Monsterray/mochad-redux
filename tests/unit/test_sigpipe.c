@@ -8,15 +8,26 @@
  * response and the next flush takes the daemon and every other client with it.
  *
  * These tests emulate such a platform by passing flags = 0 to send(), which is
- * exactly what the fallback produces, and check both halves of the claim:
+ * exactly what the fallback produces, and check three things:
  *
  *   1. without suppression the process really is killed  (the bug is real)
- *   2. with mochad_ignore_sigpipe() it survives with EPIPE  (the fix works)
+ *   2. with mochad_ignore_sigpipe() a raw send() survives with EPIPE instead
+ *   3. with mochad_ignore_sigpipe() send_all() -- the function the daemon
+ *      actually calls -- also survives, rather than the signal escaping
+ *      through some path the wrapper does not cover
+ *
+ * Case 3 does not repeat case 1's control: it starts from the same
+ * suppressed state as case 2, because what it is proving is that send_all()
+ * carries the protection through, not that the protection exists.
  *
  * Each case runs in a forked child because case 1 is expected to die, and
  * because a signal disposition is process-wide: the parent must never call
  * mochad_ignore_sigpipe() itself, or case 1 would inherit the ignore and pass
- * for the wrong reason.
+ * for the wrong reason. Every child also resets SIGPIPE to SIG_DFL before
+ * doing anything else, since the disposition it inherits from the parent
+ * process is not something the test controls -- GitHub Actions runners start
+ * each step with SIGPIPE already ignored, which would otherwise make case 1
+ * pass without the daemon dying, for no reason related to the code under test.
  */
 
 #include "socket_io.h"
@@ -24,6 +35,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -64,6 +76,49 @@ static int broken_socket(void) {
     return pair[0];
 }
 
+/*
+ * Report the disposition this process was started with, without asserting on
+ * it. It is not ours to control and it varies: a plain developer shell hands
+ * over SIG_DFL, while GitHub's runners hand their steps a process that already
+ * ignores SIGPIPE.
+ */
+static const char *inherited_sigpipe_disposition(void) {
+    struct sigaction current;
+
+    if (sigaction(SIGPIPE, NULL, &current) != 0)
+        return "unreadable";
+    if (current.sa_handler == SIG_IGN)
+        return "SIG_IGN (already ignored by the environment)";
+    if (current.sa_handler == SIG_DFL)
+        return "SIG_DFL";
+    return "a handler installed by the environment";
+}
+
+/*
+ * Put SIGPIPE back to its default disposition.
+ *
+ * Every child calls this first, so each case states its own starting point
+ * rather than inheriting whatever the environment happened to be running
+ * under. Without it these tests are silently conditional on the caller: where
+ * SIGPIPE is already ignored, the control case stops demonstrating the defect
+ * and the two suppression cases stop demonstrating the fix -- all three pass,
+ * and none of them mean anything.
+ *
+ * That an ignored disposition survives exec() and reaches an unrelated program
+ * is the same property that makes suppressing it process-wide sufficient for
+ * the daemon, so it is worth stating rather than working around.
+ */
+static int reset_sigpipe_to_default(void) {
+    struct sigaction restore;
+
+    memset(&restore, 0, sizeof(restore));
+    restore.sa_handler = SIG_DFL;
+    sigemptyset(&restore.sa_mask);
+    restore.sa_flags = 0;
+
+    return sigaction(SIGPIPE, &restore, NULL);
+}
+
 static int classify(ssize_t written) {
     if (written >= 0)
         return CHILD_UNEXPECTED_OK;
@@ -80,8 +135,12 @@ static ssize_t send_flagless(int fd, const void *buffer, size_t length, int flag
 }
 
 static int child_raw_send(int suppress) {
-    int fd = broken_socket();
+    int fd;
 
+    if (reset_sigpipe_to_default() != 0)
+        return CHILD_SETUP_FAILED;
+
+    fd = broken_socket();
     if (fd < 0)
         return CHILD_SETUP_FAILED;
     if (suppress && mochad_ignore_sigpipe() != 0)
@@ -91,9 +150,13 @@ static int child_raw_send(int suppress) {
 }
 
 static int child_send_all(int unused) {
-    int fd = broken_socket();
+    int fd;
 
     (void)unused;
+    if (reset_sigpipe_to_default() != 0)
+        return CHILD_SETUP_FAILED;
+
+    fd = broken_socket();
     if (fd < 0)
         return CHILD_SETUP_FAILED;
     if (mochad_ignore_sigpipe() != 0)
@@ -120,6 +183,9 @@ int main(void) {
     int status;
 
     printf("== SIGPIPE suppression ==\n");
+    printf("inherited disposition: %s\n", inherited_sigpipe_disposition());
+    printf("every case below resets SIGPIPE to SIG_DFL first, so none of them\n"
+           "depends on what this process was started with\n\n");
 
     printf("without suppression, a write to a closed peer kills the process\n");
     if (run_child(child_raw_send, 0, &status) != 0) {
@@ -137,7 +203,7 @@ int main(void) {
     check(!WIFSIGNALED(status), "child was not killed by a signal");
     check(WIFEXITED(status) && WEXITSTATUS(status) == CHILD_EPIPE, "send() returned -1 with EPIPE");
 
-    printf("send_all() survives the same disconnect on a flagless host\n");
+    printf("with suppression already active, send_all() carries a flagless send() through too\n");
     if (run_child(child_send_all, 0, &status) != 0) {
         printf("  FAIL: could not run child\n");
         return 1;
