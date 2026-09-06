@@ -57,6 +57,14 @@ surface (branch `feature/portability-seam`, not yet merged);
   unified event loop; libusb needs its own thread, which forces the first shared
   mutable state into a daemon that has none today. Graduated ticket 12; raises
   the cost of the destination materially.
+- [Suppress SIGPIPE where MSG_NOSIGNAL does not exist](issues/01-sigpipe-without-msg-nosignal.md):
+  fixed, not merely decided. `mochad_ignore_sigpipe()` ignores the signal
+  process-wide before the first listener exists; `SO_NOSIGPIPE` per socket was
+  rejected because the daemon never `exec()`s and per-socket calls can be
+  forgotten. Proven on Linux by a forked-child test that emulates the flagless
+  platform; not proven on real macOS. This ticket was never Windows work --
+  Windows needs no SIGPIPE suppression at all -- and its resolution does not
+  advance the destination.
 - [libusb on Windows: backend and driver for CM19A/CM15A](issues/03-libusb-windows-backend.md):
   manageable, not a blocker. WinUSB via Zadig works, at the cost of a per-machine
   driver swap that blocks other X10 software and is not cleanly reversible.
