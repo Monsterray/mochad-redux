@@ -31,6 +31,11 @@ entry should link to validation evidence when available.
   `full-libusb-build.sh` reused instead of rebuilding, and which failed to link
   against the real libusb. That build now also discards existing objects, so it
   describes a full libusb build rather than whatever ran before it.
+- USB claim failures now give platform-appropriate advice instead of pointing
+  every reader at `ati_remote`, a Linux kernel module. A
+  `LIBUSB_ERROR_NOT_SUPPORTED` from the kernel-driver check is also reported as
+  the expected answer on platforms with no driver to detach, rather than as a
+  failure of its own.
 
 ## [0.5.0] - 2026-07-26
 
