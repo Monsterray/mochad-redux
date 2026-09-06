@@ -58,6 +58,10 @@
 
 /* Matches the fallback in src/net/socket_io.c so a platform without
  * MSG_NOSIGNAL still compiles. See flush_client_output().
+ *
+ * On such a platform the flag is a no-op, so the SIGPIPE protection comes
+ * instead from mochad_ignore_sigpipe(), installed in mydaemon() before any
+ * listener exists. Neither mechanism alone covers every supported platform.
  */
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
@@ -767,7 +771,8 @@ static int flush_client_output(int fd, struct client_output_queue *queue, size_t
 
         /* MSG_NOSIGNAL: a client that closes its socket between queueing and
          * this flush would otherwise raise SIGPIPE, whose default disposition
-         * terminates the daemon and drops every other client.
+         * terminates the daemon and drops every other client. The flag does
+         * not exist on macOS or the BSDs; mochad_ignore_sigpipe() covers those.
          */
         written = send(fd, chunk, wanted, MSG_NOSIGNAL);
         if (written < 0) {
@@ -1979,6 +1984,7 @@ static int mydaemon(void) {
 
     /**** USB ****/
     struct sigaction sigact;
+    int sigpipe_ignored;
     int r = 1;
     struct timeval timeout;
 
@@ -2021,6 +2027,25 @@ static int mydaemon(void) {
     syslog(LOG_NOTICE, "[USB] controller initialized");
     syslog(LOG_NOTICE, "[USB] transfers started");
 
+    /* Ignore SIGPIPE before the first listener exists.  On Linux every send()
+     * carries MSG_NOSIGNAL, but that flag is absent on macOS and the BSDs,
+     * where it degrades to 0 and the default disposition kills the daemon --
+     * and every other connected client -- the moment one client disconnects
+     * between a response being queued and the next flush.  Ignoring it makes
+     * send() and write() report -1/EPIPE instead, which flush_client_output()
+     * and send_all() already handle.
+     *
+     * Process-wide rather than SO_NOSIGPIPE per accepted socket: the daemon
+     * never exec()s, so nothing inherits the disposition, and one
+     * unconditional call cannot be forgotten at a future socket call site.
+     */
+    sigpipe_ignored = (mochad_ignore_sigpipe() == 0);
+    if (!sigpipe_ignored)
+        syslog(LOG_WARNING,
+               "[STARTUP] could not ignore SIGPIPE errno=%d error=%s; a client that "
+               "disconnects mid-write may terminate the daemon",
+               errno, strerror(errno));
+
     sigact.sa_handler = sighandler;
     sigemptyset(&sigact.sa_mask);
     sigact.sa_flags = 0;
@@ -2028,7 +2053,9 @@ static int mydaemon(void) {
     sigaction(SIGINT, &sigact, NULL);
     sigaction(SIGTERM, &sigact, NULL);
     sigaction(SIGQUIT, &sigact, NULL);
-    syslog(LOG_NOTICE, "[STARTUP] signal handlers installed signals=SIGINT,SIGTERM,SIGQUIT");
+    syslog(LOG_NOTICE,
+           "[STARTUP] signal handlers installed signals=SIGINT,SIGTERM,SIGQUIT sigpipe=%s",
+           sigpipe_ignored ? "ignored" : "DEFAULT");
 
     r = initialize_usb_pollfds();
     if (r < 0)

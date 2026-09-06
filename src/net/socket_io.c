@@ -6,12 +6,30 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <signal.h>
 #include <stddef.h>
+#include <string.h>
 #include <sys/socket.h>
 
+/*
+ * Absent on macOS and the BSDs, which offer SO_NOSIGPIPE per socket instead.
+ * Compiling the flag to 0 keeps send() valid, but it also silently removes the
+ * protection, so mochad_ignore_sigpipe() carries it on those platforms.
+ */
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
 #endif
+
+int mochad_ignore_sigpipe(void) {
+    struct sigaction ignore;
+
+    memset(&ignore, 0, sizeof(ignore));
+    ignore.sa_handler = SIG_IGN;
+    sigemptyset(&ignore.sa_mask);
+    ignore.sa_flags = 0;
+
+    return sigaction(SIGPIPE, &ignore, NULL);
+}
 
 static ssize_t real_send(int fd, const void *buffer, size_t length, int flags, void *context) {
     (void)context;
