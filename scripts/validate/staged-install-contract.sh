@@ -85,6 +85,10 @@ test -f "$dest_dir/usr/share/mochad-redux/templates/mochad.conf.example" || {
     echo "FAIL: staged config template missing" >&2
     exit 1
 }
+test -f "$dest_dir/usr/share/mochad-redux/templates/com.mochad-redux.mochad.plist.in" || {
+    echo "FAIL: staged launchd template missing" >&2
+    exit 1
+}
 test -f "$dest_dir/usr/share/man/man1/mochad.1" || {
     echo "FAIL: staged manual page missing" >&2
     exit 1

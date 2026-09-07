@@ -37,8 +37,10 @@
 #include <errno.h>
 #include <limits.h>
 
-/* Every OS-dependent header - syslog, poll, sockets, signals, ioctl - plus the
- * MSG_NOSIGNAL fallback lives in one auditable place. See src/core/platform.h.
+/* Every OS-dependent header - syslog, poll, sockets, signals, ioctl, and the
+ * macOS posix_spawn/dyld pieces mochad_detach_background_macos() needs -- plus
+ * the MSG_NOSIGNAL fallback -- live in one auditable place. See
+ * src/core/platform.h.
  */
 #include "platform.h"
 
@@ -2350,6 +2352,131 @@ void help() {
 // This affects whether decode.c will show raw frame data for debugging RF connectivity
 // as well as providing raw data for parsing by users like misterhouse's X10_CMxx module.
 int raw_data = 0;
+
+#if defined(__APPLE__)
+/* Marker set in the detached child so it does not respawn itself. */
+#define MOCHAD_BACKGROUND_REEXEC_ENV "MOCHAD_BACKGROUND_REEXEC"
+
+/* Emulate daemon(0, 0) without calling the API Apple deprecated in macOS 10.5
+ * ("Use posix_spawn APIs instead"). The parent spawns a detached foreground
+ * copy of itself and exits, so Apple builds contain no daemon() reference.
+ *
+ * Returns 0 in the parent (caller must exit), 1 in the respawned child
+ * (caller continues in the foreground), and -1 when the spawn failed.
+ */
+static int mochad_detach_background_macos(int argc, char *argv[]) {
+    char exec_path[PATH_MAX];
+    uint32_t exec_len = sizeof(exec_path);
+    char **child_argv;
+    size_t child_count = 0;
+    posix_spawn_file_actions_t actions;
+    posix_spawnattr_t attr;
+    short flags = POSIX_SPAWN_SETSID;
+    pid_t child = 0;
+    int i;
+    int rc;
+
+    if (getenv(MOCHAD_BACKGROUND_REEXEC_ENV) != NULL) {
+        unsetenv(MOCHAD_BACKGROUND_REEXEC_ENV);
+        if (chdir("/") < 0) {
+            syslog(LOG_WARNING, "[STARTUP] background re-exec chdir(/) failed errno=%d error=%s",
+                   errno, strerror(errno));
+        }
+        return 1;
+    }
+
+    if (_NSGetExecutablePath(exec_path, &exec_len) != 0) {
+        syslog(LOG_NOTICE, "[STARTUP] background re-exec failed: executable path too long");
+        fprintf(stderr, "background re-exec failed: executable path too long\n");
+        return -1;
+    }
+
+    /* Rebuild argv verbatim except foreground selectors; appending
+     * --foreground last wins under CLI precedence (see apply_cli()).
+     */
+    child_argv = malloc((size_t)(argc + 2) * sizeof(*child_argv));
+    if (child_argv == NULL) {
+        syslog(LOG_NOTICE, "[STARTUP] background re-exec failed: out of memory");
+        fprintf(stderr, "background re-exec failed: out of memory\n");
+        return -1;
+    }
+    for (i = 0; i < argc; i++) {
+        if (i > 0 && (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--foreground") == 0 ||
+                      strcmp(argv[i], "--background") == 0)) {
+            continue;
+        }
+        child_argv[child_count++] = argv[i];
+    }
+    child_argv[child_count++] = (char *)"--foreground";
+    child_argv[child_count] = NULL;
+
+    rc = posix_spawn_file_actions_init(&actions);
+    if (rc != 0) {
+        syslog(LOG_NOTICE, "[STARTUP] background re-exec failed rc=%d error=%s", rc, strerror(rc));
+        fprintf(stderr, "background re-exec failed: %s\n", strerror(rc));
+        free(child_argv);
+        return -1;
+    }
+    /* Mirror daemon(0, 0) stdio handling: redirect standard descriptors. */
+    if (posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0) != 0 ||
+        posix_spawn_file_actions_addopen(&actions, 1, "/dev/null", O_WRONLY | O_CREAT, 0644) != 0 ||
+        posix_spawn_file_actions_addopen(&actions, 2, "/dev/null", O_WRONLY | O_CREAT, 0644) != 0) {
+        rc = errno;
+        syslog(LOG_NOTICE, "[STARTUP] background re-exec stdio setup failed errno=%d error=%s", rc,
+               strerror(rc));
+        fprintf(stderr, "background re-exec stdio setup failed: %s\n", strerror(rc));
+        posix_spawn_file_actions_destroy(&actions);
+        free(child_argv);
+        return -1;
+    }
+
+    rc = posix_spawnattr_init(&attr);
+    if (rc != 0) {
+        syslog(LOG_NOTICE, "[STARTUP] background re-exec failed rc=%d error=%s", rc, strerror(rc));
+        fprintf(stderr, "background re-exec failed: %s\n", strerror(rc));
+        posix_spawn_file_actions_destroy(&actions);
+        free(child_argv);
+        return -1;
+    }
+    /* New session without a controlling terminal, like daemon()'s setsid(). */
+    if (posix_spawnattr_setflags(&attr, flags) != 0) {
+        rc = errno;
+        syslog(LOG_NOTICE, "[STARTUP] background re-exec attr setup failed errno=%d error=%s", rc,
+               strerror(rc));
+        fprintf(stderr, "background re-exec attr setup failed: %s\n", strerror(rc));
+        posix_spawnattr_destroy(&attr);
+        posix_spawn_file_actions_destroy(&actions);
+        free(child_argv);
+        return -1;
+    }
+
+    if (setenv(MOCHAD_BACKGROUND_REEXEC_ENV, "1", 1) != 0) {
+        rc = errno;
+        syslog(LOG_NOTICE, "[STARTUP] background re-exec failed errno=%d error=%s", rc,
+               strerror(rc));
+        fprintf(stderr, "background re-exec failed: %s\n", strerror(rc));
+        posix_spawnattr_destroy(&attr);
+        posix_spawn_file_actions_destroy(&actions);
+        free(child_argv);
+        return -1;
+    }
+    rc = posix_spawn(&child, exec_path, &actions, &attr, child_argv, environ);
+    posix_spawnattr_destroy(&attr);
+    posix_spawn_file_actions_destroy(&actions);
+    free(child_argv);
+    if (rc != 0) {
+        unsetenv(MOCHAD_BACKGROUND_REEXEC_ENV);
+        syslog(LOG_NOTICE, "[STARTUP] background re-exec spawn failed rc=%d error=%s", rc,
+               strerror(rc));
+        fprintf(stderr, "background re-exec spawn failed: %s\n", strerror(rc));
+        return -1;
+    }
+
+    syslog(LOG_NOTICE, "[STARTUP] detached background child pid=%d", (int)child);
+    return 0;
+}
+#endif
+
 int main(int argc, char *argv[]) {
     int rc, i;
     char config_error[256];
@@ -2420,9 +2547,27 @@ int main(int argc, char *argv[]) {
 
     /* Daemonize */
     if (!MochadConfig.foreground) {
+#if defined(__APPLE__)
+        /* Apple deprecated daemon(); re-exec detached via posix_spawn instead. */
+        rc = mochad_detach_background_macos(argc, argv);
+        if (rc == 0) {
+            /* Parent: the detached child continues. Exit like daemon()'s parent. */
+            syslog(LOG_NOTICE, "[STARTUP] running in background");
+            closelog();
+            return 0;
+        }
+        if (rc < 0) {
+            syslog(LOG_NOTICE, "[STARTUP] background detach failed");
+            closelog();
+            return 1;
+        }
+        MochadConfig.foreground = 1;
+        syslog(LOG_NOTICE, "[STARTUP] running in background");
+#else
         rc = daemon(0, 0);
         dbprintf("daemon() => %d\n", rc);
         syslog(LOG_NOTICE, "[STARTUP] running in background");
+#endif
     } else {
         syslog(LOG_NOTICE, "[STARTUP] running in foreground");
     }
