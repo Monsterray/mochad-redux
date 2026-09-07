@@ -30,6 +30,7 @@ print-sbindir:
 	@echo '$(sbindir)'
 
 mochad_SOURCES = src/core/mochad.c src/core/global.c src/core/global.h \
+		src/core/platform.h \
 		src/config/config.c src/config/config.h src/config/version.h \
 		src/net/diagnostics.c src/net/diagnostics.h \
 		src/net/socket_io.c src/net/socket_io.h \
@@ -103,6 +104,7 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		docs/development/hardware-lab-setup.md \
 		docs/development/hardware-validation.md \
 		docs/development/test-strategy.md \
+		docs/development/portability.md \
 		docs/protocol/json-api.md \
 		docs/research/milestones/milestone-1.md \
 		docs/research/audits/static-analysis.md \

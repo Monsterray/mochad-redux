@@ -33,42 +33,19 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <signal.h>
-#include <poll.h>
 #include <time.h>
 #include <errno.h>
 #include <limits.h>
-#include <unistd.h>
-#include <fcntl.h>
 
-/**** system log ****/
-#include <syslog.h>
-
-/**** ioctl ****/
-#include <sys/ioctl.h>
+/* Every OS-dependent header - syslog, poll, sockets, signals, ioctl - plus the
+ * MSG_NOSIGNAL fallback lives in one auditable place. See src/core/platform.h.
+ */
+#include "platform.h"
 
 /* Multiple On-line Controllers Home Automation Daemon */
 #define DAEMON_NAME "mochad"
 
 #define LEVEL LOG_INFO // was originally LOG_EMERG
-
-/**** socket ****/
-
-#include <sys/socket.h>
-
-/* Matches the fallback in src/net/socket_io.c so a platform without
- * MSG_NOSIGNAL still compiles. See flush_client_output().
- *
- * On such a platform the flag is a no-op, so the SIGPIPE protection comes
- * instead from mochad_ignore_sigpipe(), installed in mydaemon() before any
- * listener exists. Neither mechanism alone covers every supported platform.
- */
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
-#endif
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 
 #include "config.h"
 #include "diagnostics.h"
