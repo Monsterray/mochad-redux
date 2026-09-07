@@ -58,6 +58,11 @@ claim for CM15A, Docker USB passthrough, Apple silicon, or every libusb host.
 macOS may also print libusb capture-entitlement warnings even when interface
 claim and recovery succeed.
 
+Supervision under launchd is documented separately in
+[macOS launchd integration](macos-launchd.md). The launchd-supervised
+variant has no hardware evidence of its own and does not change the
+Best-effort level.
+
 ## Networking
 
 | Mode | Level | Notes |
