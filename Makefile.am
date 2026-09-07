@@ -13,7 +13,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/src/core \
 templatedir = $(pkgdatadir)/templates
 template_DATA = packaging/linux/systemd/mochad.service.in \
 		packaging/linux/udev/91-usb-x10-controllers.rules.in \
-		packaging/linux/config/mochad.conf.example
+		packaging/linux/config/mochad.conf.example \
+		packaging/macos/LaunchDaemons/com.mochad-redux.mochad.plist.in
 legacydir = $(pkgdatadir)/legacy/hotplug2
 legacy_DATA = packaging/openwrt/hotplug2/20-usb-x10 \
 		packaging/openwrt/init.d/mochad
@@ -45,6 +46,7 @@ mochad_SOURCES = src/core/mochad.c src/core/global.c src/core/global.h \
 EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		packaging/linux/systemd/mochad.service.in \
 		packaging/linux/udev/91-usb-x10-controllers.rules.in \
+		packaging/macos/LaunchDaemons/com.mochad-redux.mochad.plist.in \
 		docs/research/legacy-packaging/udev/91-usb-x10-controllers.rules \
 		docs/research/legacy-packaging/udev/91-usb-x10-controllers.rules-systemd \
 		docs/research/legacy-packaging/udev/README.md \
@@ -75,6 +77,7 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		scripts/validate/full-libusb-build.sh \
 		scripts/validate/libusb-stub-syntax-check.sh \
 		scripts/validate/native-smoke-test.sh \
+		scripts/validate/macos-launchd-plist.sh \
 		scripts/validate/native-setup-tool.sh \
 		scripts/validate/staged-install-contract.sh \
 		scripts/validate/release-evidence.sh \
@@ -120,6 +123,7 @@ EXTRA_DIST = packaging/linux/config/mochad.conf.example \
 		docs/development/repository-layout-proposal.md \
 		docs/README.md \
 		docs/installation/supported-platforms.md \
+		docs/installation/macos-launchd.md \
 		docs/installation/native-install-rollback.md \
 		docs/operations/support-bundles.md \
 		docs/installation/backup-and-restore.md \

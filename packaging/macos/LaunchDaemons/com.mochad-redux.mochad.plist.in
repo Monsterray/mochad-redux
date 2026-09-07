@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Inactive template. This file is deliberately NOT loaded by make install.
+    Render @MOCHAD_BINARY@ (for example with sed) and copy the result to
+    /Library/LaunchDaemons/com.mochad-redux.mochad.plist, then follow
+    docs/installation/macos-launchd.md to bootstrap it. Package installation
+    must never alter the running host.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mochad-redux.mochad</string>
+
+    <!-- Foreground mode: launchd supervises the process directly, so the
+         background option must not be used here. Extra daemon flags such as
+         a bind address may be appended after -d. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>@MOCHAD_BINARY@</string>
+        <string>-d</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- SuccessfulExit=false keeps a clean SIGTERM shutdown stopped while still
+         respawning the daemon after a failure exit (for example exit 1 when no
+         CM15A/CM19A controller is attached yet). Expect a respawn roughly every
+         ThrottleInterval seconds until the controller appears. -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <!-- launchd creates these files when missing, but /var/log/mochad must
+         already exist; see docs/installation/macos-launchd.md. -->
+    <key>StandardOutPath</key>
+    <string>/var/log/mochad/mochad.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/mochad/mochad.err.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>/</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

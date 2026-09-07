@@ -80,4 +80,20 @@ docs/development/portability.md. Build under WSL2 or a Linux/macOS host."
 #define MSG_NOSIGNAL 0
 #endif
 
+/*
+ * macOS deprecated daemon() in 10.5 ("Use posix_spawn APIs instead"). Apple
+ * builds detach into the background by re-executing themselves through
+ * posix_spawn instead (src/core/mochad.c: mochad_detach_background_macos()),
+ * which needs the executable's own path (_NSGetExecutablePath, from
+ * mach-o/dyld.h) and the process environment to hand to posix_spawn
+ * (environ, declared extern -- unistd.h only exposes it under
+ * _DARWIN_C_SOURCE, which is not guaranteed here). Linux keeps using
+ * daemon() and needs neither.
+ */
+#if defined(__APPLE__)
+#include <spawn.h>
+#include <mach-o/dyld.h>
+extern char **environ;
+#endif
+
 #endif /* MOCHAD_PLATFORM_H */
