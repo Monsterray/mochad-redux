@@ -33,11 +33,18 @@ unsigned short RfToRf16 = 0;
 
 /* #define dbprintf(fmt,...) fprintf(stderr, "%s:%d:" fmt, __FILE__,__LINE__,__VA_ARGS__) */
 #define dbprintf(fmt, ...) _dbprintf(fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+static int DebugLogEnabled = 1;
+
+void dbprintf_set_enabled(int enabled) { DebugLogEnabled = enabled != 0; }
+
 int _dbprintf(const char *fmt, ...) {
     va_list args;
     const char *file;
     int line;
     int prefixlen, msglen;
+
+    if (!DebugLogEnabled)
+        return 0;
 
     va_start(args, fmt);
     file = va_arg(args, const char *);
