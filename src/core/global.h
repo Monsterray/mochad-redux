@@ -34,6 +34,7 @@ extern unsigned short RfToRf16;
 
 #define dbprintf(fmt, ...) _dbprintf(fmt, __FILE__, __LINE__, ##__VA_ARGS__)
 int _dbprintf(const char *fmt, ...);
+void dbprintf_set_enabled(int enabled);
 
 int write_usb(unsigned char *buf, size_t len);
 

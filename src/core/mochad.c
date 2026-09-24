@@ -2531,6 +2531,8 @@ int main(int argc, char *argv[]) {
      * friendly lifecycle messages to stderr for containers and manual tests.
      */
     StartTime = time(NULL);
+    /* Legacy stderr debug messages must honor the configured log threshold too. */
+    dbprintf_set_enabled(MochadConfig.log_level >= LOG_DEBUG);
     openlog(DAEMON_NAME, LOG_PID | (MochadConfig.foreground ? LOG_PERROR : 0), LOG_LOCAL5);
     setlogmask(LOG_UPTO(MochadConfig.log_level));
     syslog(LOG_NOTICE,

@@ -40,6 +40,13 @@ echo "+ socket_io"
 "$BUILD_DIR/test_socket_io"
 
 echo
+echo "+ debug_log"
+# shellcheck disable=SC2086
+"$CC" $CFLAGS tests/unit/test_debug_log.c src/core/global.c \
+    -o "$BUILD_DIR/test_debug_log" $LDFLAGS
+"$BUILD_DIR/test_debug_log"
+
+echo
 echo "+ sigpipe"
 # shellcheck disable=SC2086
 "$CC" $CFLAGS tests/unit/test_sigpipe.c src/net/socket_io.c     -o "$BUILD_DIR/test_sigpipe" $LDFLAGS
