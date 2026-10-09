@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <syslog.h>
 #include <unistd.h>
 
 struct fake_sender_state {
@@ -123,6 +124,19 @@ static int test_real_socketpair(void) {
 }
 
 int main(void) {
+    const mochad_client_activity probe = {1000, 0};
+    const mochad_client_activity command_client = {1000, 6};
+
+    if (expect(mochad_client_disconnect_log_level(&probe, 1001) == LOG_DEBUG,
+               "short empty health probe must be DEBUG") ||
+        expect(mochad_client_disconnect_log_level(&probe, 6000) == LOG_NOTICE,
+               "persistent empty client must remain visible") ||
+        expect(mochad_client_disconnect_log_level(&command_client, 1001) == LOG_NOTICE,
+               "command client must remain visible") ||
+        expect(mochad_client_disconnect_log_level(&probe, 999) == LOG_NOTICE,
+               "invalid elapsed time must not hide a disconnect"))
+        return 1;
+
     if (test_partial_writes())
         return 1;
     if (test_eintr_retry())

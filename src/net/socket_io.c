@@ -9,8 +9,17 @@
 #include <signal.h>
 #include <stddef.h>
 #include <string.h>
+#include <syslog.h>
 
 #include "platform.h"
+
+int mochad_client_disconnect_log_level(const mochad_client_activity *activity, uint64_t now_ms) {
+    /* Short, command-free connections are normally TCP health probes. */
+    if (activity->received_bytes == 0 && now_ms >= activity->connected_ms &&
+        now_ms - activity->connected_ms < 5000)
+        return LOG_DEBUG;
+    return LOG_NOTICE;
+}
 
 int mochad_ignore_sigpipe(void) {
     struct sigaction ignore;

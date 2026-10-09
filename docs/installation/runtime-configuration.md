@@ -147,3 +147,16 @@ Normal removal does not delete users, groups, or configuration.
 
 See [native rollback](native-install-rollback.md) for the complete managed
 cleanup workflow.
+
+## Client and Debug Logging
+
+At INFO, the first command identifies an active client; its disconnect remains
+visible. Short connections that send no commands and close within five seconds
+are logged at DEBUG, reducing noise from TCP health probes. Longer receive-only
+clients remain visible on disconnect. Connection failures, output queue overflow,
+and stalled-client warnings remain visible at INFO.
+
+Raw byte hexdumps use DEBUG instead of unconditional stdout output. This does
+not change raw-data mode, native TCP lines, XMLSocket NUL framing, or OpenRemote
+responses. Use DEBUG when diagnosing probe connections or raw USB packets.
+Client IDs still identify each connection across lifecycle messages.

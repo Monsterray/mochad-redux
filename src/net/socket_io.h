@@ -6,12 +6,20 @@
 #define MOCHAD_SOCKET_IO_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include <sys/types.h>
 
 typedef ssize_t (*mochad_send_func)(int fd, const void *buffer, size_t length, int flags,
                                     void *context);
 
 int send_all(int fd, const void *buffer, size_t length);
+
+typedef struct {
+    uint64_t connected_ms;
+    size_t received_bytes;
+} mochad_client_activity;
+
+int mochad_client_disconnect_log_level(const mochad_client_activity *activity, uint64_t now_ms);
 
 /*
  * Ignore SIGPIPE for the whole process.
