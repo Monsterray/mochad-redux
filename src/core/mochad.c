@@ -83,6 +83,9 @@ static cm15a_encode_state_t Clientor20states[MAXCLISOCKETS];
 static unsigned int Clientids[MAXCLISOCKETS];
 static unsigned int Clientxmlids[MAXCLISOCKETS];
 static unsigned int Clientor20ids[MAXCLISOCKETS];
+static mochad_client_activity Clientactivity[MAXCLISOCKETS];
+static mochad_client_activity Clientxmlactivity[MAXCLISOCKETS];
+static mochad_client_activity Clientor20activity[MAXCLISOCKETS];
 struct client_output_queue {
     unsigned char data[CLIENT_OUTPUT_QUEUE_SIZE];
     size_t head;
@@ -153,6 +156,7 @@ extern int raw_data;
 int del_client(int fd);
 static int queue_client_bytes(int fd, const void *buffer, size_t length);
 static int set_fd_nonblocking(int fd);
+static uint64_t monotonic_ms(void);
 
 static void client_output_init(struct client_output_queue *queue) {
     queue->head = 0;
@@ -522,7 +526,7 @@ void hexdump(void *p, size_t len) {
         return;
 
     _hexdump(p, len, buf, sizeof(buf));
-    puts(buf);
+    syslog(LOG_DEBUG, "[USB] raw bytes=%s", buf);
 }
 
 void sockhexdump(int fd, void *p, size_t len) {
@@ -583,11 +587,12 @@ static int add_client(int fd) {
             Clientsocks[i].events = POLLIN;
             Clientsocks[i].revents = 0;
             Clientids[i] = next_client_id();
+            Clientactivity[i] = (mochad_client_activity){monotonic_ms(), 0};
             cm15a_encode_state_init(&Clientstates[i]);
             client_output_init(&Clientoutputs[i]);
             NClients++;
             dbprintf("add_client: i %d NClients %d\n", i, NClients);
-            syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=main fd=%d", Clientids[i], fd);
+            syslog(LOG_DEBUG, "[CLIENT] client id=%u connected type=main fd=%d", Clientids[i], fd);
             return 0;
         }
     }
@@ -613,11 +618,12 @@ static int add_xmlclient(int fd) {
             Clientxmlsocks[i].events = POLLIN;
             Clientxmlsocks[i].revents = 0;
             Clientxmlids[i] = next_client_id();
+            Clientxmlactivity[i] = (mochad_client_activity){monotonic_ms(), 0};
             cm15a_encode_state_init(&Clientxmlstates[i]);
             client_output_init(&Clientxmloutputs[i]);
             NxmlClients++;
             dbprintf("add_xmlclient: i %d NxmlClients %d\n", i, NxmlClients);
-            syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=xml fd=%d", Clientxmlids[i],
+            syslog(LOG_DEBUG, "[CLIENT] client id=%u connected type=xml fd=%d", Clientxmlids[i],
                    fd);
             return 0;
         }
@@ -645,11 +651,12 @@ static int add_or20client(int fd) {
             Clientor20socks[i].events = POLLIN;
             Clientor20socks[i].revents = 0;
             Clientor20ids[i] = next_client_id();
+            Clientor20activity[i] = (mochad_client_activity){monotonic_ms(), 0};
             cm15a_encode_state_init(&Clientor20states[i]);
             client_output_init(&Clientor20outputs[i]);
             Nor20Clients++;
             dbprintf("add_or20client: i %d Nor20Clients %d\n", i, Nor20Clients);
-            syslog(LOG_NOTICE, "[CLIENT] client id=%u connected type=openremote fd=%d",
+            syslog(LOG_DEBUG, "[CLIENT] client id=%u connected type=openremote fd=%d",
                    Clientor20ids[i], fd);
             return 0;
         }
@@ -685,6 +692,32 @@ static unsigned int client_id_for_fd(int fd) {
             return Clientor20ids[i];
     }
     return 0;
+}
+
+static void record_client_input(int fd, size_t bytes) {
+    int i;
+    mochad_client_activity *activity = NULL;
+    const char *type = NULL;
+
+    for (i = 0; i < MAXCLISOCKETS; i++) {
+        if (Clientsocks[i].fd == fd) {
+            activity = &Clientactivity[i];
+            type = "main";
+        } else if (Clientxmlsocks[i].fd == fd) {
+            activity = &Clientxmlactivity[i];
+            type = "xml";
+        } else if (Clientor20socks[i].fd == fd) {
+            activity = &Clientor20activity[i];
+            type = "openremote";
+        }
+        if (activity != NULL) {
+            if (activity->received_bytes == 0)
+                syslog(LOG_NOTICE, "[CLIENT] client id=%u active type=%s fd=%d",
+                       client_id_for_fd(fd), type, fd);
+            activity->received_bytes += bytes;
+            return;
+        }
+    }
 }
 
 static struct client_output_queue *client_output_for_fd(int fd) {
@@ -834,8 +867,8 @@ int del_client(int fd) {
     dbprintf("del_client(%d)\n", fd);
     for (i = 0; i < MAXCLISOCKETS; i++) {
         if (Clientsocks[i].fd == fd) {
-            syslog(LOG_NOTICE, "[CLIENT] client id=%u disconnected type=main fd=%d", Clientids[i],
-                   fd);
+            syslog(mochad_client_disconnect_log_level(&Clientactivity[i], monotonic_ms()),
+                   "[CLIENT] client id=%u disconnected type=main fd=%d", Clientids[i], fd);
             shutdown(fd, SHUT_RDWR);
             close(fd);
             Clientsocks[i].fd = -1;
@@ -847,8 +880,8 @@ int del_client(int fd) {
             return 0;
         }
         if (Clientxmlsocks[i].fd == fd) {
-            syslog(LOG_NOTICE, "[CLIENT] client id=%u disconnected type=xml fd=%d", Clientxmlids[i],
-                   fd);
+            syslog(mochad_client_disconnect_log_level(&Clientxmlactivity[i], monotonic_ms()),
+                   "[CLIENT] client id=%u disconnected type=xml fd=%d", Clientxmlids[i], fd);
             shutdown(fd, SHUT_RDWR);
             close(fd);
             Clientxmlsocks[i].fd = -1;
@@ -860,8 +893,9 @@ int del_client(int fd) {
             return 0;
         }
         if (Clientor20socks[i].fd == fd) {
-            syslog(LOG_NOTICE, "[CLIENT] client id=%u disconnected type=openremote fd=%d",
-                   Clientor20ids[i], fd);
+            syslog(mochad_client_disconnect_log_level(&Clientor20activity[i], monotonic_ms()),
+                   "[CLIENT] client id=%u disconnected type=openremote fd=%d", Clientor20ids[i],
+                   fd);
             shutdown(fd, SHUT_RDWR);
             close(fd);
             Clientor20socks[i].fd = -1;
@@ -2252,11 +2286,10 @@ static int mydaemon(void) {
                             del_client(clifd);
                         } else if (bytesIn == 0) {
                             dbprintf("read EOF %d\n", bytesIn);
-                            syslog(LOG_NOTICE, "[CLIENT] connection closed client_id=%u fd=%d",
-                                   client_id_for_fd(clifd), clifd);
                             del_client(clifd);
                         } else {
                             cm15a_encode_state_t *state;
+                            record_client_input(clifd, (size_t)bytesIn);
                             dbprintf("Input bytes %d\n", bytesIn);
                             syslog(LOG_DEBUG, "[COMMAND] received client_id=%u fd=%d bytes=%d",
                                    client_id_for_fd(clifd), clifd, bytesIn);
